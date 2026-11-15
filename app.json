@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "Nutrition Assistant",
+    "slug": "nutrition-assistant",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": { "supportsTablet": false },
+    "android": { "adaptiveIcon": { "backgroundColor": "#F4F7FF" } }
+  }
+}
