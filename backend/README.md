@@ -1,0 +1,33 @@
+# Nutrition Assistant API (MVP)
+
+Small Express API serving an explicitly attributed demonstration food catalog and deterministic sample meal plans.
+
+## Run
+
+```sh
+npm install
+npm run api
+npm run test:api
+```
+
+API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The default CORS `*` is for development only; set an explicit origin before deployment. No authentication, database, account storage, or health-data persistence is implemented.
+
+### Routes
+
+- `GET /health`
+- `GET /api/v1/foods?q=...&category=...`
+- `GET /api/v1/foods/:id`
+- `POST /api/v1/nutrition/calculate` — `{ "items": [{ "foodId": "rice-steamed", "grams": 100 }] }`
+- `POST /api/v1/meal-plans/generate` — `{ "budgetVnd": 120000, "allergies": ["cá"], "excludedFoodIds": [], "preferences": "..." }`
+
+Meal generation is deterministic template selection, not AI, a clinical optimizer, or a validated diet prescription. Demonstration price estimates are invented. Nutrient estimates omit recipe variation, oil, salt, sauces and seasoning. Read `data/sources.json` for source limitations.
+
+## Food data provenance / Vietnam data
+
+The project request asks to use Vietnam's National Institute of Nutrition. This repository does **not** yet include an official Institute dataset: in this implementation session, an official machine-readable download and its reuse terms could not be verified. We therefore do not attribute any values to the Institute. The handful of prototype records use approximate comparator values referenced to USDA FoodData Central, with record-level notes in `data/foods.json`; they are not Vietnam-specific and are not clinical-grade.
+
+Before production, obtain an official Vietnamese food composition table and confirm permission/license for redistribution. Preserve edition, food identifiers, preparation state, units, source page/value, missing-value semantics and transformations on every imported record. Have a qualified Vietnamese dietitian review recipes and serving sizes. Do not load a scraped/unclear-license table or label estimates as official Institute data.
+
+## Mobile connection
+
+`EXPO_PUBLIC_API_URL` overrides the API base URL. For a physical phone, `localhost` points to the phone itself; set this variable to the development computer's reachable LAN address, e.g. `http://192.168.1.20:4000`. The API currently has no production security hardening and must not be exposed publicly with personal data.

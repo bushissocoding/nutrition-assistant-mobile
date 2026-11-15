@@ -1,0 +1,22 @@
+{
+  "note": "The current MVP catalog is a small demonstration set and does NOT claim to contain data from the Vietnam National Institute of Nutrition. Each record names an explicit comparator source. Replace/extend only with a licensed, provenance-preserving Vietnamese composition dataset.",
+  "preferredVietnamSource": {
+    "name": "Bảng thành phần thực phẩm Việt Nam / Vietnam food composition table",
+    "publisher": "Viện Dinh dưỡng (National Institute of Nutrition), Vietnam",
+    "sourceUrl": "https://viendinhduong.vn/",
+    "status": "Not imported: an official downloadable dataset and reuse terms were not verifiably located in this session. Do not attribute USDA values to the Institute."
+  },
+  "regionalCatalog": {
+    "name": "FAO/INFOODS Asia food composition tables and databases index",
+    "publisher": "FAO/INFOODS",
+    "url": "https://www.fao.org/infoods/infoods/tables-and-databases/asia/en/",
+    "note": "Index lists regional food-composition resources; it does not establish a verified current Vietnamese dataset license."
+  },
+  "records": [
+    {
+      "name": "USDA FoodData Central",
+      "url": "https://fdc.nal.usda.gov/",
+      "scope": "Explicit comparator records in foods.json (cooked white rice, boiled egg, firm tofu, raw pumpkin/cabbage/spinach, roasted chicken breast, cooked tilapia). Not Vietnamese-specific."
+    }
+  ]
+}
