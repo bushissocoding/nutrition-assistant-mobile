@@ -18,7 +18,9 @@ API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` 
 - `GET /api/v1/foods?q=...&category=...`
 - `GET /api/v1/foods/:id`
 - `POST /api/v1/nutrition/calculate` — `{ "items": [{ "foodId": "rice-steamed", "grams": 100 }] }`
-- `POST /api/v1/meal-plans/generate` — `{ "budgetVnd": 120000, "allergies": ["cá"], "excludedFoodIds": [], "preferences": "..." }`
+- `POST /api/v1/meal-plans/generate` — `{ "budgetVnd": 120000, "allergies": ["cá"], "excludedFoodIds": [], "preferences": "...", "targets": { "fiberG": { "min": 25 }, "sodiumMg": { "max": 2000 } }, "hardLimits": { "sodiumMg": { "max": 2300 } } }`
+
+The planner searches the finite meal-template catalog across 0.75×, 1×, and 1.25× portions per meal slot. `targets` are soft objectives (below-minimum/above-maximum results are allowed but returned as warnings); `hardLimits` are enforced ceilings/floors and plans that violate them are rejected. Omitted soft targets use generic demonstration ranges from `server/meal-planner.js`. They are product examples, not personalized dietary recommendations or medical constraints. The optimizer cannot create a recipe outside `server/data/meals.json`.
 
 Meal generation is deterministic template selection, not AI, a clinical optimizer, or a validated diet prescription. Demonstration price estimates are invented. Nutrient estimates omit recipe variation, oil, salt, sauces and seasoning. Read `data/sources.json` for source limitations.
 

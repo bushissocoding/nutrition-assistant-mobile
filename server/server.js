@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { generatePlan } = require('./meal-planner');
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
@@ -57,25 +58,11 @@ app.post('/api/v1/nutrition/calculate', (req, res) => {
   res.json({ totals: totals(items), items: items.map(item => ({ food: foods.find(f => f.id === item.foodId).name, grams: item.grams, nutrients: calculateFood(foods.find(f => f.id === item.foodId), item.grams) })), sources: [...new Set(items.map(i => foods.find(f => f.id === i.foodId).source.name))] });
 });
 app.post('/api/v1/meal-plans/generate', (req, res) => {
-  const { budgetVnd = 120000, allergies = [], excludedFoodIds = [], preferences = '' } = req.body || {};
-  if (!Number.isFinite(budgetVnd) || budgetVnd < 0 || budgetVnd > 10000000) return res.status(400).json({ error: 'Ngân sách không hợp lệ.' });
-  const blocked = [...new Set([...(Array.isArray(excludedFoodIds) ? excludedFoodIds : []), ...foods.filter(f => f.allergens.some(a => (allergies || []).includes(a))).map(f => f.id)])];
-  const allowed = foods.filter(f => !blocked.includes(f.id));
-  const pick = id => allowed.find(f => f.id === id);
-  const meals = mealTemplates.map(template => ({
-    slot: template.slot,
-    name: template.name,
-    estimatedCostVnd: template.estimatedCostVnd,
-    items: template.items.map(item => [pick(item.foodId), item.grams])
-  })).filter(meal => meal.items.every(([food]) => food));
-  let cost = 0; const withinBudget = meals.filter(meal => { if (cost + meal.estimatedCostVnd > budgetVnd) return false; cost += meal.estimatedCostVnd; return true; });
-  const plan = withinBudget.map(meal => {
-    const items = meal.items.map(([food, grams]) => ({ foodId: food.id, grams }));
-    return { slot: meal.slot, name: meal.name, portions: items.map(i => ({ food: foods.find(f => f.id === i.foodId).name, grams: i.grams, household: foods.find(f => f.id === i.foodId).serving.household })), estimatedCostVnd: meal.estimatedCostVnd, nutrients: totals(items), explanation: 'Thành phần được ước tính từ dữ liệu trên 100 g; lượng natri trong dầu, muối, nước chấm và gia vị nấu chưa được tính.', why: `Có thể điều chỉnh theo sở thích${preferences ? ` (yêu cầu: ${String(preferences).slice(0, 120)})` : ''}; cần bác sĩ/chuyên gia dinh dưỡng duyệt nếu áp dụng chế độ điều trị.` };
-  });
-  const grocery = {};
-  for (const meal of withinBudget) for (const [food, grams] of meal.items) grocery[food.id] = (grocery[food.id] || 0) + grams;
-  res.json({ plan, dailyTotals: plan.reduce((sum, meal) => { for (const [key, value] of Object.entries(meal.nutrients)) sum[key] = round((sum[key] || 0) + value); return sum; }, {}), estimatedCostVnd: cost, grocery: Object.entries(grocery).map(([foodId, grams]) => ({ foodId, name: foods.find(f => f.id === foodId).name, grams })), constraintsApplied: { allergies, excludedFoodIds: blocked }, limitations: ['Thực đơn mẫu dùng các mức chi phí minh họa, không phải giá thị trường trực tiếp.', 'Chưa tích hợp chuẩn khẩu phần/chế độ bệnh viện DD01-X hoặc DD02-CKD.', 'Không dùng thực đơn này làm chỉ định y tế; số natri thực tế chịu ảnh hưởng lớn bởi gia vị và cách nấu.'] });
+  try {
+    res.json(generatePlan({ foods, mealTemplates, ...(req.body || {}) }));
+  } catch (error) {
+    res.status(400).json({ error: error.message || 'Tham số tạo thực đơn không hợp lệ.' });
+  }
 });
 app.use((err, _req, res, _next) => { console.error(err); res.status(500).json({ error: 'Lỗi nội bộ.' }); });
 app.listen(port, '0.0.0.0', () => console.log(`Nutrition API listening on ${port}`));

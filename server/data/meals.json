@@ -1,5 +1,5 @@
 [
   {"id":"rice-egg-cabbage","name":"Cơm trứng và bắp cải","slot":"Bữa sáng","estimatedCostVnd":18000,"items":[{"foodId":"rice-steamed","grams":100},{"foodId":"egg-boiled","grams":50},{"foodId":"cabbage","grams":80}],"tags":["sample"]},
   {"id":"chicken-rice-greens","name":"Cơm gà rau xanh","slot":"Bữa trưa","estimatedCostVnd":42000,"items":[{"foodId":"rice-steamed","grams":120},{"foodId":"chicken-breast","grams":90},{"foodId":"spinach","grams":100}],"tags":["sample"]},
-  {"id":"fish-rice-pumpkin","name":"Cá, cơm và bí đỏ","slot":"Bữa tối","estimatedCostVnd":45000,"items":[{"foodId":"rice-steamed","grams":100},{"foodId":"tilapia","grams":100},{"foodId":"pumpkin","grams":100}],"tags":["sample"]}
+  {"id":"fish-rice-pumpkin","name":"Cá, cơm và bí đỏ","slot":"Bữa tối","estimatedCostVnd":45000,"items":[{"foodId":"rice-steamed","grams":100},{"foodId":"tilapia","grams":60},{"foodId":"pumpkin","grams":100}],"tags":["sample"]}
 ]
