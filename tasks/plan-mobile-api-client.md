@@ -2,6 +2,8 @@
 
 Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 
+Status: approved
+
 ## Tổng quan
 
 Thay transport rải rác/fallback `localhost` hiện tại bằng một API client dùng chung cho Expo. Client validate `EXPO_PUBLIC_API_URL`, giữ demo namespace ổn định bằng SecureStore, áp timeout hữu hạn, chuẩn hóa lỗi HTTP/mạng và không tự retry mutation. Module này chưa thêm endpoint diary/grocery hay trạng thái UI của hai feature.
