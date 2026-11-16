@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { createApiClient, ApiClientError } = require('./api-client.cjs');
+const { createApiClient, createApiMethods, ApiClientError } = require('./api-client.cjs');
 const { ApiConfigurationError } = require('./api-config.cjs');
 
 function createResponse(status, body = '') {
@@ -20,6 +20,24 @@ function createClient(fetchImpl, overrides = {}) {
     ...overrides,
   });
 }
+
+test('exposes the existing API methods with their original v1 paths and payloads', async () => {
+  const calls = [];
+  const api = createApiMethods({
+    async request(path, options) { calls.push({ path, options }); return { ok: true }; },
+  });
+  const plan = { servings: 2, allergies: ['peanut'] };
+  const foods = await api.getFoods('rau muống');
+  await api.calculateNutrition([{ foodId: 'food-1', grams: 150 }]);
+  await api.generateMealPlan(plan);
+
+  assert.deepEqual(foods, { ok: true });
+  assert.deepEqual(calls, [
+    { path: '/api/v1/foods?q=rau%20mu%E1%BB%91ng', options: undefined },
+    { path: '/api/v1/nutrition/calculate', options: { method: 'POST', body: '{"items":[{"foodId":"food-1","grams":150}]}' } },
+    { path: '/api/v1/meal-plans/generate', options: { method: 'POST', body: JSON.stringify(plan) } },
+  ]);
+});
 
 test('rejects invalid API configuration before namespace lookup or network I/O', async () => {
   let namespaceReads = 0;

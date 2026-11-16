@@ -147,4 +147,16 @@ function createApiClient({
   return { request };
 }
 
-module.exports = { ApiClientError, createApiClient };
+function createApiMethods(apiClient) {
+  if (!apiClient || typeof apiClient.request !== 'function') {
+    throw new TypeError('API methods require a shared client.');
+  }
+  const request = apiClient.request.bind(apiClient);
+  return {
+    generateMealPlan: payload => request('/api/v1/meal-plans/generate', { method: 'POST', body: JSON.stringify(payload) }),
+    calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
+    getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+  };
+}
+
+module.exports = { ApiClientError, createApiClient, createApiMethods };

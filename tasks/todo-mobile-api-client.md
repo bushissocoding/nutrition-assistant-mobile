@@ -80,10 +80,10 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 **Description:** Replace direct transport in `app/src/services/api.js` with the shared client and SecureStore adapter. Preserve the existing API methods and payloads. Include service tests in `test:unit` and confirm screens do not call `fetch()` directly.
 
 **Acceptance criteria:**
-- [ ] `generateMealPlan`, `calculateNutrition`, and `getFoods` retain their current `/api/v1` path and payload contracts.
-- [ ] `app/src/services/api.js` is the only app module that wires HTTP calls; screens use service methods.
-- [ ] SecureStore namespace is added to demo requests as `X-Demo-Namespace`; storage errors prevent the request.
-- [ ] Expo resolves the module imports and bundles the app successfully.
+- [x] `generateMealPlan`, `calculateNutrition`, and `getFoods` retain their current `/api/v1` path and payload contracts.
+- [x] `app/src/services/api.js` is the only app module that wires HTTP calls; screens use service methods.
+- [x] SecureStore namespace is added to demo requests as `X-Demo-Namespace`; storage errors prevent the request.
+- [x] Expo resolves the module imports and bundles the app successfully.
 
 **Verification:**
 - `npm run test:unit`
