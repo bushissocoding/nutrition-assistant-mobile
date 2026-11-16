@@ -2,7 +2,7 @@
 
 Source spec: [SPEC-meal-diary.md](../SPEC-meal-diary.md)
 
-Status: proposed
+Status: implementation complete; Android device/emulator verification pending
 
 ## Tổng quan
 
@@ -29,7 +29,7 @@ Test harness và domain model bắt đầu độc lập. Repository phụ thuộ
 - Lưu UTC instant `consumedAt`; date query yêu cầu `YYYY-MM-DD` và IANA `timeZone`. Tính khoảng nửa mở giữa hai local midnight bằng `Intl`, hỗ trợ DST thay vì giả định ngày luôn 24 giờ.
 - Chuẩn hóa input trước khi tính nutrition/fingerprint. Tính từng bản ghi bằng `calculateFood`, tổng ngày dùng cùng quy tắc làm tròn `calculateTotals`; chỉ trả nutrient từ backend.
 - Dùng một atomic `updateCollection` trên `meal_entries` cho entry và idempotency ledger. Row có `kind: 'entry'` hoặc `kind: 'idempotency'`; query chỉ đọc entry. Ledger giữ key/fingerprint/resourceId, không giữ body hoặc note; xóa item giữ ledger, purge namespace xóa cả hai.
-- Không thêm database/dependency runtime. Thêm `jest`, `jest-expo`, `@testing-library/react-native` làm devDependencies để đáp ứng UI component tests; dùng Expo CLI chọn bản tương thích SDK 52, cấu hình `jest-expo`, và chạy test UI trong CI.
+- Không thêm database/dependency runtime. Thêm `jest`, `jest-expo`, `@testing-library/react-native` làm devDependencies để đáp ứng UI component tests; dùng Expo CLI chọn bản tương thích SDK 58, cấu hình `jest-expo`, và chạy test UI trong CI.
 - API client methods chỉ gọi `client.request`, truyền `X-Demo-Namespace` chung và `Idempotency-Key` cho create. Screen giữ cùng key khi retry cùng form/body, tạo key mới nếu người dùng đổi intent.
 - `DiaryScreen` tải ngày đang chọn từ API; `AppShell` giữ cache của ngày hiện tại để Home/Dashboard hydrate từ API sau khi mở app và được cập nhật khi diary mutation thành công. Cache không là nguồn bền vững.
 - Consent revoke/profile delete purge remote diary trước; chỉ sau `204` mới xóa local profile/consent. Lỗi mạng giữ nguyên local data và báo lỗi, không khẳng định đã xóa.
@@ -83,7 +83,7 @@ Test harness và domain model bắt đầu độc lập. Repository phụ thuộ
 | Client tính nutrition khác server | Cao | Không nhận nutrients từ client; dùng `calculateFood`/`calculateTotals` và so sánh route tests với API nutrition. |
 | Consent bị xóa nhưng server diary còn | Cao | Purge trước; lỗi purge không xóa local consent/profile hoặc báo thành công. |
 | Namespace demo bị giả mạo | Cao | Không gọi là auth; production luôn disable; chỉ dữ liệu synthetic. |
-| Jest/RNTL không tương thích SDK 52 | Trung bình | Chọn dependency bằng Expo CLI, smoke test preset sớm, không thêm test renderer riêng. |
+| Jest/RNTL không tương thích SDK 58 | Trung bình | Chọn dependency bằng Expo CLI, smoke test preset sớm, đồng bộ `react-test-renderer` với phiên bản React. |
 | App chưa có emulator/thiết bị | Trung bình | Bundle và route tests không thay thế; ghi rõ device verification còn pending nếu không có thiết bị để chạy. |
 
 ## Ngoài phạm vi plan

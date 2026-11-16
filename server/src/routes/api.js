@@ -1,6 +1,8 @@
 const express = require('express');
 const { calculateFood, calculateTotals } = require('../services/nutrition');
 const { generatePlan } = require('../services/meal-planner');
+const { createMealEntryRouter } = require('./meal-entries');
+const { createShoppingListRouter } = require('./shopping-lists');
 
 function createApiRouter({ foods, mealTemplates }, demoContext) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
@@ -35,6 +37,8 @@ function createApiRouter({ foods, mealTemplates }, demoContext) {
     try { return res.json(generatePlan({ foods, mealTemplates, ...(req.body || {}) })); }
     catch (error) { return res.status(400).json({ error: error.message || 'Tham số tạo thực đơn không hợp lệ.' }); }
   });
+  router.use('/meal-entries', createMealEntryRouter({ foods, demoContext }));
+  router.use('/shopping-lists', createShoppingListRouter({ foods, demoContext }));
   return router;
 }
 

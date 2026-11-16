@@ -20,13 +20,13 @@ Client phục vụ Android, iOS và Expo Go. UI loading/rỗng/lỗi/thử lại
 
 ## Công nghệ
 
-- Expo SDK 52, React Native 0.76.5, JavaScript hiện có.
+- Expo SDK 58, React Native 0.88.1, JavaScript hiện có.
 - `process.env.EXPO_PUBLIC_API_URL` được truy cập trực tiếp theo cú pháp tĩnh để Expo CLI inline giá trị vào bundle.
 - `fetch`/`AbortController` để gửi HTTP và dừng request quá hạn.
 - `expo-secure-store` đã là dependency để giữ demo namespace qua lần mở app; không bật `requireAuthentication`.
 - `node:test` hiện có để kiểm thử các phần client thuần qua `fetch` và storage adapter có thể inject.
 
-Expo public environment variables được đọc từ `.env` và xuất hiện trong bundle client, vì vậy không được chứa bí mật: [Expo environment variables](https://docs.expo.dev/guides/environment-variables/). SecureStore cung cấp lưu trữ key-value bền qua lần mở app; API bất đồng bộ dùng `getItemAsync`/`setItemAsync`: [Expo SecureStore](https://docs.expo.dev/versions/v52.0.0/sdk/securestore/).
+Expo public environment variables được đọc từ `.env` và xuất hiện trong bundle client, vì vậy không được chứa bí mật: [Expo environment variables](https://docs.expo.dev/guides/environment-variables/). SecureStore cung cấp lưu trữ key-value bền qua lần mở app; API bất đồng bộ dùng `getItemAsync`/`setItemAsync`: [Expo SecureStore SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/securestore/).
 
 ## Lệnh
 

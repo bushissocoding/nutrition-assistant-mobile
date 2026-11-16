@@ -24,7 +24,7 @@ app/
         └── appointments/            # Planned: paid doctor consultation
 ```
 
-Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns temporary cross-screen state until persistence/auth is added.
+Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication.
 
 ## API (`server/`)
 
@@ -32,10 +32,16 @@ Each feature owns its screen and feature-specific UI/state. Move a component to 
 server/
 ├── server.js                       # Express composition and middleware
 ├── src/
-│   ├── routes/api.js                # HTTP validation and response mapping
+│   ├── routes/api.js                # API composition and existing route mapping
+│   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
+│   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
 │   ├── repositories/catalog.js      # Loading the current JSON catalog
+│   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
+│   ├── repositories/shopping-list-repository.js # Current grocery list and idempotency ledger
 │   └── services/
 │       ├── nutrition.js             # Deterministic nutrient calculations
+│       ├── meal-entries.js          # Diary schema and timezone/date rules
+│       ├── shopping-lists.js        # Grocery schema and item patch rules
 │       └── meal-planner.js          # Deterministic demo planner
 ├── data/                            # Demonstration catalogs and provenance
 ├── tests/core.test.js               # Dependency-free domain tests
@@ -49,15 +55,16 @@ Keep HTTP concerns in routes, calculations/rules in services, and storage access
 - `GET /api/v1/foods?q=...` — search the demonstration food catalog.
 - `POST /api/v1/nutrition/calculate` — deterministic nutrients for `{ items: [{ foodId, grams }] }`.
 - `POST /api/v1/meal-plans/generate` — sample meal plan plus nutrient totals, warnings and aggregated groceries.
+- `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.
+- `/api/v1/shopping-lists` — demo-only current grocery list created from a planner snapshot; item quantity/unit/purchased CRUD, idempotent create, and namespace purge. The caller-provided demo namespace is not authentication or account ownership.
 - `GET /health` — service health.
 
-The current client stores consent and a minimal profile locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Generated plan, diary and grocery state remain in memory and are lost when the app restarts. SecureStore uses platform-provided protected storage, but this prototype has no server-side identity, retention service or audited compliance. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+The current client stores consent and a minimal profile locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 
-1. Add domain/schema definitions and input validation shared through documented API contracts.
-2. Add persistence and authentication only after the team chooses a database/provider and a safe data lifecycle.
-3. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
-4. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
-5. Add weekly analytics from dated diary records, then reminders. Doctor booking/payment and telehealth are separate modules, not placeholders to imply working functionality.
-6. Add end-to-end mobile tests and API integration tests; keep nutrient/source, allergy, infeasible-plan, and error-state tests as acceptance gates.
+1. Replace demo JSON storage with production-grade persistence and authenticated ownership only after the team chooses a provider and documents a safe data lifecycle.
+2. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
+3. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
+4. Add weekly analytics from dated diary records, then reminders. Doctor booking/payment and telehealth are separate modules, not placeholders to imply working functionality.
+5. Add end-to-end mobile tests and API integration tests; keep nutrient/source, allergy, infeasible-plan, and error-state tests as acceptance gates.

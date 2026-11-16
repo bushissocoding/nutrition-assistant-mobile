@@ -156,6 +156,35 @@ function createApiMethods(apiClient) {
     generateMealPlan: payload => request('/api/v1/meal-plans/generate', { method: 'POST', body: JSON.stringify(payload) }),
     calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
     getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+    createMealEntry: (payload, idempotencyKey) => request('/api/v1/meal-entries', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
+    getMealEntries: ({ date, timeZone, limit = 50, offset = 0 }) => {
+      const query = new URLSearchParams({ date, timeZone, limit: String(limit), offset: String(offset) });
+      return request(`/api/v1/meal-entries?${query.toString()}`);
+    },
+    getMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`),
+    updateMealEntry: (id, payload) => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    deleteMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    purgeMealEntries: () => request('/api/v1/meal-entries', { method: 'DELETE' }),
+    getCurrentShoppingList: () => request('/api/v1/shopping-lists/current'),
+    createShoppingList: (payload, idempotencyKey) => request('/api/v1/shopping-lists', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
+    updateShoppingListItem: (id, payload) => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+    deleteShoppingListItem: id => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    deleteCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { method: 'DELETE' }),
+    purgeShoppingLists: () => request('/api/v1/shopping-lists', { method: 'DELETE' }),
   };
 }
 

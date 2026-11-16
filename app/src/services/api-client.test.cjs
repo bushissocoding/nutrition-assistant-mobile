@@ -39,6 +39,52 @@ test('exposes the existing API methods with their original v1 paths and payloads
   ]);
 });
 
+test('exposes diary CRUD and purge methods through the shared API request client', async () => {
+  const calls = [];
+  const api = createApiMethods({
+    async request(path, options) { calls.push({ path, options }); return null; },
+  });
+  const input = { foodId: 'rice-steamed', portion: { amount: 100, unit: 'g' } };
+  await api.createMealEntry(input, 'intent-key-0001');
+  await api.getMealEntries({ date: '2026-11-16', timeZone: 'Asia/Ho_Chi_Minh', limit: 25, offset: 50 });
+  await api.getMealEntry('entry/one');
+  await api.updateMealEntry('entry/one', { notes: 'edited' });
+  await api.deleteMealEntry('entry/one');
+  await api.purgeMealEntries();
+
+  assert.deepEqual(calls, [
+    { path: '/api/v1/meal-entries', options: { method: 'POST', headers: { 'Idempotency-Key': 'intent-key-0001' }, body: JSON.stringify(input) } },
+    { path: '/api/v1/meal-entries?date=2026-11-16&timeZone=Asia%2FHo_Chi_Minh&limit=25&offset=50', options: undefined },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: undefined },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'PATCH', body: JSON.stringify({ notes: 'edited' }) } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'DELETE' } },
+    { path: '/api/v1/meal-entries', options: { method: 'DELETE' } },
+  ]);
+});
+
+test('exposes grocery list CRUD and namespace purge through the shared API request client', async () => {
+  const calls = [];
+  const api = createApiMethods({
+    async request(path, options) { calls.push({ path, options }); return null; },
+  });
+  const payload = { items: [{ foodId: 'rice-steamed', amount: 300, unit: 'g' }] };
+  await api.getCurrentShoppingList();
+  await api.createShoppingList(payload, 'grocery-intent-0001');
+  await api.updateShoppingListItem('item/one', { amount: 1.5, unit: 'kg', purchased: true });
+  await api.deleteShoppingListItem('item/one');
+  await api.deleteCurrentShoppingList();
+  await api.purgeShoppingLists();
+
+  assert.deepEqual(calls, [
+    { path: '/api/v1/shopping-lists/current', options: undefined },
+    { path: '/api/v1/shopping-lists', options: { method: 'POST', headers: { 'Idempotency-Key': 'grocery-intent-0001' }, body: JSON.stringify(payload) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'PATCH', body: JSON.stringify({ amount: 1.5, unit: 'kg', purchased: true }) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'DELETE' } },
+    { path: '/api/v1/shopping-lists/current', options: { method: 'DELETE' } },
+    { path: '/api/v1/shopping-lists', options: { method: 'DELETE' } },
+  ]);
+});
+
 test('rejects invalid API configuration before namespace lookup or network I/O', async () => {
   let namespaceReads = 0;
   let fetchCalls = 0;

@@ -2,7 +2,7 @@
 
 Module id: `meal-diary` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: approved
+Status: implementation complete; Android device/emulator verification pending
 
 ## Mục tiêu
 

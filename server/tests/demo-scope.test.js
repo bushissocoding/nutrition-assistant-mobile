@@ -25,7 +25,9 @@ test('rejects requests when demo storage is disabled', async t => {
   const response = await requestProtectedRoute(t, { NODE_ENV: 'development' }, 'demo-client-1');
 
   assert.equal(response.status, 503);
-  assert.match((await response.json()).error, /demo.*tắt/i);
+  const body = await response.json();
+  assert.match(body.error, /demo.*tắt/i);
+  assert.equal(body.code, 'DEMO_DATA_DISABLED');
 });
 
 test('production rejects demo requests even when the demo flag is true', async t => {
@@ -38,7 +40,9 @@ test('rejects requests without a demo namespace', async t => {
   const response = await requestProtectedRoute(t, { NODE_ENV: 'development', DEMO_DATA_ENABLED: 'true' });
 
   assert.equal(response.status, 400);
-  assert.match((await response.json()).error, /X-Demo-Namespace/i);
+  const body = await response.json();
+  assert.match(body.error, /X-Demo-Namespace/i);
+  assert.equal(body.code, 'DEMO_NAMESPACE_REQUIRED');
 });
 
 test('rejects malformed demo namespaces', async t => {

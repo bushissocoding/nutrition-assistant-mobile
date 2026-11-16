@@ -21,6 +21,8 @@ Install dependencies once:
 npm ci
 ```
 
+Expo SDK 58 requires Node.js 22.13+ on the 22.x line, 24.3+ on the 24.x line, or 26+. The CI workflow uses Node.js 22.
+
 Terminal 1 (API):
 
 ```powershell
@@ -50,7 +52,7 @@ The API listens on `0.0.0.0:4000` for development. On Windows, use `ipconfig` to
 
 Verify the backend from the same device/emulator that runs the app by opening `http://<the-same-host>:4000/health` in its browser. The response should include `{"status":"ok"}`. You can also check locally on the computer with `http://localhost:4000/health`.
 
-Run deterministic business-logic tests with `npm run test:unit` and backend API smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md). Consent and the minimal profile are stored locally with SecureStore; generated plans, diary entries and grocery lists remain in memory. The API has a development-only JSON storage foundation for future data routes, but there is no authentication, account ownership security, or production persistence.
+Run deterministic business-logic tests with `npm run test:unit`, UI component tests with `npm run test:ui`, and backend API smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md). Consent and the minimal profile are stored locally with SecureStore; the meal diary and current grocery list use the development-only namespaced JSON store and survive app/API restarts while that file is retained. Plans remain in memory. There is no authentication or secure account ownership, and demo storage is not production persistence.
 
 ### Development-only demo storage
 
@@ -62,7 +64,7 @@ $env:DEMO_DATA_FILE = '.\server\.local-data\demo-store.json' # optional
 npm run api
 ```
 
-Remove the environment variable or set it to `false` to turn demo data off. `NODE_ENV=production` always disables demo data routes, even when the flag is true. The app keeps a demo namespace in SecureStore so it can reuse the same local demo partition after restarting. The `X-Demo-Namespace` request header is caller-controlled and is not authentication or account security. Demo persistence is not safe for real health information; do not store real health information in this prototype. Diary and grocery CRUD routes are not part of the API foundation yet.
+Remove the environment variable or set it to `false` to turn demo data off. `NODE_ENV=production` always disables demo data routes, even when the flag is true. The app keeps a demo namespace in SecureStore so it can reuse the same local demo partition after restarting. The `X-Demo-Namespace` request header is caller-controlled and is not authentication or account security. Demo persistence is not safe for real health information; do not store real health information in this prototype. Meal diary and grocery CRUD routes are available only through this demo context.
 
 ## Important data and medical boundary
 

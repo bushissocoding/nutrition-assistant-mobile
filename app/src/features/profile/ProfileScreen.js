@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { clearStoredProfile } from '../../services/profile-storage';
 import { colors, radius } from '../../theme/tokens';
 import { calculateAdultBmi, normalizeProfile } from './profile-model.cjs';
 
@@ -11,14 +10,17 @@ export default function ProfileScreen({ profile, onEdit, onDeleted, onWithdrawCo
   useEffect(() => { setBusy(false); }, [profile]);
 
   async function deleteData() {
-    const confirmed = await new Promise(resolve => Alert.alert('Xóa hồ sơ trên thiết bị?', 'Hồ sơ sẽ bị xóa khỏi SecureStore. Nhật ký, thực đơn và danh sách mua sắm tạm thời cũng sẽ được xóa. Trạng thái đồng ý được giữ lại.', [
+    const confirmed = await new Promise(resolve => Alert.alert('Xóa hồ sơ trên thiết bị?', 'Nhật ký demo trên máy chủ sẽ được xóa trước, sau đó hồ sơ trên thiết bị và dữ liệu demo trong bộ nhớ sẽ được xóa. Trạng thái đồng ý được giữ lại.', [
       { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
       { text: 'Xóa hồ sơ', style: 'destructive', onPress: () => resolve(true) },
     ]));
     if (!confirmed) return;
     setBusy(true);
-    try { await clearStoredProfile(); onDeleted(); }
-    catch { setBusy(false); Alert.alert('Chưa xóa được', 'Không thể xóa dữ liệu cục bộ. Hãy thử lại hoặc xóa dữ liệu ứng dụng trong cài đặt thiết bị.'); }
+    try { await onDeleted(); }
+    catch (error) {
+      setBusy(false);
+      Alert.alert('Chưa xóa được', error?.message || 'Không thể xóa nhật ký trên máy chủ hoặc dữ liệu cục bộ. Hãy kiểm tra kết nối rồi thử lại.');
+    }
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
@@ -27,7 +29,7 @@ export default function ProfileScreen({ profile, onEdit, onDeleted, onWithdrawCo
     <View style={styles.card}><Text style={styles.heading}>Dị ứng / cần tránh</Text><Text style={styles.small}>{normalized.allergies.length ? normalized.allergies.join(', ') : 'Chưa nhập dị ứng.'}</Text></View>
     {normalized.mode === 'patient' && <View style={styles.card}><Text style={styles.heading}>Chỉ tiêu nhập thủ công</Text><Text style={styles.small}>{normalized.diagnosisNotes || 'Chưa ghi chú chẩn đoán.'}</Text>{Object.entries(normalized.hardLimits).map(([key, range]) => <Text key={key} style={styles.small}>{key}: {range.min ?? '—'} – {range.max ?? '—'}</Text>)}<Text style={styles.small}>{normalized.medicalLimitsConfirmed ? 'Người dùng xác nhận đã đối chiếu với bác sĩ.' : 'Chưa xác nhận.'}</Text></View>}
     {normalized.mode === 'healthy' && <View style={styles.warning}><Text style={styles.heading}>Sàng lọc, không chẩn đoán</Text><Text style={styles.small}>{normalized.redFlags.length ? 'Có dấu hiệu đã đánh dấu cần được nhân viên y tế đánh giá. Tạo thực đơn bị khóa.' : normalized.symptomNotes || 'Chưa nhập triệu chứng.'}</Text></View>}
-    <View style={styles.warning}><Text style={styles.heading}>Giới hạn an toàn</Text><Text style={styles.small}>Thông tin và chỉ tiêu chỉ được lưu cục bộ trong bản demo. Chưa có đồng bộ, xác thực, mã hóa server-side hoặc xem xét chuyên môn y tế.</Text></View>
+    <View style={styles.warning}><Text style={styles.heading}>Giới hạn an toàn</Text><Text style={styles.small}>Hồ sơ này lưu trên thiết bị. Nhật ký bữa ăn demo được lưu trên máy chủ theo namespace do ứng dụng gửi, chưa có xác thực hoặc quyền sở hữu an toàn. Chỉ dùng dữ liệu tổng hợp, không nhập thông tin sức khỏe thật.</Text></View>
     <TouchableOpacity style={styles.button} onPress={onEdit}><Text style={styles.buttonText}>Chỉnh sửa hồ sơ</Text></TouchableOpacity>
     <TouchableOpacity style={styles.deleteButton} disabled={busy} onPress={deleteData}>{busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.deleteText}>Xóa hồ sơ khỏi thiết bị</Text>}</TouchableOpacity>
     <TouchableOpacity style={styles.withdrawButton} disabled={busy} onPress={onWithdrawConsent}><Text style={styles.deleteText}>Thu hồi đồng ý và xóa toàn bộ dữ liệu</Text></TouchableOpacity>
