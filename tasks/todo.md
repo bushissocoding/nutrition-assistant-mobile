@@ -56,29 +56,57 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 - [x] `npm run test:unit` passes.
 - [x] No demo data file or synthetic personal data is added to source control.
 
-## Task 3: Wire demo context into API composition
+## Task 3: Compose and inject the demo context
 
-**Description:** Build the demo context from environment configuration in the server composition and make it available to future feature routers through dependency injection. Preserve current catalog, nutrition, and meal-plan responses. Allow `X-Demo-Namespace` through CORS preflight.
+**Description:** Build the repository and scope middleware from the provided environment, then inject the resulting demo context into the API router for future feature routers.
 
 **Acceptance criteria:**
-- [ ] The server composes a repository and scope configuration without adding a demo CRUD endpoint in this module.
-- [ ] Existing `/api/v1` routes retain their current response behavior; CORS preflight accepts `Content-Type` and `X-Demo-Namespace`.
-- [ ] API smoke coverage confirms existing endpoints and preflight behavior; tests do not persist data in the default store path.
+- [x] The context uses the configured store path and contains the demo scope middleware.
+- [x] Downstream API router handlers receive the same context through dependency injection.
+- [x] Focused tests cover composition and router context injection without adding demo CRUD endpoints.
 
 **Verification:**
-- API smoke suite: `npm run test:api`
-- Manual: start the API with demo enabled and check `/health`, an existing catalog route, and an `OPTIONS` request for the demo namespace header.
+- Focused: `node --test server/tests/demo-context.test.js server/tests/api-router.test.js`
+- Repository unit suite: `npm run test:unit`
 
 **Dependencies:** Tasks 1 and 2.
 
 **Files likely touched:**
-- `server/server.js`
+- `server/src/services/demo-context.js`
 - `server/src/routes/api.js`
-- `server/server.test.js`
+- `server/tests/demo-context.test.js`
+- `server/tests/api-router.test.js`
 
 **Estimated scope:** Medium.
 
-## Task 4: Document and safely exclude local demo storage
+## Task 4: Wire server startup and CORS
+
+**Description:** Create the demo context during server startup, pass it into the API router, and allow the namespace header through CORS preflight. Keep existing public route responses unchanged.
+
+**Acceptance criteria:**
+- [ ] Server startup builds the demo context from environment configuration and injects it into `/api/v1`.
+- [ ] Existing API responses remain unchanged; preflight accepts `Content-Type` and `X-Demo-Namespace`.
+- [ ] API smoke coverage starts the server with demo mode enabled, checks health/catalog/preflight, and creates no default store file.
+
+**Verification:**
+- API smoke suite: `npm run test:api`
+- Manual runtime check is covered by the smoke test's real server process and HTTP requests.
+
+**Dependencies:** Task 3.
+
+**Files likely touched:**
+- `server/server.js`
+- `server/server.test.js`
+
+**Estimated scope:** Small.
+
+## Checkpoint: API composition
+
+- [ ] Context and API smoke tests pass.
+- [ ] `npm run test:unit` and `npm run test:api` pass.
+- [ ] No runtime demo store is created by tests.
+
+## Task 5: Document and safely exclude local demo storage
 
 **Description:** Ignore local runtime data and document how to enable/disable the demo store, configure its path, and understand the no-auth/no-real-health-data boundary.
 
@@ -91,7 +119,7 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 - Run required checks: `npm run test:unit` and `npm run test:api`.
 - Manual: inspect `git status --short` after tests and confirm no runtime store or secret is staged.
 
-**Dependencies:** Task 3.
+**Dependencies:** Task 4.
 
 **Files likely touched:**
 - `.gitignore`
@@ -102,7 +130,7 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 
 ## Checkpoint: API foundation complete
 
-- [ ] All four tasks meet their acceptance criteria.
+- [ ] All five tasks meet their acceptance criteria.
 - [ ] `npm run test:unit` passes.
 - [ ] `npm run test:api` passes.
 - [ ] Demo data is disabled in production and docs prohibit real health data until authenticated storage and data-lifecycle requirements are implemented.

@@ -41,11 +41,15 @@ Thêm hàm/middleware thuần để kiểm tra cờ demo, cấm production, yêu
 
 **Điểm kiểm chứng:** kiểm thử middleware chạy trong bộ unit test; không đổi kết quả các route API hiện có.
 
-### Giai đoạn 3: Tích hợp và tài liệu
+### Giai đoạn 3: Ghép context và server
 
-Nối cấu hình repository và middleware vào composition của server để feature routes sau có thể dùng chung. Bổ sung header vào CORS, `.gitignore`, cập nhật README gốc và `server/README.md`; kiểm tra preflight và chạy hai bộ kiểm thử bắt buộc.
+Tạo demo context từ environment, inject vào API router, sau đó nối context vào server startup. Bổ sung header namespace vào CORS và kiểm tra các route hiện tại cùng preflight.
 
 **Điểm kiểm chứng:** `npm run test:unit` và `npm run test:api` đều đạt; các API hiện có giữ hợp đồng; demo API không bật trong production.
+
+### Giai đoạn 4: Tài liệu và loại trừ dữ liệu cục bộ
+
+Bổ sung đường dẫn runtime vào `.gitignore`, cập nhật README gốc và `server/README.md` với lệnh bật/tắt, cấu hình file store và giới hạn không dùng dữ liệu sức khỏe thật.
 
 ## Rủi ro và giảm thiểu
 

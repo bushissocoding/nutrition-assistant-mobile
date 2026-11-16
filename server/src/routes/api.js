@@ -2,8 +2,12 @@ const express = require('express');
 const { calculateFood, calculateTotals } = require('../services/nutrition');
 const { generatePlan } = require('../services/meal-planner');
 
-function createApiRouter({ foods, mealTemplates }) {
+function createApiRouter({ foods, mealTemplates }, { demoContext } = {}) {
   const router = express.Router();
+  router.use((req, _res, next) => {
+    req.demoContext = demoContext;
+    return next();
+  });
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
     const category = String(req.query.category || '').trim().toLocaleLowerCase('vi');
