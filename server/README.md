@@ -10,7 +10,7 @@ npm run api
 npm run test:api
 ```
 
-API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The default CORS `*` is for development only; set an explicit origin before deployment. No authentication, database, account storage, or health-data persistence is implemented.
+API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The default CORS `*` is for development only; set an explicit origin before deployment. There is no authentication, account identity, account ownership security, or production persistence. The JSON store described below is a local development foundation only; diary and grocery CRUD routes are not included yet.
 
 ### Routes
 
@@ -21,6 +21,23 @@ API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` 
 - `POST /api/v1/meal-plans/generate` — `{ "budgetVnd": 120000, "allergies": ["cá"], "excludedFoodIds": [], "preferences": "...", "targets": { "fiberG": { "min": 25 }, "sodiumMg": { "max": 2000 } }, "hardLimits": { "sodiumMg": { "max": 2300 } } }`
 
 The planner searches the finite meal-template catalog across 0.75×, 1×, and 1.25× portions per meal slot. `targets` are soft objectives (below-minimum/above-maximum results are allowed but returned as warnings); `hardLimits` are enforced ceilings/floors and plans that violate them are rejected. Omitted soft targets use generic demonstration ranges from `server/src/services/meal-planner.js`. They are product examples, not personalized dietary recommendations or medical constraints. The optimizer cannot create a recipe outside `server/data/meals.json`.
+
+## Local demo data storage
+
+The API composition provides a namespaced JSON repository for future diary and grocery routes. Its default file is `server/.local-data/demo-store.json`; set `DEMO_DATA_FILE` to override the path. The directory is ignored by Git and is created only when the first record is written.
+
+Enable demo data in PowerShell before starting the API:
+
+```powershell
+$env:DEMO_DATA_ENABLED = 'true'
+# Optional; relative paths resolve from the repository root.
+$env:DEMO_DATA_FILE = '.\server\.local-data\demo-store.json'
+npm run api
+```
+
+On macOS/Linux, run `DEMO_DATA_ENABLED=true npm run api`. Leave the flag unset or set it to `false` to disable demo data routes. `NODE_ENV=production` always disables them, regardless of the flag. Routes that use the demo context must apply its request-scope middleware; without the flag it returns `503`, and a missing or malformed `X-Demo-Namespace` returns `400`.
+
+`X-Demo-Namespace` is caller-controlled and only separates local demo collections. Anyone who can send requests can claim another namespace, so this does not provide authentication, account ownership security, or permission to store real health information. Do not expose demo data routes publicly or enter real personal/health data. The JSON store has no backup, retention, multi-server synchronization, or production durability guarantee.
 
 Meal generation is deterministic template selection, not AI, a clinical optimizer, or a validated diet prescription. Demonstration price estimates are invented. Nutrient estimates omit recipe variation, oil, salt, sauces and seasoning. Read `data/sources.json` for source limitations.
 

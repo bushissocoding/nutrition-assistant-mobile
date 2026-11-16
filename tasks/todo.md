@@ -111,9 +111,9 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Description:** Ignore local runtime data and document how to enable/disable the demo store, configure its path, and understand the no-auth/no-real-health-data boundary.
 
 **Acceptance criteria:**
-- [ ] The default demo store path is ignored by Git and remains configurable for local development/tests.
-- [ ] Root and server documentation state that authentication, account ownership security, production persistence, and real health-data handling are not implemented.
-- [ ] Documentation includes the exact local command to enable demo mode and describes how to stop using it.
+- [x] The default demo store path is ignored by Git and remains configurable for local development/tests.
+- [x] Root and server documentation state that authentication, account ownership security, production persistence, and real health-data handling are not implemented.
+- [x] Documentation includes the exact local command to enable demo mode and describes how to stop using it.
 
 **Verification:**
 - Run required checks: `npm run test:unit` and `npm run test:api`.
@@ -130,8 +130,8 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 
 ## Checkpoint: API foundation complete
 
-- [ ] All five tasks meet their acceptance criteria.
-- [ ] `npm run test:unit` passes.
-- [ ] `npm run test:api` passes.
-- [ ] Demo data is disabled in production and docs prohibit real health data until authenticated storage and data-lifecycle requirements are implemented.
+- [x] All five tasks meet their acceptance criteria.
+- [x] `npm run test:unit` passes.
+- [x] `npm run test:api` passes.
+- [x] Demo data is disabled in production and docs prohibit real health data until authenticated storage and data-lifecycle requirements are implemented.
 - [ ] Review this module before starting `mobile-api-client`.
