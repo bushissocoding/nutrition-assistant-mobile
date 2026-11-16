@@ -2,7 +2,7 @@
 
 Source spec: [SPEC-grocery-list.md](../SPEC-grocery-list.md)
 
-Status: implementation complete; Android device/emulator verification pending
+Status: implementation complete; physical-phone verification confirmed by the user
 
 ## Tổng quan
 
@@ -78,7 +78,11 @@ Domain/repository và test API có thể phát triển theo lát dọc nhưng ro
 | New list overwrites purchased/edited state | Trung bình | Require explicit UI confirmation when a current list exists; only replace after server success. |
 | Store write fails after a UI action | Cao | Return finite API error; update screen only from successful response; test injected store failure. |
 | One purge succeeds and the other fails | Trung bình | Keep local profile/consent until both succeed; make each purge repeat-safe so the user can retry. |
-| No Android device/emulator available | Trung bình | Run host API/UI tests and Expo bundle; report device check as pending rather than claiming it passed. |
+| No Android emulator available | Trung bình | User confirmed physical-phone checklist passed; device model/OS was not recorded. |
+
+## Device verification
+
+The user confirmed the phone checklist passed, including creating a grocery list, editing an amount, and marking an item purchased. Device model/OS was not recorded; Android emulator is unavailable in the development environment.
 
 ## Ngoài phạm vi plan
 

@@ -2,7 +2,7 @@
 
 Module id: `mobile-api-client` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: implementation complete; physical-device verification pending
+Status: implementation complete; physical-phone verification confirmed by the user
 
 ## Mục tiêu
 
@@ -65,7 +65,7 @@ Client dùng chung chịu trách nhiệm URL, namespace, timeout, JSON/error map
 - Test lỗi config/mạng không trả dữ liệu giả và không tự gọi lại mutation.
 - Test namespace được tạo một lần, lưu và dùng lại sau lần khởi tạo client mới; lỗi SecureStore phải thành lỗi rõ ràng thay vì tạo namespace mới từng request.
 - `npm run test:unit` và `npm run test:api` là kiểm tra bắt buộc trước bàn giao.
-- Kiểm thử thực tế ít nhất một Android emulator hoặc điện thoại thật: chạy backend, gọi `/health` từ thiết bị, rồi mở app bằng chính URL đó. Hiện môi trường Windows này không có `adb` hoặc Android Emulator trong PATH/thư mục SDK mặc định; cần xác minh lại khi đến bước kiểm thử thiết bị.
+- Kiểm thử thực tế ít nhất một Android emulator hoặc điện thoại thật: chạy backend, gọi `/health` từ thiết bị, rồi mở app bằng chính URL đó. Người dùng đã xác nhận checklist điện thoại hoàn tất và hoạt động tốt; loại máy/OS không được ghi lại.
 
 ## Cấu hình và kết nối theo môi trường
 
@@ -95,6 +95,10 @@ Backend hiện bind `0.0.0.0:4000`. Để xác nhận kết nối, mở `http://
 - `.env.example` và docs hướng dẫn đủ cho Expo Go điện thoại thật, Android Emulator, iOS Simulator, LAN/firewall và cách kiểm tra `/health`.
 - `npm run test:unit`, `npm run test:api` đạt; ít nhất một thiết bị/emulator truy cập thành công `/health`.
 
+## Kết quả kiểm thử thiết bị
+
+Người dùng xác nhận đã chạy checklist trên điện thoại: truy cập được endpoint `/health`, mở app bằng phiên Expo mới, thêm nhật ký rồi mở lại app, và tạo/chỉnh số lượng/đánh dấu đã mua trong danh sách đi chợ. Mọi bước được báo là hoạt động tốt. Loại máy và hệ điều hành chưa được ghi lại; Android emulator không có sẵn trong môi trường phát triển nhưng không còn là điều kiện chặn vì đã kiểm thử trên điện thoại thật.
+
 ## Ngoài phạm vi (để sau)
 
 - Hợp đồng CRUD, schema theo ngày/múi giờ, idempotency cụ thể và UI loading/rỗng/lỗi/thử lại của nhật ký/grocery; thuộc spec riêng của hai feature.
@@ -103,5 +107,4 @@ Backend hiện bind `0.0.0.0:4000`. Để xác nhận kết nối, mở `http://
 
 ## Câu hỏi còn mở
 
-- Máy làm việc hiện không có Android SDK/emulator. Khi thực hiện, cần có Android emulator cài sẵn hoặc điện thoại kết nối để đạt tiêu chí kiểm thử thiết bị; tài liệu và test API trên host không thay thế xác minh đó.
 - Nếu Expo Web cần được hỗ trợ cùng mobile, cần một quyết định riêng về lưu demo namespace phía browser vì `expo-secure-store` chỉ hỗ trợ native mobile.

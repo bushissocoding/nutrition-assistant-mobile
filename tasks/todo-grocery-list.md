@@ -3,7 +3,7 @@
 Source spec: [SPEC-grocery-list.md](../SPEC-grocery-list.md)
 Implementation plan: [plan-grocery-list.md](plan-grocery-list.md)
 
-Status: implementation complete; Android device/emulator verification pending
+Status: implementation complete; physical-phone verification confirmed by the user
 
 ## Task 1: Define grocery list domain validation
 
@@ -164,7 +164,7 @@ Status: implementation complete; Android device/emulator verification pending
 **Acceptance criteria:**
 - [x] Unit, API, and UI suites pass; Android export and `git diff --check` pass.
 - [x] No secrets, real user data, generated build files, or default local demo store are tracked.
-- [x] Any unavailable real-device/emulator connectivity check is explicitly reported as pending.
+- [x] User-confirmed physical-phone verification is recorded; Android emulator remains unavailable.
 
 **Verification:** `npm run test:unit`; `npm run test:api`; `npm run test:ui`; `npx expo export --platform android`; `git diff --check`; inspect `git status --short`.
 
@@ -176,4 +176,4 @@ Status: implementation complete; Android device/emulator verification pending
 
 ## Verification note
 
-`npm run test:unit`, `npm run test:api`, `npm run test:ui`, `npx expo export --platform android`, and `git diff --check` passed. `adb`, `emulator`, `ANDROID_HOME`, and `ANDROID_SDK_ROOT` are unavailable, so Android device/emulator URL connectivity remains pending; bundle export is not device verification.
+`npm run test:unit`, `npm run test:api`, `npm run test:ui`, `npx expo export --platform android`, and `git diff --check` passed. The user confirmed the phone checklist passed, including API `/health`, grocery creation, amount editing, and purchased-state updates. Device model/OS was not recorded; Android emulator tooling is unavailable. Bundle export is not device verification.

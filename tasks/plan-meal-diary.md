@@ -2,7 +2,7 @@
 
 Source spec: [SPEC-meal-diary.md](../SPEC-meal-diary.md)
 
-Status: implementation complete; Android device/emulator verification pending
+Status: implementation complete; physical-phone verification confirmed by the user
 
 ## Tổng quan
 
@@ -84,7 +84,11 @@ Test harness và domain model bắt đầu độc lập. Repository phụ thuộ
 | Consent bị xóa nhưng server diary còn | Cao | Purge trước; lỗi purge không xóa local consent/profile hoặc báo thành công. |
 | Namespace demo bị giả mạo | Cao | Không gọi là auth; production luôn disable; chỉ dữ liệu synthetic. |
 | Jest/RNTL không tương thích SDK 58 | Trung bình | Chọn dependency bằng Expo CLI, smoke test preset sớm, đồng bộ `react-test-renderer` với phiên bản React. |
-| App chưa có emulator/thiết bị | Trung bình | Bundle và route tests không thay thế; ghi rõ device verification còn pending nếu không có thiết bị để chạy. |
+| Không có Android emulator trong môi trường | Trung bình | Người dùng đã xác nhận checklist chạy trên điện thoại thật; ghi nhận model/OS chưa được cung cấp. |
+
+## Xác minh thiết bị
+
+Người dùng xác nhận checklist trên điện thoại hoạt động tốt: truy cập API `/health`, mở app từ phiên Expo mới, thêm nhật ký và mở lại app. Model/OS không được ghi lại; Android emulator không có sẵn.
 
 ## Ngoài phạm vi plan
 

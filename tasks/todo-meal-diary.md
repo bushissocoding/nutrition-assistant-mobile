@@ -3,7 +3,7 @@
 Source spec: [SPEC-meal-diary.md](../SPEC-meal-diary.md)
 Implementation plan: [plan-meal-diary.md](plan-meal-diary.md)
 
-Status: implementation complete; Android device/emulator verification pending
+Status: implementation complete; physical-phone verification confirmed by the user
 
 ## 1. Test harness and domain/date model
 
@@ -53,7 +53,7 @@ Status: implementation complete; Android device/emulator verification pending
 - [x] Update API documentation, architecture notes, setup README, and `CONSTRAINTS.md` with the endpoint/schema, timezone/DST rule, idempotency behavior, demo-only namespace boundary, purge flow, and estimate disclaimer.
 - [x] Review the diff for health-data boundaries, accidental secrets or real user data, generated artifacts, and out-of-scope grocery/barcode changes.
 - [x] Run required final checks: `npm run test:unit`, `npm run test:api`, `npm run test:ui`, Expo Android bundle, and `git diff --check`.
-- [x] Record any device/emulator verification that cannot run in this environment and keep it explicitly pending; bundle success is not device verification.
+- [x] Record the user's successful physical-phone verification; do not treat bundle export as device verification.
 
 ## Completion criteria
 
@@ -65,4 +65,4 @@ Status: implementation complete; Android device/emulator verification pending
 
 ## Verification note
 
-`adb`, `emulator`, `ANDROID_HOME`, and `ANDROID_SDK_ROOT` are unavailable in this environment. The Android bundle and host API smoke test pass, but Android emulator/physical-device URL verification remains pending.
+`npm run test:unit`, `npm run test:api`, `npm run test:ui`, Android bundle export, and `git diff --check` passed. The user confirmed the phone checklist passed, including API `/health`, opening the app from a fresh Expo session, and diary create/reopen. Device model/OS was not recorded; Android emulator tooling is unavailable.
