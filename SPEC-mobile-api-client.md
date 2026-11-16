@@ -2,7 +2,7 @@
 
 Module id: `mobile-api-client` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: proposed
+Status: approved
 
 ## Mục tiêu
 
