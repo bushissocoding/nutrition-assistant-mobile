@@ -2,7 +2,7 @@
 
 Last reviewed: 2026-11-16
 
-These constraints apply to the Expo mobile app and Node/Express API. This repository is a prototype, not a production health service. A failed required check blocks handoff until it is fixed or a reviewer accepts a written exception with its reason and scope. This is currently a written contract; no CI workflow or git hook enforces it automatically.
+These constraints apply to the Expo mobile app and Node/Express API. This repository is a prototype, not a production health service. A failed required check blocks handoff until it is fixed or a reviewer accepts a written exception with its reason and scope. The required test commands run in [`.github/workflows/ci.yml`](.github/workflows/ci.yml) for pushes and pull requests targeting `main` or `master`, and can also be started manually. No git hook enforces them locally.
 
 ## Always-required floor
 
@@ -22,7 +22,7 @@ These constraints apply to the Expo mobile app and Node/Express API. This reposi
 
 The commands above are the current measurable quality bar. No coverage percentage, lint result, type-check result, or dependency-scan status is claimed because this repository does not currently configure those checks. Do not invent a passing result for a check that was not run.
 
-Target a total check time of about 90 seconds before handoff. If the required checks exceed that, report the observed duration and move the slower check to CI when CI is available; do not silently omit it.
+Target a total check time of about 90 seconds when running locally before handoff. CI allows up to 10 minutes for dependency installation and both suites; if local checks take longer, report the observed duration rather than silently omitting them.
 
 ## Architecture rules
 
