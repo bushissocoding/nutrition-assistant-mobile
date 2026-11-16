@@ -9,9 +9,9 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 **Description:** Add a pure base URL validator for the statically inlined `EXPO_PUBLIC_API_URL`. Reject missing or malformed configuration, unsupported schemes, and credentials/query/fragment; normalize trailing slashes and return a typed configuration error.
 
 **Acceptance criteria:**
-- [ ] Missing, malformed, non-HTTP(S), credential-bearing, query-bearing, and fragment-bearing URLs fail before any request is sent.
-- [ ] Valid HTTP and HTTPS base URLs are normalized consistently.
-- [ ] The validator has no Expo/native imports and can be tested by Node's built-in runner.
+- [x] Missing, malformed, non-HTTP(S), credential-bearing, query-bearing, and fragment-bearing URLs fail before any request is sent.
+- [x] Valid HTTP and HTTPS base URLs are normalized consistently.
+- [x] The validator has no Expo/native imports and can be tested by Node's built-in runner.
 
 **Verification:**
 - Focused: `node --test app/src/services/api-config.test.cjs`
@@ -49,7 +49,7 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 ## Checkpoint: Configuration and namespace primitives
 
 - [ ] Tasks 1 and 2 focused tests pass.
-- [ ] `npm run test:unit` passes.
+- [x] `npm run test:unit` passes after Task 1.
 - [ ] No secrets or personal health data are added to configuration or fixtures.
 
 ## Task 3: Implement shared HTTP transport and error mapping
