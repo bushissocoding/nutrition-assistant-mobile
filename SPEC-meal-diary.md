@@ -2,7 +2,7 @@
 
 Module id: `meal-diary` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: proposed
+Status: proposed (amended after review of consent-deletion behavior)
 
 ## Mục tiêu
 
@@ -89,6 +89,7 @@ Các số trên là ví dụ schema, không phải hằng số cho món cụ th�
 | `GET /api/v1/meal-entries/:id` | `200` `{ item, disclaimer }`. | `404` không tồn tại trong namespace hiện tại. |
 | `PATCH /api/v1/meal-entries/:id` | `200` `{ item, disclaimer }`; chỉ cập nhật field được gửi. | `400` patch rỗng hoặc field sai; `404` không tồn tại trong namespace hiện tại. |
 | `DELETE /api/v1/meal-entries/:id` | `204`, không body; xóa lặp lại vẫn `204`. | `503` demo data tắt. |
+| `DELETE /api/v1/meal-entries` | `204`, xóa toàn bộ entry và idempotency ledger trong namespace hiện tại. Dùng khi người dùng xóa hồ sơ/thu hồi đồng ý. | `503` demo data tắt. |
 
 `PATCH` hỗ trợ `foodId`, toàn bộ `portion`, `mealType`, `consumedAt`, `timeZone`, `notes`; field dinh dưỡng/ID/timestamp hệ thống và field lạ bị từ chối. Nếu food hoặc portion đổi, backend tính lại `nutrients`. Mọi list được sort theo `consumedAt` tăng dần rồi `id`; pagination dùng `limit` mặc định 50/tối đa 100 và `offset` không âm. `totals` tính trên toàn bộ bản ghi trong ngày trước khi cắt trang. Bổ sung `Idempotency-Key` vào danh sách request headers CORS cùng `X-Demo-Namespace` để request POST từ client qua preflight được phép.
 
@@ -110,6 +111,7 @@ Ngày được định nghĩa theo khoảng nửa mở `[00:00 date trong timeZo
 - Có trạng thái empty cho ngày chưa ghi; lỗi list có nút tải lại. Lỗi create/edit giữ nguyên form và nội dung để sửa/thử lại; chỉ hiện thành công/đưa bản ghi vào list sau phản hồi server.
 - Khi tạo, giữ cùng idempotency key cho lần gửi lại của cùng ý định. Đổi nội dung sau lỗi tạo ý định mới và key mới. Không có tự retry hoặc offline queue.
 - Sửa/xóa có phản hồi từ server trước khi cập nhật list. Xóa cần xác nhận. Khi đổi ngày trong lúc request cũ đang chạy, bỏ qua response của ngày cũ để tránh ghi đè UI ngày mới.
+- Khi xóa hồ sơ hoặc thu hồi đồng ý, purge nhật ký ở server trước rồi mới xóa profile/consent trên thiết bị. Nếu API purge lỗi/mất mạng, giữ dữ liệu local và consent/profile, hiển thị lỗi dễ hiểu cùng nút thử lại; không báo đã xóa.
 - Dùng `nutrients`/`totals` trả về, không tự tính trong app. Hiển thị banner rằng giá trị là ước tính từ catalog demo, không phải tư vấn y tế.
 
 ## Dữ liệu và bảo mật
@@ -121,7 +123,7 @@ Ngày được định nghĩa theo khoảng nửa mở `[00:00 date trong timeZo
 
 ## Kiểm thử
 
-- API tests: create/list/get/PATCH/DELETE; namespace isolation; demo disabled/production; boundary theo timezone (bao gồm ngày DST ngắn/dài); validation field thiếu/sai/field lạ; nutrient từ backend; duplicate create cùng key; khác payload cùng key; duplicate đồng thời; retry sau xóa; không thành công giả khi store lỗi.
+- API tests: create/list/get/PATCH/DELETE item and DELETE collection; namespace isolation; demo disabled/production; boundary theo timezone (bao gồm ngày DST ngắn/dài); validation field thiếu/sai/field lạ; nutrient từ backend; duplicate create cùng key; khác payload cùng key; duplicate đồng thời; retry sau xóa; purge xóa cả ledger; không thành công giả khi store lỗi.
 - UI component tests mô phỏng response API: loading, empty, error + retry, create/edit/delete chỉ cập nhật sau server success, cùng idempotency key khi retry và banner ước tính. Dùng Jest + `jest-expo` + React Native Testing Library với native modules được mock; đây là devDependencies phục vụ yêu cầu UI test.
 - `npm run test:unit`, `npm run test:api`, và `npm run test:ui` đều đạt trước bàn giao; CI phải chạy thêm UI suite để các test component mới không chỉ được chạy thủ công.
 
@@ -132,6 +134,7 @@ Ngày được định nghĩa theo khoảng nửa mở `[00:00 date trong timeZo
 - Date filtering dùng timezone IANA của người dùng; retry cùng một ý định không sinh bản ghi trùng.
 - Dữ liệu demo namespace khác không thể đọc/sửa qua API namespace hiện tại; tài liệu không gọi đây là account ownership/auth.
 - UI có loading/empty/error/retry và không báo thành công trước khi server xác nhận.
+- Xóa hồ sơ/thu hồi đồng ý không để lại nhật ký trong server namespace; lỗi purge không xóa profile/consent local và không báo thành công.
 - Test API/UI liên quan chạy; chỉ dùng synthetic demo data, không bật persistence này ở production.
 
 ## Tham khảo kiểm thử Expo
