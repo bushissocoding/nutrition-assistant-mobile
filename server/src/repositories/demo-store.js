@@ -1,25 +1,12 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { assertDemoCollection, assertDemoNamespace } = require('../services/demo-data-policy');
 
 const STORE_VERSION = 1;
-const namespacePattern = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
-const collectionPattern = /^[a-z][a-z0-9_-]{0,63}$/;
 const defaultFilePath = path.join(__dirname, '..', '..', '.local-data', 'demo-store.json');
 
 function isRecord(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function assertNamespace(namespace) {
-  if (typeof namespace !== 'string' || !namespacePattern.test(namespace)) {
-    throw new TypeError('Demo namespace must contain 1–128 letters, numbers, hyphens, or underscores.');
-  }
-}
-
-function assertCollection(collection) {
-  if (typeof collection !== 'string' || !collectionPattern.test(collection)) {
-    throw new TypeError('Demo collection name must start with a lowercase letter and contain only letters, numbers, hyphens, or underscores.');
-  }
 }
 
 function emptyStore() {
@@ -44,11 +31,11 @@ function normalizeStore(value) {
 
   const namespaces = Object.create(null);
   for (const [namespace, collections] of Object.entries(value.namespaces)) {
-    assertNamespace(namespace);
+    assertDemoNamespace(namespace);
     if (!isRecord(collections)) throw new Error(`Demo data for namespace "${namespace}" is invalid.`);
     const normalizedCollections = Object.create(null);
     for (const [collection, records] of Object.entries(collections)) {
-      assertCollection(collection);
+      assertDemoCollection(collection);
       if (!Array.isArray(records)) throw new Error(`Demo collection "${collection}" must contain an array.`);
       normalizedCollections[collection] = records;
     }
@@ -101,15 +88,15 @@ function createDemoStore({ filePath = process.env.DEMO_DATA_FILE || defaultFileP
   }
 
   async function readCollection(namespace, collection) {
-    assertNamespace(namespace);
-    assertCollection(collection);
+    assertDemoNamespace(namespace);
+    assertDemoCollection(collection);
     const store = await readStore();
     return copyJson(store.namespaces[namespace]?.[collection] || []);
   }
 
   async function updateCollection(namespace, collection, update) {
-    assertNamespace(namespace);
-    assertCollection(collection);
+    assertDemoNamespace(namespace);
+    assertDemoCollection(collection);
     if (typeof update !== 'function') throw new TypeError('Collection update must be a function.');
 
     return serializeWrite(async () => {

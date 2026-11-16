@@ -31,9 +31,9 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Description:** Add reusable request middleware that enables demo data only when explicitly configured outside production, validates the `X-Demo-Namespace` header, and exposes only the validated namespace to downstream handlers.
 
 **Acceptance criteria:**
-- [ ] Disabled demo mode and production reject requests; production remains disabled even if the demo flag is true.
-- [ ] Missing or malformed namespaces are rejected with clear client errors; valid namespaces are available to downstream handlers.
-- [ ] Tests identify namespace isolation as demo partitioning, not account authentication or security.
+- [x] Disabled demo mode and production reject requests; production remains disabled even if the demo flag is true.
+- [x] Missing or malformed namespaces are rejected with clear client errors; valid namespaces are available to downstream handlers.
+- [x] Store tests verify namespace isolation; middleware tests treat the namespace as a caller-supplied demo scope and do not treat it as account authentication.
 
 **Verification:**
 - Focused: `node --test server/tests/demo-scope.test.js`
@@ -43,16 +43,18 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Dependencies:** None. Task 1 and Task 2 may be developed independently; both must be complete before Task 3.
 
 **Files likely touched:**
+- `server/src/services/demo-data-policy.js`
 - `server/src/middleware/demo-scope.js`
+- `server/src/repositories/demo-store.js`
 - `server/tests/demo-scope.test.js`
 
 **Estimated scope:** Small.
 
 ## Checkpoint: Store and request boundary
 
-- [ ] Tasks 1 and 2 focused tests pass.
-- [ ] `npm run test:unit` passes.
-- [ ] No demo data file or synthetic personal data is added to source control.
+- [x] Tasks 1 and 2 focused tests pass.
+- [x] `npm run test:unit` passes.
+- [x] No demo data file or synthetic personal data is added to source control.
 
 ## Task 3: Wire demo context into API composition
 

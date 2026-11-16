@@ -21,6 +21,7 @@ Repository và middleware có thể phát triển độc lập. Tích hợp serv
 - Dùng `node:fs/promises`, không thêm package. Mặc định lưu ở `server/.local-data/demo-store.json`; cho phép đổi đường dẫn bằng `DEMO_DATA_FILE` để test dùng thư mục tạm và môi trường dev chọn vị trí khác.
 - Repository nhận đường dẫn qua constructor để kiểm thử độc lập. Ghi tuần tự và thay file tạm bằng rename để giảm nguy cơ mất cập nhật hoặc hỏng JSON khi hai request ghi gần nhau.
 - Chỉ bật dữ liệu demo khi `DEMO_DATA_ENABLED=true` và `NODE_ENV` khác `production`. Production luôn từ chối, kể cả khi cờ demo được đặt.
+- Đặt quy tắc namespace và kiểm tra demo mode trong service thuần dùng chung, để repository và HTTP middleware áp dụng cùng một policy.
 - Chuẩn hóa namespace qua header `X-Demo-Namespace`; middleware xác thực định dạng và gắn namespace đã kiểm tra vào request. Header này chỉ phân vùng demo, không xác thực danh tính.
 - Cho phép `X-Demo-Namespace` trong CORS preflight cùng `Content-Type`, để client web hiện có thể gửi header khi cần.
 - Không tạo endpoint probe hoặc endpoint demo độc lập. Kiểm thử middleware bằng một Express app cô lập; API CRUD sẽ được kiểm thử HTTP khi module nhật ký/grocery thêm route.
