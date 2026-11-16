@@ -84,9 +84,9 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Description:** Create the demo context during server startup, pass it into the API router, and allow the namespace header through CORS preflight. Keep existing public route responses unchanged.
 
 **Acceptance criteria:**
-- [ ] Server startup builds the demo context from environment configuration and injects it into `/api/v1`.
-- [ ] Existing API responses remain unchanged; preflight accepts `Content-Type` and `X-Demo-Namespace`.
-- [ ] API smoke coverage starts the server with demo mode enabled, checks health/catalog/preflight, and creates no default store file.
+- [x] Server startup builds the demo context from environment configuration and injects it into `/api/v1`.
+- [x] Existing API responses remain unchanged; preflight accepts `Content-Type` and `X-Demo-Namespace`.
+- [x] API smoke coverage starts the server with demo mode enabled, checks health/catalog/preflight, and creates no default store file.
 
 **Verification:**
 - API smoke suite: `npm run test:api`
@@ -102,9 +102,9 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 
 ## Checkpoint: API composition
 
-- [ ] Context and API smoke tests pass.
-- [ ] `npm run test:unit` and `npm run test:api` pass.
-- [ ] No runtime demo store is created by tests.
+- [x] Context and API smoke tests pass.
+- [x] `npm run test:unit` and `npm run test:api` pass.
+- [x] No runtime demo store is created by tests.
 
 ## Task 5: Document and safely exclude local demo storage
 
