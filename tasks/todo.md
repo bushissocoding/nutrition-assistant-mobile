@@ -9,9 +9,9 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Description:** Implement the dependency-free repository with an injectable/configurable file path, per-namespace collections, serialized writes, and atomic file replacement. Missing files start as empty stores; malformed data and filesystem failures remain visible to callers.
 
 **Acceptance criteria:**
-- [ ] Data written under one namespace can be read after creating a new repository instance, while another namespace remains isolated.
-- [ ] Concurrent updates do not silently overwrite each other; test paths use temporary directories and leave no runtime data in the repository.
-- [ ] Missing, malformed, read-only, and other I/O failure cases have explicit behavior and focused coverage.
+- [x] Data written under one namespace can be read after creating a new repository instance, while another namespace remains isolated.
+- [x] Concurrent updates do not silently overwrite each other; test paths use temporary directories and leave no runtime data in the repository.
+- [x] Missing, malformed, read-only, and other I/O failure cases have explicit behavior and focused coverage.
 
 **Verification:**
 - Focused: `node --test server/tests/demo-store.test.js`
