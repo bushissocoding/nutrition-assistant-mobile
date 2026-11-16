@@ -2,7 +2,7 @@
 
 Module id: `meal-diary` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: proposed (amended after review of consent-deletion behavior)
+Status: approved
 
 ## Mục tiêu
 
