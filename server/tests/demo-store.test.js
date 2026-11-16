@@ -47,6 +47,18 @@ test('serializes concurrent updates without losing collection entries', async t 
   assert.deepEqual(new Set(entries.map(entry => entry.id)), new Set(Array.from({ length: 20 }, (_, index) => `meal-${index}`)));
 });
 
+test('snapshots a collection before its queued write begins', async t => {
+  const { filePath } = await makeStore(t);
+  const store = createDemoStore({ filePath });
+  const submitted = [{ id: 'original' }];
+
+  const pendingWrite = store.writeCollection('demo-client-1', 'diary', submitted);
+  submitted[0].id = 'mutated';
+  await pendingWrite;
+
+  assert.deepEqual(await store.readCollection('demo-client-1', 'diary'), [{ id: 'original' }]);
+});
+
 test('rejects malformed store JSON instead of treating it as empty', async t => {
   const { filePath } = await makeStore(t);
   await fs.writeFile(filePath, '{not-json', 'utf8');

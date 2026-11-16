@@ -3,7 +3,7 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
-const { createDemoContext } = require('../src/services/demo-context');
+const { createDemoContext } = require('../src/demo-context');
 
 test('builds the demo store and scope middleware from the provided environment', async t => {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'nutrition-demo-context-'));

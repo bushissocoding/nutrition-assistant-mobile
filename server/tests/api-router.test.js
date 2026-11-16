@@ -4,9 +4,16 @@ const { once } = require('node:events');
 const test = require('node:test');
 const { createApiRouter } = require('../src/routes/api');
 
+test('requires a complete demo context when composing the API router', () => {
+  assert.throws(() => createApiRouter({ foods: [], mealTemplates: [] }), /demo context/i);
+});
+
 test('makes the composed demo context available to downstream feature routers', async t => {
-  const demoContext = { store: {}, requireScope() {} };
-  const router = createApiRouter({ foods: [], mealTemplates: [] }, { demoContext });
+  const demoContext = {
+    store: { readCollection() {}, updateCollection() {}, writeCollection() {} },
+    requireScope() {},
+  };
+  const router = createApiRouter({ foods: [], mealTemplates: [] }, demoContext);
   router.get('/context-probe', (req, res) => {
     res.json({ sameContext: req.demoContext === demoContext });
   });

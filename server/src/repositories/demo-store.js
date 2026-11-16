@@ -116,7 +116,8 @@ function createDemoStore({ filePath = process.env.DEMO_DATA_FILE || defaultFileP
 
   function writeCollection(namespace, collection, records) {
     if (!Array.isArray(records)) throw new TypeError('Demo collections must be arrays.');
-    return updateCollection(namespace, collection, () => records);
+    const snapshot = copyJson(records);
+    return updateCollection(namespace, collection, () => snapshot);
   }
 
   return { readCollection, updateCollection, writeCollection };

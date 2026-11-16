@@ -72,7 +72,7 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 **Dependencies:** Tasks 1 and 2.
 
 **Files likely touched:**
-- `server/src/services/demo-context.js`
+- `server/src/demo-context.js`
 - `server/src/routes/api.js`
 - `server/tests/demo-context.test.js`
 - `server/tests/api-router.test.js`
@@ -81,11 +81,11 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 
 ## Task 4: Wire server startup and CORS
 
-**Description:** Create the demo context during server startup, pass it into the API router, and allow the namespace header through CORS preflight. Keep existing public route responses unchanged.
+**Description:** Create the demo context during server startup, pass it into the API router, and allow the namespace header plus CRUD methods through CORS preflight. Keep existing public route responses unchanged.
 
 **Acceptance criteria:**
 - [x] Server startup builds the demo context from environment configuration and injects it into `/api/v1`.
-- [x] Existing API responses remain unchanged; preflight accepts `Content-Type` and `X-Demo-Namespace`.
+- [x] Existing API responses remain unchanged; preflight accepts `Content-Type`, `X-Demo-Namespace`, and the CRUD HTTP methods.
 - [x] API smoke coverage starts the server with demo mode enabled, checks health/catalog/preflight, and creates no default store file.
 
 **Verification:**
@@ -134,4 +134,4 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 - [x] `npm run test:unit` passes.
 - [x] `npm run test:api` passes.
 - [x] Demo data is disabled in production and docs prohibit real health data until authenticated storage and data-lifecycle requirements are implemented.
-- [ ] Review this module before starting `mobile-api-client`.
+- [x] Review this module before starting `mobile-api-client`.

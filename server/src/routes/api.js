@@ -2,7 +2,13 @@ const express = require('express');
 const { calculateFood, calculateTotals } = require('../services/nutrition');
 const { generatePlan } = require('../services/meal-planner');
 
-function createApiRouter({ foods, mealTemplates }, { demoContext } = {}) {
+function createApiRouter({ foods, mealTemplates }, demoContext) {
+  const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
+    .every(method => typeof demoContext?.store?.[method] === 'function');
+  if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
+    throw new TypeError('A complete demo context is required to compose the API router.');
+  }
+
   const router = express.Router();
   router.use((req, _res, next) => {
     req.demoContext = demoContext;

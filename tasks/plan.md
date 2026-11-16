@@ -23,7 +23,7 @@ Repository và middleware có thể phát triển độc lập. Tích hợp serv
 - Chỉ bật dữ liệu demo khi `DEMO_DATA_ENABLED=true` và `NODE_ENV` khác `production`. Production luôn từ chối, kể cả khi cờ demo được đặt.
 - Đặt quy tắc namespace và kiểm tra demo mode trong service thuần dùng chung, để repository và HTTP middleware áp dụng cùng một policy.
 - Chuẩn hóa namespace qua header `X-Demo-Namespace`; middleware xác thực định dạng và gắn namespace đã kiểm tra vào request. Header này chỉ phân vùng demo, không xác thực danh tính.
-- Cho phép `X-Demo-Namespace` trong CORS preflight cùng `Content-Type`, để client web hiện có thể gửi header khi cần.
+- Cho phép `X-Demo-Namespace` và các method GET/POST/PUT/PATCH/DELETE trong CORS preflight để client web có thể dùng các luồng CRUD.
 - Không tạo endpoint probe hoặc endpoint demo độc lập. Kiểm thử middleware bằng một Express app cô lập; API CRUD sẽ được kiểm thử HTTP khi module nhật ký/grocery thêm route.
 - Thêm đường dẫn runtime vào `.gitignore`; README hướng dẫn bật/tắt store demo, đường dẫn dữ liệu và giới hạn không dùng dữ liệu sức khỏe thật.
 
