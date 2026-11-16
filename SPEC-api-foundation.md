@@ -2,6 +2,8 @@
 
 Module id: `api-foundation` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
+Status: implemented
+
 ## Mục tiêu
 
 Tạo lớp lưu trữ bền vững tối thiểu và ranh giới demo an toàn để các API nhật ký bữa ăn và danh sách đi chợ có thể giữ dữ liệu sau khi backend khởi động lại. Module này không triển khai endpoint CRUD riêng của nhật ký hoặc danh sách; các hợp đồng và luồng đó thuộc spec của từng module.
@@ -25,6 +27,7 @@ Auth và định danh tài khoản trong issue #3 chưa có. Vì vậy, dữ li�
 ## Lệnh
 
 - Chạy API demo: PowerShell `$env:DEMO_DATA_ENABLED='true'; npm run api` (chỉ môi trường phát triển; đặt lại biến môi trường sau phiên làm việc).
+- Chọn file store khác: đặt `DEMO_DATA_FILE` trước khi chạy API; mặc định là `server/.local-data/demo-store.json`.
 - Kiểm thử logic: `npm run test:unit`.
 - Kiểm thử HTTP API: `npm run test:api`.
 - Cả hai lệnh kiểm thử trên là kiểm tra bắt buộc trước khi bàn giao theo `CONSTRAINTS.md`.
@@ -33,6 +36,7 @@ Auth và định danh tài khoản trong issue #3 chưa có. Vì vậy, dữ li�
 
 - `server/src/repositories/demo-store.js` — đọc/ghi store JSON bền vững và cô lập chi tiết filesystem.
 - `server/src/middleware/demo-scope.js` — kiểm tra chế độ demo và lấy namespace đã kiểm tra từ request.
+- `server/src/demo-context.js` — ghép repository và middleware vào context được inject vào API router.
 - `server/server.js` — cấu hình middleware và điều kiện bật/tắt demo.
 - `server/tests/` và `server/server.test.js` — kiểm thử repository, phạm vi demo và hành vi qua HTTP.
 - `.gitignore` — loại trừ file dữ liệu runtime cục bộ.
@@ -58,6 +62,7 @@ Các route cụ thể của nhật ký và grocery sẽ được định nghĩa 
 - Kiểm thử repository đọc/ghi bền vững, dữ liệu hỏng/thiếu, cập nhật ghi an toàn và khả năng đọc lại sau khi tạo lại repository hoặc khởi động lại server.
 - Kiểm thử thiếu/sai demo namespace, demo bị tắt và production luôn chặn API dữ liệu demo.
 - Kiểm thử hai namespace khác nhau không thấy dữ liệu của nhau. Đây là kiểm thử phân vùng demo, không phải chứng minh bảo mật tài khoản.
+- Kiểm thử CORS preflight cho `Content-Type`, `X-Demo-Namespace` và các method GET/POST/PUT/PATCH/DELETE.
 - Chạy `npm run test:unit` và `npm run test:api` trước bàn giao.
 
 ## Ranh giới
