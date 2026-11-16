@@ -50,16 +50,16 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 
 - [x] Tasks 1 and 2 focused tests pass.
 - [x] `npm run test:unit` passes after Tasks 1 and 2.
-- [ ] No secrets or personal health data are added to configuration or fixtures.
+- [x] No secrets or personal health data are added to configuration or fixtures.
 
 ## Task 3: Implement shared HTTP transport and error mapping
 
 **Description:** Implement an injectable transport that validates configuration before I/O, adds JSON and demo namespace headers, enforces a finite timeout, supports caller abort, parses JSON and 204 responses, and maps configuration/network/timeout/HTTP/response errors to typed client errors. Do not retry requests automatically.
 
 **Acceptance criteria:**
-- [ ] Tests cover request URL, method, headers and body, JSON success, 204, malformed response JSON, HTTP 4xx/5xx, network rejection, timeout and caller abort.
-- [ ] Errors expose stable categories and useful user-facing Vietnamese messages; HTTP status is retained when available.
-- [ ] A failed or timed-out mutation never resolves as success and the transport never automatically resends it.
+- [x] Tests cover request URL, method, headers and body, JSON success, 204, malformed response JSON, HTTP 4xx/5xx, network rejection, timeout and caller abort.
+- [x] Errors expose stable categories and useful user-facing Vietnamese messages; HTTP status is retained when available.
+- [x] A failed or timed-out mutation never resolves as success and the transport never automatically resends it.
 
 **Verification:**
 - Focused: `node --test app/src/services/api-client.test.cjs`
