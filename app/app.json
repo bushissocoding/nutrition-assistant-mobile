@@ -7,6 +7,10 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "ios": { "supportsTablet": false },
-    "android": { "adaptiveIcon": { "backgroundColor": "#F4F7FF" } }
+    "android": {
+      "adaptiveIcon": { "backgroundColor": "#F4F7FF" },
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "plugins": ["expo-secure-store"]
   }
 }

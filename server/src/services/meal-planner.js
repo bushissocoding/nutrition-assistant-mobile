@@ -66,11 +66,12 @@ function generatePlan({ foods, mealTemplates, budgetVnd = 120000, allergies = []
   const blockedIds = foods.filter(f => excluded.has(f.id) || f.allergens.some(a => allergenTokens.includes(a.toLocaleLowerCase('vi')))).map(f => f.id);
   const slots = [...new Set(mealTemplates.map(m => m.slot))];
   const optionsBySlot = slots.map(slot => mealTemplates.filter(t => t.slot === slot && t.items.every(item => foodById.has(item.foodId) && !blockedIds.includes(item.foodId))).flatMap(t => [0.75, 1, 1.25].map(scale => buildMeal(t, foodById, scale))));
+  const withinHardLimits = totals => Object.entries(limits).every(([key, range]) => (range.max === undefined || totals[key] <= range.max) && (range.min === undefined || totals[key] >= range.min));
   const plans = [];
   function enumerate(index, current, spent) {
     if (index === optionsBySlot.length) {
       const scored = scorePlan(current, targets, preferences);
-      if (spent <= budgetVnd && Object.entries(limits).every(([key, range]) => (range.max === undefined || scored.dailyTotals[key] <= range.max) && (range.min === undefined || scored.dailyTotals[key] >= range.min))) plans.push({ meals: current, cost: spent, ...scored });
+      if (spent <= budgetVnd && withinHardLimits(scored.dailyTotals)) plans.push({ meals: current, cost: spent, ...scored });
       return;
     }
     for (const meal of optionsBySlot[index]) if (spent + meal.estimatedCostVnd <= budgetVnd) enumerate(index + 1, [...current, meal], spent + meal.estimatedCostVnd);
@@ -86,7 +87,7 @@ function generatePlan({ foods, mealTemplates, budgetVnd = 120000, allergies = []
       function choose(index, current, spent) {
         if (index === selectedSlots.length) {
           const scored = scorePlan(current, targets, preferences);
-          if (spent <= budgetVnd && Object.entries(limits).every(([key, range]) => (range.max === undefined || scored.dailyTotals[key] <= range.max) && (range.min === undefined || scored.dailyTotals[key] >= range.min))) candidates.push({ meals: current, cost: spent, ...scored });
+          if (spent <= budgetVnd && withinHardLimits(scored.dailyTotals)) candidates.push({ meals: current, cost: spent, ...scored });
           return;
         }
         for (const meal of selectedSlots[index]) if (spent + meal.estimatedCostVnd <= budgetVnd) choose(index + 1, [...current, meal], spent + meal.estimatedCostVnd);
@@ -122,6 +123,8 @@ function generatePlan({ foods, mealTemplates, budgetVnd = 120000, allergies = []
     hardLimits: limits,
     constraintsApplied: { allergies, excludedFoodIds: blockedIds },
     warnings,
+    disclaimer: 'Ước tính minh họa từ dữ liệu mẫu; không chẩn đoán hoặc thay thế chỉ định của chuyên gia y tế.',
+    planFeasible: Boolean(best) && best.meals.length === slots.length,
     limitations: ['Optimizer sắp xếp hữu hạn các công thức mẫu và ba mức khẩu phần; chưa tạo công thức mới.', 'Mục tiêu mặc định chỉ là giá trị minh họa cho phần mềm, không phải nhu cầu dinh dưỡng cá nhân hay chế độ điều trị.', 'Giá mẫu và dữ liệu thành phần có sai số; gia vị, dầu, nước chấm có thể làm thay đổi đáng kể dinh dưỡng.', 'Không dùng kết quả để chẩn đoán hoặc điều trị; cần chuyên gia xác nhận nguồn dữ liệu, khẩu phần và mục tiêu.']
   };
 }

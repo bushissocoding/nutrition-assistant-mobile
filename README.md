@@ -4,9 +4,13 @@ Expo mobile app + initial Node.js/Express nutrition API MVP.
 
 ## Repository layout
 
-- `app/` — Expo entry screen and app configuration.
-- `server/` — Express API, sample food/meal data, API smoke tests.
-- `assets/design/ui-reference/` — supplied UI PNG references.
+- `app/App.js` — Expo entry point.
+- `app/src/` — feature-first mobile app: app shell, navigation, shared UI, theme, API client, and home/planning/grocery/diary/dashboard/profile features.
+- `server/server.js` — Express API entry point.
+- `server/src/` — API routes, catalog repository, nutrition and meal-planning services.
+- `server/data/` — explicitly attributed demonstration food and meal catalogs.
+- `server/tests/` — deterministic unit tests for nutrition and meal-planning logic; `server/server.test.js` contains API smoke tests.
+- `assets/design/ui-reference/` — supplied UI PNG references; implemented meal and dashboard screens use their visual direction.
 - `docs/` — project presentation/requirements material.
 
 ## Run locally
@@ -26,7 +30,7 @@ npm start
 
 For a physical phone, set `EXPO_PUBLIC_API_URL` to your computer's LAN address before starting Expo, e.g. `EXPO_PUBLIC_API_URL=http://192.168.1.20:4000` (PowerShell: `$env:EXPO_PUBLIC_API_URL='http://192.168.1.20:4000'`). `localhost` on a phone refers to the phone, not the computer.
 
-Run backend smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md).
+Run deterministic business-logic tests with `npm run test:unit` and backend API smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md). The mobile prototype keeps consent, generated plan, diary and grocery state in memory only; persistent accounts/storage and clinical recommendations are not implemented.
 
 ## Important data and medical boundary
 
