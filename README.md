@@ -15,20 +15,40 @@ Expo mobile app + initial Node.js/Express nutrition API MVP.
 
 ## Run locally
 
+Install dependencies once:
+
+```powershell
+npm ci
+```
+
 Terminal 1 (API):
 
-```sh
-npm install
+```powershell
+$env:DEMO_DATA_ENABLED = 'true'
 npm run api
 ```
 
 Terminal 2 (Expo):
 
-```sh
+```powershell
+Copy-Item .env.example .env
+# Edit .env and set EXPO_PUBLIC_API_URL for the target below.
 npm start
 ```
 
-For a physical phone, set `EXPO_PUBLIC_API_URL` to your computer's LAN address before starting Expo, e.g. `EXPO_PUBLIC_API_URL=http://192.168.1.20:4000` (PowerShell: `$env:EXPO_PUBLIC_API_URL='http://192.168.1.20:4000'`). `localhost` on a phone refers to the phone, not the computer.
+The Expo app has no implicit `localhost` fallback. If `EXPO_PUBLIC_API_URL` is missing or invalid, the API client reports a configuration error before sending a request. Expo reads the root `.env`; restart Expo after changing it. `EXPO_PUBLIC_*` values are embedded in the client bundle, so do not put passwords, tokens, or other secrets there. See [Expo environment variables](https://docs.expo.dev/guides/environment-variables/).
+
+### Choose the API URL for the app target
+
+| Target | `EXPO_PUBLIC_API_URL` | Requirements |
+|---|---|---|
+| Expo Go on a physical phone | `http://<computer-LAN-IPv4>:4000` (example: `http://192.168.1.20:4000`) | Phone and computer on the same reachable LAN; allow inbound TCP port 4000 through the computer firewall. `localhost` on the phone means the phone itself. |
+| Android Studio Emulator | `http://10.0.2.2:4000` | Android Emulator maps `10.0.2.2` to the host computer's loopback. Do not use it on a physical phone. [Android Emulator networking](https://developer.android.com/studio/run/emulator-networking-address). |
+| iOS Simulator on the Mac running the API | `http://localhost:4000` | iOS Simulator runs on macOS. For a different API host, use its reachable LAN/VPN address instead. [Expo iOS Simulator](https://docs.expo.dev/workflow/ios-simulator/). |
+
+The API listens on `0.0.0.0:4000` for development. On Windows, use `ipconfig` to find the computer's active LAN IPv4 address; make sure the phone is not on an isolated guest Wi-Fi network and that the firewall permits TCP 4000 on the private network. Expo's tunnel option only connects the Metro development server; it does not provide a backend API address. See [Expo CLI networking](https://docs.expo.dev/more/expo-cli/).
+
+Verify the backend from the same device/emulator that runs the app by opening `http://<the-same-host>:4000/health` in its browser. The response should include `{"status":"ok"}`. You can also check locally on the computer with `http://localhost:4000/health`.
 
 Run deterministic business-logic tests with `npm run test:unit` and backend API smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md). Consent and the minimal profile are stored locally with SecureStore; generated plans, diary entries and grocery lists remain in memory. The API has a development-only JSON storage foundation for future data routes, but there is no authentication, account ownership security, or production persistence.
 
@@ -42,7 +62,7 @@ $env:DEMO_DATA_FILE = '.\server\.local-data\demo-store.json' # optional
 npm run api
 ```
 
-Remove the environment variable or set it to `false` to turn demo data off. `NODE_ENV=production` always disables demo data routes, even when the flag is true. The `X-Demo-Namespace` request header only partitions local demo data; it is supplied by the caller and is not authentication or account security. Do not store real health information in this prototype. Diary and grocery CRUD routes are not part of the API foundation yet.
+Remove the environment variable or set it to `false` to turn demo data off. `NODE_ENV=production` always disables demo data routes, even when the flag is true. The app keeps a demo namespace in SecureStore so it can reuse the same local demo partition after restarting. The `X-Demo-Namespace` request header is caller-controlled and is not authentication or account security. Demo persistence is not safe for real health information; do not store real health information in this prototype. Diary and grocery CRUD routes are not part of the API foundation yet.
 
 ## Important data and medical boundary
 

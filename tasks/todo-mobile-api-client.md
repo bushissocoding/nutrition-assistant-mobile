@@ -105,11 +105,13 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 **Description:** Add `.env.example`, document base URL setup for Expo Go on a physical phone, Android Emulator and iOS Simulator, and explain LAN/firewall checks and `/health` verification. Run required checks and attempt end-to-end verification from an available device/emulator.
 
 **Acceptance criteria:**
-- [ ] `.env.example` uses a replaceable LAN IP and contains no credentials; `.env` is ignored by Git.
-- [ ] Docs explain same-LAN/firewall requirements, Android `10.0.2.2`, simulator-specific `localhost`, and how to check `/health` from the device.
-- [ ] Docs state demo namespace is not authentication, production demo persistence is disabled, and no real health data should be used before issue #3.
-- [ ] `npm run test:unit` and `npm run test:api` pass.
+- [x] `.env.example` uses a replaceable LAN IP and contains no credentials; `.env` is ignored by Git.
+- [x] Docs explain same-LAN/firewall requirements, Android `10.0.2.2`, simulator-specific `localhost`, and how to check `/health` from the device.
+- [x] Docs state demo namespace is not authentication, production demo persistence is disabled, and no real health data should be used before issue #3.
+- [x] `npm run test:unit` and `npm run test:api` pass (45 unit tests; API smoke suite).
 - [ ] At least one phone/emulator reaches `/health` and opens the app with the same base URL; if the environment has no device, record the exact unverified check and reason instead of claiming acceptance.
+
+**Device check status:** Host `localhost` and the host's LAN IPv4 both returned `status: "ok"`. This Windows environment has no `adb`, Android Emulator executable, or connected-device bridge; no separate phone/emulator request has been verified.
 
 **Verification:**
 - `npm run test:unit`
@@ -130,8 +132,8 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 ## Checkpoint: Mobile API client complete
 
 - [ ] All five tasks meet their acceptance criteria.
-- [ ] `npm run test:unit` passes.
-- [ ] `npm run test:api` passes.
-- [ ] Expo bundle succeeds.
-- [ ] Device verification is recorded accurately.
+- [x] `npm run test:unit` passes (45 tests).
+- [x] `npm run test:api` passes.
+- [x] Expo Android bundle succeeds.
+- [x] Device verification status and limitation are recorded accurately.
 - [ ] Review this module before beginning the meal-diary module.
