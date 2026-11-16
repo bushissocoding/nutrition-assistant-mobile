@@ -30,9 +30,9 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 **Description:** Add an async namespace store with an injectable storage adapter and a SecureStore adapter for native Expo. Generate a namespace only when none is stored; do not treat it as authentication.
 
 **Acceptance criteria:**
-- [ ] First read creates and persists a valid namespace; later reads and a newly constructed store return the same value.
-- [ ] Read/write storage failures are explicit and do not cause a fresh namespace to be generated on every request.
-- [ ] Unit tests use an in-memory adapter and do not require a native runtime.
+- [x] First read creates and persists a valid namespace; later reads and a newly constructed store return the same value.
+- [x] Read/write storage failures are explicit and do not cause a fresh namespace to be generated on every request.
+- [x] Unit tests use an in-memory adapter and do not require a native runtime.
 
 **Verification:**
 - Focused: `node --test app/src/services/demo-namespace-storage.test.cjs`
@@ -48,8 +48,8 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 
 ## Checkpoint: Configuration and namespace primitives
 
-- [ ] Tasks 1 and 2 focused tests pass.
-- [x] `npm run test:unit` passes after Task 1.
+- [x] Tasks 1 and 2 focused tests pass.
+- [x] `npm run test:unit` passes after Tasks 1 and 2.
 - [ ] No secrets or personal health data are added to configuration or fixtures.
 
 ## Task 3: Implement shared HTTP transport and error mapping
