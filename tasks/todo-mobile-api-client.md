@@ -136,4 +136,4 @@ Source spec: [SPEC-mobile-api-client.md](../SPEC-mobile-api-client.md)
 - [x] `npm run test:api` passes.
 - [x] Expo Android bundle succeeds.
 - [x] Device verification status and limitation are recorded accurately.
-- [ ] Review this module before beginning the meal-diary module.
+- [x] Review this module before beginning the meal-diary module.

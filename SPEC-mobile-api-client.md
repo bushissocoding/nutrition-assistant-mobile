@@ -2,7 +2,7 @@
 
 Module id: `mobile-api-client` (from [CAPABILITY-MAP.md](CAPABILITY-MAP.md))
 
-Status: approved
+Status: implementation complete; physical-device verification pending
 
 ## Mục tiêu
 

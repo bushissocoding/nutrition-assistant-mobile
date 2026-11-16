@@ -95,7 +95,7 @@ function createApiClient({
       rejectTimeout(new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.'));
     }, timeoutMs);
 
-    const { signal: ignoredSignal, headers: customHeaders, ...fetchOptions } = options;
+    const customHeaders = options.headers;
 
     const work = (async () => {
       let namespace;
@@ -124,7 +124,7 @@ function createApiClient({
       let response;
       try {
         response = await fetchImpl(`${base}${path}`, {
-          ...fetchOptions,
+          ...options,
           headers,
           signal: controller.signal,
         });
