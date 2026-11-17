@@ -116,6 +116,7 @@ test('preserves the form on create failure and retries the same intent with the 
   expect(firstAttempt[0].consumedAt).toMatch(/(?:Z|[+-]\d{2}:\d{2})$/);
   expect(firstAttempt[0].timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   await waitFor(() => expect(screen.getByText('Đã lưu nhật ký.')).toBeTruthy());
+  expect(screen.getByText('Đã lưu nhật ký.').props.accessibilityLiveRegion).toBe('polite');
   expect(screen.getByText('156 kcal')).toBeTruthy();
 });
 
@@ -142,6 +143,7 @@ test('updates and deletes only after the API confirms each mutation', async () =
     await deleteRequest;
   });
   await waitFor(() => expect(api.deleteMealEntry).toHaveBeenCalledWith('entry-1'));
+  await waitFor(() => expect(screen.getByText('Đã xóa bản ghi.').props.accessibilityLiveRegion).toBe('polite'));
   await waitFor(() => expect(screen.getByText('Chưa có món nào trong ngày này.')).toBeTruthy());
   expect(alertSpy).toHaveBeenCalled();
   alertSpy.mockRestore();

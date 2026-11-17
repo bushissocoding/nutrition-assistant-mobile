@@ -251,7 +251,7 @@ export default function GroceryScreen({ sourceItems = [] }) {
 
     {!!mutationError && <Text style={styles.error}>{mutationError}</Text>}
     {!!mutationError && !!retryAction && <TouchableOpacity style={styles.secondary} disabled={creating || !!pendingItemId} onPress={() => retryAction()}><Text style={styles.secondaryText}>Thử thao tác lại</Text></TouchableOpacity>}
-    {!!successMessage && <Text accessibilityRole="status" style={styles.success}>{successMessage}</Text>}
+    {!!successMessage && <Text accessibilityLiveRegion="polite" style={styles.success}>{successMessage}</Text>}
   </ScrollView>;
 }
 

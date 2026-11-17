@@ -267,7 +267,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
         </View>
       </View>}
       {!!mutationError && <Text accessibilityRole="alert" style={styles.error}>{mutationError}</Text>}
-      {!!successMessage && <Text accessibilityRole="status" style={styles.success}>{successMessage}</Text>}
+      {!!successMessage && <Text accessibilityLiveRegion="polite" style={styles.success}>{successMessage}</Text>}
     </View>
 
     <View style={styles.summaryCard}>

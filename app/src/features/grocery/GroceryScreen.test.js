@@ -132,6 +132,7 @@ test('creates from plan, then retries the same payload and idempotency key after
   expect(screen.queryByText('Đã lưu danh sách đi chợ.')).toBeNull();
   await press(screen, 'Thử thao tác lại');
   await waitFor(() => expect(screen.getByText('Cơm trắng')).toBeTruthy());
+  expect(screen.getByText('Đã lưu danh sách đi chợ.').props.accessibilityLiveRegion).toBe('polite');
 
   expect(api.createShoppingList).toHaveBeenCalledTimes(2);
   expect(api.createShoppingList.mock.calls[0][0]).toEqual({ items: [{ foodId: 'rice-steamed', amount: 300, unit: 'g' }] });
