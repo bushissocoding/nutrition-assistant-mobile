@@ -11,6 +11,8 @@ const generatedPlan = {
   estimatedCostVnd: 0, grocery: [{ foodId: 'rice-steamed', name: 'Cơm trắng', grams: 300 }], limitations: [],
 };
 
+beforeEach(() => jest.clearAllMocks());
+
 test('opens a saved grocery list from the planner even before generating a new plan', () => {
   const onOpenGrocery = jest.fn();
   const screen = render(<MealPlanScreen profile={profile} onOpenGrocery={onOpenGrocery} />);
@@ -27,4 +29,19 @@ test('passes the backend grocery snapshot to the create-list flow', async () => 
   await waitFor(() => expect(screen.getByText('Tạo danh sách đi chợ')).toBeTruthy());
   fireEvent.press(screen.getByText('Tạo danh sách đi chợ'));
   expect(onOpenGrocery).toHaveBeenCalledWith(generatedPlan.grocery);
+});
+
+test('shows a direct retry after a network error and repeats the same plan request', async () => {
+  api.generateMealPlan.mockRejectedValueOnce(new Error('API đang ngoại tuyến.')).mockResolvedValueOnce(generatedPlan);
+  const screen = render(<MealPlanScreen profile={profile} />);
+
+  await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
+  expect(screen.getByText('API đang ngoại tuyến.')).toBeTruthy();
+  const retry = screen.getByRole('button', { name: 'Thử lại tạo thực đơn' });
+  expect(retry).toBeTruthy();
+
+  await act(async () => { fireEvent.press(retry); });
+  await waitFor(() => expect(screen.getByText('Tạo danh sách đi chợ')).toBeTruthy());
+  expect(api.generateMealPlan).toHaveBeenCalledTimes(2);
+  expect(api.generateMealPlan.mock.calls[1]).toEqual(api.generateMealPlan.mock.calls[0]);
 });

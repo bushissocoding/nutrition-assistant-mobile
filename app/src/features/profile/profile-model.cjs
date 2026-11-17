@@ -27,6 +27,13 @@ function validateProfile(profile, limitInputs = {}) {
   if (String(profile.age).trim() === '' || !/^\d+$/.test(String(profile.age)) || Number(profile.age) < 1 || Number(profile.age) > 120) errors.age = 'Nhập tuổi từ 1 đến 120.';
   if (String(profile.heightCm).trim() === '' || !Number.isFinite(Number(profile.heightCm)) || Number(profile.heightCm) < 50 || Number(profile.heightCm) > 260) errors.heightCm = 'Nhập chiều cao từ 50 đến 260 cm.';
   if (String(profile.weightKg).trim() === '' || !Number.isFinite(Number(profile.weightKg)) || Number(profile.weightKg) < 2 || Number(profile.weightKg) > 500) errors.weightKg = 'Nhập cân nặng từ 2 đến 500 kg.';
+  if (!['low', 'moderate', 'high'].includes(profile.activityLevel)) errors.activityLevel = 'Hãy chọn mức độ vận động.';
+  if (profile.mode === 'healthy' && String(profile.symptomNotes || '').length > 500) errors.symptomNotes = 'Ghi chú tối đa 500 ký tự.';
+  if (profile.mode === 'patient' && String(profile.diagnosisNotes || '').length > 500) errors.diagnosisNotes = 'Ghi chú tối đa 500 ký tự.';
+  const allergies = Array.isArray(profile.allergies) ? profile.allergies : [];
+  if (allergies.length > 20 || allergies.some(value => typeof value !== 'string' || value.length > 80)) {
+    errors.allergies = 'Nhập tối đa 20 mục tránh ăn, mỗi mục không quá 80 ký tự.';
+  }
   if (profile.mode === 'patient') {
     for (const nutrient of NUTRIENTS) {
       const min = String(limitInputs[`${nutrient.key}Min`] ?? '').trim();

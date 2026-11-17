@@ -35,6 +35,9 @@ function getCurrentLocalDay() {
 export default function AppShell() {
   const [ready, setReady] = useState(false);
   const [consented, setConsented] = useState(false);
+  const [consentRecord, setConsentRecord] = useState(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentReturnScreen, setConsentReturnScreen] = useState('profile-setup');
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState('home');
   const [groceryItems, setGroceryItems] = useState(null);
@@ -50,9 +53,10 @@ export default function AppShell() {
     let active = true;
     Promise.all([loadConsent(), loadProfile()]).then(([accepted, savedProfile]) => {
       if (!active) return;
-      setConsented(accepted);
+      setConsentRecord(accepted);
+      setConsented(Boolean(accepted));
       setProfile(savedProfile);
-      setScreen(savedProfile ? 'home' : 'profile-setup');
+      setScreen(savedProfile ? 'home' : accepted ? 'profile-setup' : 'consent');
     }).catch(() => {
       if (!active) return;
       setStorageError('Không thể truy cập vùng lưu trữ an toàn. Chưa thể lưu hồ sơ trên thiết bị này.');
@@ -78,13 +82,27 @@ export default function AppShell() {
     return () => { active = false; };
   }, [ready, consented, profile, diaryHydrationVersion]);
 
-  async function acceptConsent() {
+  async function acceptConsent(choices) {
+    setConsentSaving(true);
     try {
-      await saveConsent();
+      const record = await saveConsent(choices);
+      setConsentRecord(record);
       setConsented(true);
-      setScreen(profile ? 'home' : 'profile-setup');
+      setScreen(screen === 'consent-review' ? consentReturnScreen : profile ? 'home' : 'profile-setup');
       setStorageError('');
-    } catch { setStorageError('Không lưu được sự đồng ý trên thiết bị. Hãy thử lại.'); }
+    } catch { setStorageError('Không lưu được lựa chọn trên thiết bị. Chưa thể tiếp tục; hãy thử lại.'); }
+    finally { setConsentSaving(false); }
+  }
+
+  function reviewConsent(returnTo) {
+    setConsentReturnScreen(returnTo);
+    setScreen('consent-review');
+    setStorageError('');
+  }
+
+  function backFromProfileSetup() {
+    if (profile) setScreen('profile');
+    else reviewConsent('profile-setup');
   }
 
   async function completeProfile(nextProfile) {
@@ -103,20 +121,21 @@ export default function AppShell() {
   }
 
   async function withdrawConsentAndDelete() {
-    Alert.alert('Thu hồi sự đồng ý?', 'Nhật ký demo trên máy chủ sẽ được xóa trước. Nếu máy chủ chưa xác nhận, hồ sơ và trạng thái đồng ý trên thiết bị vẫn được giữ lại.', [
+    Alert.alert('Thu hồi sự đồng ý?', 'Nhật ký và danh sách đi chợ demo trên máy chủ sẽ được xóa trước. Nếu máy chủ chưa xác nhận, hồ sơ và trạng thái đồng ý trên thiết bị vẫn được giữ lại.', [
       { text: 'Hủy', style: 'cancel' },
       { text: 'Thu hồi và xóa', style: 'destructive', onPress: async () => {
         try {
           await purgeBeforeLocalDelete(purgeRemoteDemoData, () => revokeConsentAndClear());
-          setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setConsented(false); setScreen('profile-setup'); setStorageError('');
+          setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setConsentRecord(null); setConsented(false); setScreen('consent'); setStorageError('');
+          Alert.alert('Đã rút đồng ý và xóa dữ liệu demo', 'API đã xác nhận xóa nhật ký và danh sách đi chợ. Hồ sơ và lựa chọn đồng ý trên thiết bị đã được xóa.');
         } catch (error) { setStorageError(error?.message || 'Không xóa được nhật ký trên máy chủ. Hãy kiểm tra kết nối rồi thử lại.'); }
       } },
     ]);
   }
 
   if (!ready) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.placeholderCopy}>Đang mở hồ sơ cục bộ…</Text></View></SafeAreaView>;
-  if (!consented) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ConsentScreen onContinue={acceptConsent} onWithdraw={profile ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
-  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile} onComplete={completeProfile} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (!consented || screen === 'consent-review') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ConsentScreen onContinue={acceptConsent} busy={consentSaving} initialChoices={consentRecord?.choices} onBack={screen === 'consent-review' ? () => setScreen(consentReturnScreen) : undefined} onWithdraw={profile || consentRecord ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
 
   function openGrocery(items) { setGroceryItems(Array.isArray(items) ? items : null); setScreen('grocery'); }
   async function deleteProfileData() {
@@ -127,6 +146,7 @@ export default function AppShell() {
     setDiaryTotals(emptyTotals);
     setGroceryItems(null);
     setScreen('profile-setup');
+    Alert.alert('Đã xóa hồ sơ demo', 'Nhật ký và danh sách đi chợ trên API, hồ sơ trên thiết bị và dữ liệu trong bộ nhớ đã được xóa. Biên nhận đồng ý vẫn được giữ lại.');
   }
   function updateTodayDiary(date, entries, totals) {
     if (date !== getCurrentLocalDay().date) return;
@@ -155,7 +175,7 @@ export default function AppShell() {
   else if (screen === 'grocery') content = <GroceryScreen sourceItems={groceryItems || []} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
   else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} plan={plan} />;
-  else if (screen === 'profile') content = <ProfileScreen profile={profile} onEdit={() => setScreen('profile-setup')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} />;
+  else if (screen === 'profile') content = <ProfileScreen profile={profile} consentRecord={consentRecord} onEdit={() => setScreen('profile-setup')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} />;
   else content = <PlaceholderScreen title={screen === 'appointments' ? 'Đặt khám & lịch hẹn' : 'Tính năng'} />;
 
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" />{content}

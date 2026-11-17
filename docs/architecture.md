@@ -14,17 +14,17 @@ app/
     ├── theme/tokens.js             # Shared colors, spacing and radii
     ├── shared/components/          # Reusable presentation components
     └── features/
-        ├── onboarding/             # Consent prototype
+        ├── onboarding/             # Versioned device-local demo consent and profile setup
         ├── home/                   # Home shortcuts and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
         ├── grocery/                 # Plan-derived, checkable shopping list
         ├── diary/                   # Food search, portion entry, nutrition logging
         ├── dashboard/               # Meal schedule and nutrient progress
-        ├── profile/                 # Explicit status of profile/security gaps
+        ├── profile/                 # Synthetic local profile and explicit security gaps
         └── appointments/            # Planned: paid doctor consultation
 ```
 
-Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication.
+Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication. Consent receipts are versioned and timestamped in device SecureStore, are not account-linked, and do not provide authentication or authorization. The local profile is synthetic demo data only.
 
 ## API (`server/`)
 
