@@ -1,72 +1,89 @@
-# Implementation Plan: API Foundation — V1
+# Implementation Plan: Project Platform — V1
 
-Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
+Source spec: [SPEC-project-platform.md](../SPEC-project-platform.md)
 
-## Tổng quan
+Status: approved
 
-Xây nền lưu trữ JSON cục bộ có namespace và ranh giới demo cho các API dữ liệu sắp tới. Module này chỉ cung cấp repository, kiểm tra namespace/cấu hình và tài liệu giới hạn demo; không thêm endpoint nhật ký hoặc grocery. Giữ nguyên các API catalog, tính dinh dưỡng và tạo thực đơn.
+## Overview
 
-## Đồ thị phụ thuộc
+Complete the issue #5 baseline that supports work across issues #1–#4: make runtime and local configuration reproducible, extend CI with an Expo export and a high/critical dependency gate, validate API startup configuration, add bounded graceful shutdown, and document security/operations limits accurately. Keep the existing API, diary, grocery, and planner behavior stable. No production hosting or real health data is introduced.
+
+## Dependency graph
 
 ```text
-Kiểm tra demo mode + namespace ─┐
-                                ├─> cấu hình server dùng chung ─> API diary/grocery ở module sau
-JSON repository có namespace ───┘
+Runtime and dependency baseline ─┬─> API config and lifecycle ──┐
+                                 ├─> CI checks ────────────────┼─> operations docs and clean handoff
+                                 └─> safe environment examples ┘
 ```
 
-Repository và middleware có thể phát triển độc lập. Tích hợp server và hướng dẫn cần cả hai. Các module diary/grocery phụ thuộc nền này và sẽ có plan riêng sau khi spec tương ứng được duyệt.
+The dependency review runs first because the existing audit has 22 moderate advisories and some suggested fixes downgrade Expo/Jest major versions. Runtime declarations, server config, CI, and docs can then be implemented in separate reviewable slices. Final verification depends on all slices.
 
-## Quyết định kiến trúc đề xuất
+## Architecture decisions
 
-- Dùng `node:fs/promises`, không thêm package. Mặc định lưu ở `server/.local-data/demo-store.json`; cho phép đổi đường dẫn bằng `DEMO_DATA_FILE` để test dùng thư mục tạm và môi trường dev chọn vị trí khác.
-- Repository nhận đường dẫn qua constructor để kiểm thử độc lập. Ghi tuần tự và thay file tạm bằng rename để giảm nguy cơ mất cập nhật hoặc hỏng JSON khi hai request ghi gần nhau.
-- Chỉ bật dữ liệu demo khi `DEMO_DATA_ENABLED=true` và `NODE_ENV` khác `production`. Production luôn từ chối, kể cả khi cờ demo được đặt.
-- Đặt quy tắc namespace và kiểm tra demo mode trong service thuần dùng chung, để repository và HTTP middleware áp dụng cùng một policy.
-- Chuẩn hóa namespace qua header `X-Demo-Namespace`; middleware xác thực định dạng và gắn namespace đã kiểm tra vào request. Header này chỉ phân vùng demo, không xác thực danh tính.
-- Cho phép `X-Demo-Namespace` và các method GET/POST/PUT/PATCH/DELETE trong CORS preflight để client web có thể dùng các luồng CRUD.
-- Không tạo endpoint probe hoặc endpoint demo độc lập. Kiểm thử middleware bằng một Express app cô lập; API CRUD sẽ được kiểm thử HTTP khi module nhật ký/grocery thêm route.
-- Thêm đường dẫn runtime vào `.gitignore`; README hướng dẫn bật/tắt store demo, đường dẫn dữ liệu và giới hạn không dùng dữ liệu sức khỏe thật.
+- Keep the current Expo/Express stack and `package-lock.json`; do not add runtime or tooling dependencies for this baseline.
+- Declare the currently documented Expo-compatible Node range in `package.json` and retain Node 22 as the primary CI line. Verify the npm/lockfile range with clean installs before finalizing the declaration.
+- Triage `npm audit` advisories by package, severity, direct/transitive status, exposure, and compatible fix. Apply only compatible targeted updates that pass the existing test suites; do not use blanket `npm audit fix` or downgrade Expo/Jest to satisfy an advisory mechanically.
+- Add a small pure API configuration reader for `PORT` and other currently supported server environment values. Validate once at startup, return concise non-secret errors, and keep request handlers independent of raw environment access.
+- Keep `/health` as the current secret-free process readiness response; there is no database or external dependency to probe. Install SIGINT/SIGTERM handling that stops accepting new requests, waits for active requests, and exits within a bounded deadline.
+- Keep the existing CORS behavior and workflow permissions unchanged. Any CORS behavior or permission change requires separate explicit review.
+- Provide root Expo and server configuration examples with local-only values and clear comments. Use Node's built-in env-file support only if official Node documentation confirms it exists across the declared minimum version; otherwise document shell-based setup rather than adding a package.
+- Extend the current GitHub Actions job with the same local checks: `npm ci`, all three required test commands, Expo Android export, and `npm audit --audit-level=high`. Keep logs free of secrets and user data.
+- Add `docs/security-and-operations.md` with assets/trust points, current controls and residual risks, local demo data lifecycle, dependency triage, incident reporting path, and prerequisites for any future real-data or public deployment.
 
-## Trình tự triển khai dự kiến
+## Implementation sequence
 
-### Giai đoạn 1: Store demo bền vững
+### Phase 1: Preserve completed plan and establish runtime/dependency baseline
 
-Tạo repository JSON có namespace, đường dẫn cấu hình được, ghi tuần tự/atomic và thông báo lỗi I/O rõ ràng. Thêm unit test cho đọc/ghi, namespace tách biệt, file thiếu/hỏng, đọc lại bằng repository mới và lỗi ghi.
+The completed API Foundation plan/task-list are already preserved under module-specific filenames. Add `.nvmrc` for the primary Node line and supported Node/npm metadata in `package.json`, then record a focused audit triage. Do not change package versions until each advisory's reachable impact and compatible fix are understood.
 
-**Điểm kiểm chứng:** test repository chạy qua `npm run test:unit`; không có dữ liệu test trong thư mục runtime mặc định.
+**Checkpoint:** clean `npm ci` works on the primary CI Node line and the supported local runtime; audit findings have a recorded disposition without an unverified major downgrade.
 
-### Giai đoạn 2: Ranh giới demo request
+### Phase 2: Validate API configuration and process lifecycle
 
-Thêm hàm/middleware thuần để kiểm tra cờ demo, cấm production, yêu cầu và validate `X-Demo-Namespace`. Kiểm thử các trường hợp bật/tắt, production, header thiếu/sai/đúng và phản hồi lỗi có cấu trúc.
+Add pure config parsing for supported API settings, fail fast on invalid values, preserve the existing health response, and implement orderly SIGINT/SIGTERM shutdown. Keep CORS semantics unchanged. Add focused tests for config errors, health behavior, startup failure, and bounded shutdown.
 
-**Điểm kiểm chứng:** kiểm thử middleware chạy trong bộ unit test; không đổi kết quả các route API hiện có.
+**Checkpoint:** `npm run test:unit` and `npm run test:api` pass; existing `/api/v1` responses remain unchanged; malformed configuration never starts a misleadingly healthy server.
 
-### Giai đoạn 3: Ghép context và server
+### Phase 3: Make local setup reproducible
 
-Tạo demo context từ environment, inject vào API router, sau đó nối context vào server startup. Bổ sung header namespace vào CORS và kiểm tra các route hiện tại cùng preflight.
+Add safe root/server environment examples and update contributor instructions with clean install, API/app startup, demo-mode enablement, target-specific API URLs, `/health` verification, and Metro-versus-API troubleshooting. State clearly which values are public in the mobile bundle and which demo routes remain unavailable in production.
 
-**Điểm kiểm chứng:** `npm run test:unit` và `npm run test:api` đều đạt; các API hiện có giữ hợp đồng; demo API không bật trong production.
+**Checkpoint:** a contributor can follow the documented local setup without a personal secret; examples contain no real credentials or user data.
 
-### Giai đoạn 4: Tài liệu và loại trừ dữ liệu cục bộ
+### Phase 4: Extend CI with reproducible app/security checks
 
-Bổ sung đường dẫn runtime vào `.gitignore`, cập nhật README gốc và `server/README.md` với lệnh bật/tắt, cấu hình file store và giới hạn không dùng dữ liệu sức khỏe thật.
+Add the Expo Android export and high/critical npm audit threshold to the existing workflow. Keep the unit, UI, and API checks required and preserve least-privilege workflow permissions. Run the same commands locally.
 
-## Rủi ro và giảm thiểu
+**Checkpoint:** all workflow commands are reproducible from a clean install and a failed command fails CI. The Android export is reported as bundle verification, not device verification.
 
-| Rủi ro | Mức ảnh hưởng | Giảm thiểu |
+### Phase 5: Document security and operations limits
+
+Write the minimal threat model, sensitive-data/logging rules, demo-store lifecycle and deletion limits, dependency review record, incident reporting path, known owner/reviewer gaps, and prerequisites before deployment or real health data. Link it from the root and server READMEs; do not claim backup, retention, authentication, compliance, or clinical readiness.
+
+**Checkpoint:** docs agree with actual code/config and `CONSTRAINTS.md`, and explicitly distinguish implemented controls from unresolved responsibilities.
+
+### Phase 6: Final verification and scope review
+
+Run `npm ci`, `npm run test:unit`, `npm run test:ui`, `npm run test:api`, `npx expo export --platform android`, `npm audit --audit-level=high`, and `git diff --check`. Review the staged diff for secrets, real health data, generated artifacts, unrelated changes, and API contract drift.
+
+**Checkpoint:** all required checks pass or a narrow exception is written with its reason and scope; no runtime demo store or build output is tracked.
+
+## Risks and mitigations
+
+| Risk | Impact | Mitigation |
 |---|---|---|
-| Hai request cùng ghi file làm mất cập nhật | Cao | Tuần tự hóa thao tác ghi trong repository và thay file qua rename; thêm test cho cập nhật đồng thời. |
-| Namespace bị giả mạo và lộ dữ liệu demo | Cao | Không lưu dữ liệu thật; ghi rõ header không phải auth; production luôn tắt demo data routes. |
-| Store JSON hỏng hoặc không ghi được | Trung bình | Không báo thành công; trả lỗi rõ ràng; kiểm thử file hỏng và lỗi filesystem. |
-| File dữ liệu cục bộ bị commit | Trung bình | Ignore thư mục `.local-data`; kiểm tra trạng thái Git sau kiểm thử. |
+| Mechanical audit fixes downgrade Expo/Jest or break SDK compatibility | High | Review each advisory and fix path; target compatible releases only; rerun all required suites and Expo export. |
+| Environment examples imply production readiness or leak a secret | High | Use synthetic local values, mark public Expo variables, document demo-only settings, and review tracked diff. |
+| Shutdown logic hides in-flight failures or hangs CI | Medium | Use a bounded deadline and process-level smoke tests for both signals. |
+| CI checks drift from local commands | Medium | Keep command strings identical and document every gate in README. |
+| Incident/security owners are unknown | High before public use | State the maintainer/reviewer gap directly; do not claim issue #5 fully closes this prerequisite until the owner is assigned. |
+| CI audit depends on registry availability | Medium | Run the exact command locally and report registry failures distinctly from vulnerability findings. |
 
-## Câu hỏi còn mở
+## Open questions
 
-- Issue #3 sẽ cung cấp credential và định danh nào để thay demo namespace bằng quyền sở hữu tài khoản đã xác thực?
-- Chính sách giới hạn kích thước và xóa store demo có cần thiết trước khi module diary/grocery được dùng rộng hơn? V1 không tự dọn file.
+- The spec's open questions remain: named incident/dependency contact; qualified privacy/security and nutrition reviewers; future production CORS policy. These do not block a demo-only baseline but must be answered before public deployment or real health data.
+- If official Node documentation does not support the proposed env-file option across the declared minimum, use documented shell environment setup and update the spec before implementation.
 
-## Ngoài phạm vi plan này
+## Out of scope
 
-- Hợp đồng CRUD và UI của nhật ký/grocery; API base URL và cấu hình thiết bị Expo.
-- Auth, cơ sở dữ liệu production, backup, retention, chia sẻ nhiều instance và lưu dữ liệu sức khỏe thật.
-- Barcode/catalog nâng cao và tư vấn dinh dưỡng lâm sàng.
+Production hosting, Docker/staging, a database, authentication, production backup/retention, real health data, CORS behavior changes, and clinical/legal claims.

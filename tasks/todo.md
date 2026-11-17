@@ -1,98 +1,70 @@
-# Task List: API Foundation — V1
+# Task List: Project Platform — V1
 
 Source plan: [tasks/plan.md](plan.md)
 
-Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
+Source spec: [SPEC-project-platform.md](../SPEC-project-platform.md)
 
-## Task 1: Add namespaced JSON demo store
+Status: proposed; awaiting task-list approval
 
-**Description:** Implement the dependency-free repository with an injectable/configurable file path, per-namespace collections, serialized writes, and atomic file replacement. Missing files start as empty stores; malformed data and filesystem failures remain visible to callers.
+## Task 1: Declare runtime support and triage dependency findings
+
+**Description:** Record the primary Node line and supported Node/npm range in machine-readable metadata. Review each current npm advisory and make only compatible targeted updates; preserve a review record for resolved and accepted findings.
 
 **Acceptance criteria:**
-- [x] Data written under one namespace can be read after creating a new repository instance, while another namespace remains isolated.
-- [x] Concurrent updates do not silently overwrite each other; test paths use temporary directories and leave no runtime data in the repository.
-- [x] Missing, malformed, read-only, and other I/O failure cases have explicit behavior and focused coverage.
+- [ ] `.nvmrc`, `package.json` engines, README, and CI agree on the primary Node 22 line and supported versions.
+- [ ] Every current audit finding has a recorded package, severity, direct/transitive status, exposure, and disposition; unresolved findings show the known owner or an explicit owner-assignment gap and review trigger.
+- [ ] No blanket `npm audit fix`, major downgrade, threshold weakening, or unrelated dependency update is used.
 
-**Verification:**
-- Focused: `node --test server/tests/demo-store.test.js`
-- Repository unit suite: `npm run test:unit`
-- Manual: confirm the default runtime data path is not created by tests.
+**Verification:** `node --version`; `npm --version`; `npm ci`; `npm audit --json`; `npm audit --audit-level=high`. If dependency versions change, run `npm run test:unit`, `npm run test:ui`, and `npm run test:api` before moving on.
 
 **Dependencies:** None.
 
 **Files likely touched:**
-- `server/src/repositories/demo-store.js`
-- `server/tests/demo-store.test.js`
-
-**Estimated scope:** Small.
-
-## Task 2: Add demo mode and namespace validation
-
-**Description:** Add reusable request middleware that enables demo data only when explicitly configured outside production, validates the `X-Demo-Namespace` header, and exposes only the validated namespace to downstream handlers.
-
-**Acceptance criteria:**
-- [x] Disabled demo mode and production reject requests; production remains disabled even if the demo flag is true.
-- [x] Missing or malformed namespaces are rejected with clear client errors; valid namespaces are available to downstream handlers.
-- [x] Store tests verify namespace isolation; middleware tests treat the namespace as a caller-supplied demo scope and do not treat it as account authentication.
-
-**Verification:**
-- Focused: `node --test server/tests/demo-scope.test.js`
-- Repository unit suite: `npm run test:unit`
-- Manual: exercise the middleware through a small Express test app for disabled, production, invalid, and valid requests.
-
-**Dependencies:** None. Task 1 and Task 2 may be developed independently; both must be complete before Task 3.
-
-**Files likely touched:**
-- `server/src/services/demo-data-policy.js`
-- `server/src/middleware/demo-scope.js`
-- `server/src/repositories/demo-store.js`
-- `server/tests/demo-scope.test.js`
-
-**Estimated scope:** Small.
-
-## Checkpoint: Store and request boundary
-
-- [x] Tasks 1 and 2 focused tests pass.
-- [x] `npm run test:unit` passes.
-- [x] No demo data file or synthetic personal data is added to source control.
-
-## Task 3: Compose and inject the demo context
-
-**Description:** Build the repository and scope middleware from the provided environment, then inject the resulting demo context into the API router for future feature routers.
-
-**Acceptance criteria:**
-- [x] The context uses the configured store path and contains the demo scope middleware.
-- [x] Downstream API router handlers receive the same context through dependency injection.
-- [x] Focused tests cover composition and router context injection without adding demo CRUD endpoints.
-
-**Verification:**
-- Focused: `node --test server/tests/demo-context.test.js server/tests/api-router.test.js`
-- Repository unit suite: `npm run test:unit`
-
-**Dependencies:** Tasks 1 and 2.
-
-**Files likely touched:**
-- `server/src/demo-context.js`
-- `server/src/routes/api.js`
-- `server/tests/demo-context.test.js`
-- `server/tests/api-router.test.js`
+- `.nvmrc`
+- `package.json`
+- `package-lock.json` (only for approved compatible fixes)
+- `docs/security-and-operations.md` (initial dependency review record)
 
 **Estimated scope:** Medium.
 
-## Task 4: Wire server startup and CORS
+## Checkpoint: Runtime and dependency baseline
 
-**Description:** Create the demo context during server startup, pass it into the API router, and allow the namespace header plus CRUD methods through CORS preflight. Keep existing public route responses unchanged.
+- [ ] Clean install works on the primary CI runtime and the available supported local runtime.
+- [ ] Audit findings are triaged without an unverified Expo/Jest downgrade.
+
+## Task 2: Validate API startup configuration
+
+**Description:** Add a small pure configuration reader for supported server settings and fail fast on invalid values before opening the listener. Preserve current defaults and CORS semantics.
 
 **Acceptance criteria:**
-- [x] Server startup builds the demo context from environment configuration and injects it into `/api/v1`.
-- [x] Existing API responses remain unchanged; preflight accepts `Content-Type`, `X-Demo-Namespace`, and the CRUD HTTP methods.
-- [x] API smoke coverage starts the server with demo mode enabled, checks health/catalog/preflight, and creates no default store file.
+- [ ] Invalid `PORT` and invalid explicit demo-mode values fail with a concise message that contains no secret or user data.
+- [ ] Valid/default settings preserve current port, host, demo-disabled default, and CORS behavior.
+- [ ] API handlers no longer parse the port ad hoc from `process.env`.
 
-**Verification:**
-- API smoke suite: `npm run test:api`
-- Manual runtime check is covered by the smoke test's real server process and HTTP requests.
+**Verification:** Focused `node --test server/tests/server-config.test.js`; then `npm run test:unit` and `npm run test:api`.
 
-**Dependencies:** Task 3.
+**Dependencies:** Task 1.
+
+**Files likely touched:**
+- `server/src/config/server-config.js`
+- `server/tests/server-config.test.js`
+- `server/server.js`
+- `server/server.test.js`
+
+**Estimated scope:** Medium.
+
+## Task 3: Add health and graceful shutdown coverage
+
+**Description:** Keep `/health` deterministic and secret-free; handle SIGINT/SIGTERM by stopping acceptance of new requests, allowing active requests to finish, and enforcing a bounded shutdown deadline.
+
+**Acceptance criteria:**
+- [ ] Health smoke test keeps the existing response contract.
+- [ ] Process-level tests show SIGINT and SIGTERM exit cleanly and do not hang beyond the documented deadline.
+- [ ] Shutdown errors are visible and no request body, namespace, or health data is logged.
+
+**Verification:** `npm run test:api`; focused process smoke test for both signals; `npm run test:unit` if lifecycle logic is extracted into a pure module.
+
+**Dependencies:** Task 2.
 
 **Files likely touched:**
 - `server/server.js`
@@ -100,38 +72,99 @@ Source spec: [SPEC-api-foundation.md](../SPEC-api-foundation.md)
 
 **Estimated scope:** Small.
 
-## Checkpoint: API composition
+## Checkpoint: API configuration and lifecycle
 
-- [x] Context and API smoke tests pass.
-- [x] `npm run test:unit` and `npm run test:api` pass.
-- [x] No runtime demo store is created by tests.
+- [ ] Configuration and lifecycle tests pass.
+- [ ] Existing `/api/v1` route behavior remains unchanged.
+- [ ] Invalid configuration cannot start a server that appears healthy.
 
-## Task 5: Document and safely exclude local demo storage
+## Task 4: Provide safe environment examples and local setup instructions
 
-**Description:** Ignore local runtime data and document how to enable/disable the demo store, configure its path, and understand the no-auth/no-real-health-data boundary.
+**Description:** Keep Expo public configuration separate from API settings, add an API example with development-only values, and document app/API startup and device connectivity. Use Node's built-in env-file support only after official documentation confirms compatibility with the declared minimum; otherwise document shell-based environment setup.
 
 **Acceptance criteria:**
-- [x] The default demo store path is ignored by Git and remains configurable for local development/tests.
-- [x] Root and server documentation state that authentication, account ownership security, production persistence, and real health-data handling are not implemented.
-- [x] Documentation includes the exact local command to enable demo mode and describes how to stop using it.
+- [ ] Examples contain no secrets or personal data; public Expo variables are explicitly described as bundle-visible.
+- [ ] API defaults keep demo persistence disabled; enabling it requires an explicit local action.
+- [ ] Root/server setup covers Expo Go on a phone, Android Emulator, iOS Simulator, LAN/firewall, `/health`, and Metro-versus-API troubleshooting.
+- [ ] Existing CORS behavior and demo namespace limitations are stated accurately.
 
-**Verification:**
-- Run required checks: `npm run test:unit` and `npm run test:api`.
-- Manual: inspect `git status --short` after tests and confirm no runtime store or secret is staged.
+**Verification:** Follow the documented clean setup from a fresh local `.env` copy; start API and Expo; verify `/health` through the configured host; inspect `git check-ignore` for local env files.
 
-**Dependencies:** Task 4.
+**Dependencies:** Task 2.
 
 **Files likely touched:**
-- `.gitignore`
+- `.env.example`
+- `server/.env.example`
+- `package.json` (API startup script only if the built-in loader is verified)
 - `README.md`
 - `server/README.md`
 
+**Estimated scope:** Medium.
+
+## Task 5: Extend CI with app export and security threshold
+
+**Description:** Add the same Expo Android export and high/critical dependency audit commands used locally to the current pull-request workflow. Keep all existing test suites required and retain least-privilege workflow permissions.
+
+**Acceptance criteria:**
+- [ ] CI starts from `npm ci` and runs unit, UI, API, Expo export, and `npm audit --audit-level=high`.
+- [ ] Any failed command fails the workflow; no personal or production secret is needed.
+- [ ] CI does not imply that bundle export is physical-device verification.
+
+**Verification:** Run every workflow command locally after `npm ci`; inspect workflow triggers and permissions; confirm no generated `dist/` output is tracked.
+
+**Dependencies:** Tasks 1 and 4.
+
+**Files likely touched:**
+- `.github/workflows/ci.yml`
+
 **Estimated scope:** Small.
 
-## Checkpoint: API foundation complete
+## Checkpoint: Reproducible contributor and CI checks
 
-- [x] All five tasks meet their acceptance criteria.
-- [x] `npm run test:unit` passes.
-- [x] `npm run test:api` passes.
-- [x] Demo data is disabled in production and docs prohibit real health data until authenticated storage and data-lifecycle requirements are implemented.
-- [x] Review this module before starting `mobile-api-client`.
+- [ ] A contributor can reproduce the CI command sequence from the documented setup.
+- [ ] Workflow permissions remain unchanged and no secrets are introduced.
+
+## Task 6: Document threat model and operational limits
+
+**Description:** Write the minimum security/operations guide, including assets and trust points, implemented controls, residual risks, demo data/log/delete limits, dependency review, incident reporting path, and prerequisites before public deployment or real health data.
+
+**Acceptance criteria:**
+- [ ] Documentation does not claim authentication, production persistence, backup, retention, legal compliance, or clinical readiness that has not been implemented.
+- [ ] Unknown incident contacts and qualified reviewers are explicitly identified as unresolved prerequisites.
+- [ ] Root/server README, `docs/architecture.md`, and `CONSTRAINTS.md` agree with the actual code and health-data boundary.
+
+**Verification:** Cross-check each documented control against implementation; review for secrets/real health data; run `git diff --check`.
+
+**Dependencies:** Tasks 1–5.
+
+**Files likely touched:**
+- `docs/security-and-operations.md`
+- `README.md`
+- `server/README.md`
+- `docs/architecture.md`
+- `CONSTRAINTS.md`
+
+**Estimated scope:** Medium.
+
+## Task 7: Run final checks and review scope
+
+**Description:** Run the repository's required checks and the new platform gates, inspect the final diff, and report any environmental check that could not run.
+
+**Acceptance criteria:**
+- [ ] `npm run test:unit`, `npm run test:ui`, `npm run test:api`, Expo Android export, `npm audit --audit-level=high`, and `git diff --check` pass, or a narrow documented exception is accepted.
+- [ ] No secret, real health data, runtime demo store, generated build artifact, or unrelated cleanup is tracked.
+- [ ] User-facing documentation distinguishes a CI bundle check from device connectivity verification.
+
+**Verification:** Run all commands in the acceptance criteria; inspect `git status --short` and the final diff.
+
+**Dependencies:** Tasks 1–6.
+
+**Files likely touched:** None, except focused corrections required by verification.
+
+**Estimated scope:** Small.
+
+## Completion criteria
+
+- [ ] All tasks and checkpoints satisfy their acceptance criteria.
+- [ ] The platform baseline supports issues #1–#4 without claiming production or clinical readiness.
+- [ ] Every unresolved external responsibility is reported with an owner gap and a future prerequisite.
