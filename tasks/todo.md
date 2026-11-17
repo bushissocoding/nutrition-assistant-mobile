@@ -4,16 +4,16 @@ Source plan: [tasks/plan.md](plan.md)
 
 Source spec: [SPEC-project-platform.md](../SPEC-project-platform.md)
 
-Status: proposed; awaiting task-list approval
+Status: approved; implementation in progress
 
 ## Task 1: Declare runtime support and triage dependency findings
 
 **Description:** Record the primary Node line and supported Node/npm range in machine-readable metadata. Review each current npm advisory and make only compatible targeted updates; preserve a review record for resolved and accepted findings.
 
 **Acceptance criteria:**
-- [ ] `.nvmrc`, `package.json` engines, README, and CI agree on the primary Node 22 line and supported versions.
-- [ ] Every current audit finding has a recorded package, severity, direct/transitive status, exposure, and disposition; unresolved findings show the known owner or an explicit owner-assignment gap and review trigger.
-- [ ] No blanket `npm audit fix`, major downgrade, threshold weakening, or unrelated dependency update is used.
+- [x] `.nvmrc`, `package.json` engines, README, and CI agree on the primary Node 22 line and supported versions.
+- [x] Every current audit finding has a recorded package, severity, direct/transitive status, exposure, and disposition; unresolved findings show the known owner or an explicit owner-assignment gap and review trigger.
+- [x] No blanket `npm audit fix`, major downgrade, threshold weakening, or unrelated dependency update is used.
 
 **Verification:** `node --version`; `npm --version`; `npm ci`; `npm audit --json`; `npm audit --audit-level=high`. If dependency versions change, run `npm run test:unit`, `npm run test:ui`, and `npm run test:api` before moving on.
 
@@ -29,8 +29,8 @@ Status: proposed; awaiting task-list approval
 
 ## Checkpoint: Runtime and dependency baseline
 
-- [ ] Clean install works on the primary CI runtime and the available supported local runtime.
-- [ ] Audit findings are triaged without an unverified Expo/Jest downgrade.
+- [x] Clean install works on the available supported local runtime (Node 24.19/npm 11.17); the primary CI runtime remains Node 22 and will be verified by the CI gates.
+- [x] Audit findings are triaged without an unverified Expo/Jest downgrade.
 
 ## Task 2: Validate API startup configuration
 
