@@ -18,14 +18,17 @@ const emptyDiary = {
   items: [],
   totals: { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 },
 };
+const testTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+const savedAtLocalNoon = new Date();
+savedAtLocalNoon.setHours(12, 15, 0, 0);
 const savedEntry = {
   id: 'entry-1',
   foodId: 'rice-steamed',
   foodName: 'Cơm trắng',
   portion: { amount: 120, unit: 'g' },
   mealType: 'LUNCH',
-  consumedAt: '2026-11-16T05:15:00.000Z',
-  timeZone: 'Asia/Ho_Chi_Minh',
+  consumedAt: savedAtLocalNoon.toISOString(),
+  timeZone: testTimeZone,
   notes: null,
   nutrients: { energyKcal: 156, proteinG: 3.2, carbohydrateG: 34, fatG: 0.4, fiberG: 0.5, sodiumMg: 1 },
 };

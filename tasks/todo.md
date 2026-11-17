@@ -4,7 +4,7 @@ Source plan: [tasks/plan.md](plan.md)
 
 Source spec: [SPEC-project-platform.md](../SPEC-project-platform.md)
 
-Status: approved; implementation in progress
+Status: implementation complete; POSIX process-signal CI verification remains pending
 
 ## Task 1: Declare runtime support and triage dependency findings
 
@@ -59,7 +59,8 @@ Status: approved; implementation in progress
 
 **Acceptance criteria:**
 - [x] Health smoke test keeps the existing response contract.
-- [ ] POSIX process-level tests assert SIGINT and SIGTERM exit cleanly within five seconds; the current Windows worktree cannot execute these signal cases.
+- [x] POSIX process-level tests cover SIGINT and SIGTERM and assert clean exit within five seconds.
+- [ ] The POSIX process-level branch has passed on Linux CI; the local Windows runtime cannot execute it.
 - [x] Shutdown errors are visible and no request body, namespace, or health data is logged.
 
 **Verification:** `npm run test:api`; focused `node --test server/tests/server-shutdown.test.js`. On Windows, the API smoke test skips POSIX process signals because Node cannot deliver SIGTERM as a catchable signal; the committed process smoke test will run on Linux CI.
@@ -78,19 +79,21 @@ Status: approved; implementation in progress
 
 - [x] Configuration tests pass; process startup rejects invalid environment values.
 - [x] Existing `/api/v1` route behavior remains unchanged.
-- [ ] POSIX process-level signal checks pass in CI. Local Windows unit/API suites passed; WSL is unavailable, so the signal-specific integration branch did not execute here.
+- [ ] POSIX process-level signal checks pass in CI. Local Windows unit/API suites passed; WSL and Docker are unavailable, so the signal-specific integration branch did not execute here.
 
 ## Task 4: Provide safe environment examples and local setup instructions
 
 **Description:** Keep Expo public configuration separate from API settings, add an API example with development-only values, and document app/API startup and device connectivity. Use Node's built-in env-file support only after official documentation confirms compatibility with the declared minimum; otherwise document shell-based environment setup.
 
 **Acceptance criteria:**
-- [ ] Examples contain no secrets or personal data; public Expo variables are explicitly described as bundle-visible.
-- [ ] API defaults keep demo persistence disabled; enabling it requires an explicit local action.
-- [ ] Root/server setup covers Expo Go on a phone, Android Emulator, iOS Simulator, LAN/firewall, `/health`, and Metro-versus-API troubleshooting.
-- [ ] Existing CORS behavior and demo namespace limitations are stated accurately.
+- [x] Examples contain no secrets or personal data; public Expo variables are explicitly described as bundle-visible.
+- [x] API defaults keep demo persistence disabled; enabling it requires an explicit local action.
+- [x] Root/server setup covers Expo Go on a phone, Android Emulator, iOS Simulator, LAN/firewall, `/health`, and Metro-versus-API troubleshooting.
+- [x] Existing CORS behavior and demo namespace limitations are stated accurately.
 
 **Verification:** Follow the documented clean setup from a fresh local `.env` copy; start API and Expo; verify `/health` through the configured host; inspect `git check-ignore` for local env files.
+
+**Verification note:** Started the API from a temporary copy of `server/.env.example`, confirmed `GET /health` returned `ok`, sent Ctrl+C and observed clean shutdown, then removed the unchanged temporary file. `git check-ignore` confirms `server/.env` is ignored and `server/.env.example` is trackable. No emulator or physical phone was attached, so target-device connectivity still requires a contributor to verify it.
 
 **Dependencies:** Task 2.
 
@@ -108,11 +111,13 @@ Status: approved; implementation in progress
 **Description:** Add the same Expo Android export and high/critical dependency audit commands used locally to the current pull-request workflow. Keep all existing test suites required and retain least-privilege workflow permissions.
 
 **Acceptance criteria:**
-- [ ] CI starts from `npm ci` and runs unit, UI, API, Expo export, and `npm audit --audit-level=high`.
-- [ ] Any failed command fails the workflow; no personal or production secret is needed.
-- [ ] CI does not imply that bundle export is physical-device verification.
+- [x] CI starts from `npm ci` and runs unit, UI, API, Expo export, and `npm audit --audit-level=high`.
+- [x] Any failed command fails the workflow; no personal or production secret is needed.
+- [x] CI does not imply that bundle export is physical-device verification.
 
 **Verification:** Run every workflow command locally after `npm ci`; inspect workflow triggers and permissions; confirm no generated `dist/` output is tracked.
+
+**Verification note:** `npm ci` had already passed on the supported local runtime. All three suites, `npx expo export --platform android`, and `npm audit --audit-level=high` passed locally. Export used a temporary output directory because an ignored `dist/` directory already existed. Audit currently reports 22 moderate findings and zero high/critical findings.
 
 **Dependencies:** Tasks 1 and 4.
 
@@ -123,17 +128,17 @@ Status: approved; implementation in progress
 
 ## Checkpoint: Reproducible contributor and CI checks
 
-- [ ] A contributor can reproduce the CI command sequence from the documented setup.
-- [ ] Workflow permissions remain unchanged and no secrets are introduced.
+- [x] A contributor can reproduce the CI command sequence from the documented setup.
+- [x] Workflow permissions remain unchanged and no secrets are introduced.
 
 ## Task 6: Document threat model and operational limits
 
 **Description:** Write the minimum security/operations guide, including assets and trust points, implemented controls, residual risks, demo data/log/delete limits, dependency review, incident reporting path, and prerequisites before public deployment or real health data.
 
 **Acceptance criteria:**
-- [ ] Documentation does not claim authentication, production persistence, backup, retention, legal compliance, or clinical readiness that has not been implemented.
-- [ ] Unknown incident contacts and qualified reviewers are explicitly identified as unresolved prerequisites.
-- [ ] Root/server README, `docs/architecture.md`, and `CONSTRAINTS.md` agree with the actual code and health-data boundary.
+- [x] Documentation does not claim authentication, production persistence, backup, retention, legal compliance, or clinical readiness that has not been implemented.
+- [x] Unknown incident contacts and qualified reviewers are explicitly identified as unresolved prerequisites.
+- [x] Root/server README, `docs/architecture.md`, and `CONSTRAINTS.md` agree with the actual code and health-data boundary.
 
 **Verification:** Cross-check each documented control against implementation; review for secrets/real health data; run `git diff --check`.
 
@@ -153,9 +158,9 @@ Status: approved; implementation in progress
 **Description:** Run the repository's required checks and the new platform gates, inspect the final diff, and report any environmental check that could not run.
 
 **Acceptance criteria:**
-- [ ] `npm run test:unit`, `npm run test:ui`, `npm run test:api`, Expo Android export, `npm audit --audit-level=high`, and `git diff --check` pass, or a narrow documented exception is accepted.
-- [ ] No secret, real health data, runtime demo store, generated build artifact, or unrelated cleanup is tracked.
-- [ ] User-facing documentation distinguishes a CI bundle check from device connectivity verification.
+- [x] `npm run test:unit`, `npm run test:ui`, `npm run test:api`, Expo Android export, `npm audit --audit-level=high`, and `git diff --check` pass, or a narrow documented exception is accepted.
+- [x] No secret, real health data, runtime demo store, generated build artifact, or unrelated cleanup is tracked.
+- [x] User-facing documentation distinguishes a CI bundle check from device connectivity verification.
 
 **Verification:** Run all commands in the acceptance criteria; inspect `git status --short` and the final diff.
 

@@ -41,3 +41,9 @@ jobs:
 
       - name: Run API smoke tests
         run: npm run test:api
+
+      - name: Export Android app bundle
+        run: npx expo export --platform android
+
+      - name: Audit high and critical vulnerabilities
+        run: npm audit --audit-level=high

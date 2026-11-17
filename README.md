@@ -26,19 +26,21 @@ Expo SDK 58 requires Node.js 22.13+ on the 22.x line, 24.3+ on the 24.x line, or
 Terminal 1 (API):
 
 ```powershell
-$env:DEMO_DATA_ENABLED = 'true'
+if (-not (Test-Path -LiteralPath 'server/.env')) { Copy-Item 'server/.env.example' 'server/.env' }
+# Optional: enable synthetic, local demo diary and grocery persistence.
+# $env:DEMO_DATA_ENABLED = 'true'
 npm run api
 ```
 
 Terminal 2 (Expo):
 
 ```powershell
-Copy-Item .env.example .env
+if (-not (Test-Path -LiteralPath '.env')) { Copy-Item '.env.example' '.env' }
 # Edit .env and set EXPO_PUBLIC_API_URL for the target below.
 npm start
 ```
 
-The Expo app has no implicit `localhost` fallback. If `EXPO_PUBLIC_API_URL` is missing or invalid, the API client reports a configuration error before sending a request. Expo reads the root `.env`; restart Expo after changing it. `EXPO_PUBLIC_*` values are embedded in the client bundle, so do not put passwords, tokens, or other secrets there. See [Expo environment variables](https://docs.expo.dev/guides/environment-variables/).
+The API reads `server/.env` when it exists; shell environment variables override values from that file. Its example keeps demo persistence disabled. The Expo app has no implicit `localhost` fallback. If `EXPO_PUBLIC_API_URL` is missing or invalid, the API client reports a configuration error before sending a request. Expo reads the root `.env`; restart Expo after changing it. `EXPO_PUBLIC_*` values are embedded in the client bundle, so do not put passwords, tokens, or other secrets there. See [Expo environment variables](https://docs.expo.dev/guides/environment-variables/).
 
 ### Choose the API URL for the app target
 
@@ -52,11 +54,11 @@ The API listens on `0.0.0.0:4000` for development. On Windows, use `ipconfig` to
 
 Verify the backend from the same device/emulator that runs the app by opening `http://<the-same-host>:4000/health` in its browser. The response should include `{"status":"ok"}`. You can also check locally on the computer with `http://localhost:4000/health`.
 
-Run deterministic business-logic tests with `npm run test:unit`, UI component tests with `npm run test:ui`, and backend API smoke tests with `npm run test:api`. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md). Consent and the minimal profile are stored locally with SecureStore; the meal diary and current grocery list use the development-only namespaced JSON store and survive app/API restarts while that file is retained. Plans remain in memory. There is no authentication or secure account ownership, and demo storage is not production persistence.
+Run deterministic business-logic tests with `npm run test:unit`, UI component tests with `npm run test:ui`, and backend API smoke tests with `npm run test:api`. CI also exports the Android JavaScript bundle and runs `npm audit --audit-level=high`; the export is not a physical-device test. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md) and the [security and operations baseline](docs/security-and-operations.md). Consent and the minimal profile are stored locally with SecureStore; the meal diary and current grocery list use the development-only namespaced JSON store and survive app/API restarts while that file is retained. Plans remain in memory. There is no authentication or secure account ownership, and demo storage is not production persistence.
 
 ### Development-only demo storage
 
-The local JSON store is at `server/.local-data/demo-store.json` by default and is ignored by Git. Set `DEMO_DATA_ENABLED=true` to enable routes that use the demo data context. Optionally set `DEMO_DATA_FILE` to choose another path. In PowerShell:
+The local JSON store is at `server/.local-data/demo-store.json` by default and is ignored by Git. Demo routes stay disabled until you explicitly set `DEMO_DATA_ENABLED=true` in `server/.env` or in the shell. Optionally set `DEMO_DATA_FILE` to choose another path. In PowerShell:
 
 ```powershell
 $env:DEMO_DATA_ENABLED = 'true'

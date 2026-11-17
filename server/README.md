@@ -12,7 +12,11 @@ npm run test:api
 npm run test:ui
 ```
 
-API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The default CORS `*` is for development only; set an explicit origin before deployment. There is no authentication, account identity, account ownership security, or production persistence. The JSON store described below is local development storage only.
+Before the first run, copy `server/.env.example` to `server/.env` if that file does not already exist. The API script loads this optional file using Node's built-in `--env-file-if-exists`; shell environment variables take precedence. Node added the option in v22.9.0, before this repository's declared minimums. The feature is marked as active development in the Node 24.3 documentation. See [Node v22.13 CLI environment-file options](https://nodejs.org/download/release/v22.13.0/docs/api/cli.html#--env-file-if-existsconfig) and [Node v24.3 CLI environment-file options](https://nodejs.org/download/release/v24.3.0/docs/api/cli.html#--env-file-if-existsconfig).
+
+API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The sample's `CORS_ORIGIN=*` is for development only; set an explicit origin before deployment. Demo routes and persistence remain disabled unless `DEMO_DATA_ENABLED=true` is explicitly set. There is no authentication, account identity, account ownership security, or production persistence. The JSON store described below is local development storage only.
+
+CI runs the Android bundle export and a high/critical dependency audit after the required unit, UI and API tests. Bundle export does not verify an installed app or device connectivity. See the [security and operations baseline](../docs/security-and-operations.md) for current controls, residual risks and release prerequisites.
 
 ### Routes
 
@@ -58,7 +62,7 @@ The planner searches the finite meal-template catalog across 0.75×, 1×, and 1.
 
 The API composition provides namespaced JSON repositories used by the meal diary and current grocery list. Its default file is `server/.local-data/demo-store.json`; set `DEMO_DATA_FILE` to override the path. The directory is ignored by Git and is created only when the first record is written.
 
-Enable demo data in PowerShell before starting the API:
+Enable demo data only for synthetic local testing. Set `DEMO_DATA_ENABLED=true` in `server/.env`, or override it in PowerShell before starting the API:
 
 ```powershell
 $env:DEMO_DATA_ENABLED = 'true'

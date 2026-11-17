@@ -25,11 +25,19 @@ Before changing dependencies, run `npm audit --json`, inspect the installed depe
 - Catalog and planner values are estimates with the source limitations recorded in `server/data/sources.json`. They are not clinical advice and the catalog does not claim to be official Vietnamese Institute of Nutrition data.
 - API routes validate request bodies and log only limited operational metadata. Do not add request bodies, headers, credentials, profile fields, diary entries, or grocery contents to logs.
 
+## Local configuration and API lifecycle
+
+The root `.env` contains Expo `EXPO_PUBLIC_*` configuration. Expo embeds those values in the client bundle, so they are public and must never contain credentials. API-only values belong in ignored `server/.env`; the tracked `server/.env.example` contains development defaults and keeps demo storage disabled. Shell environment values take precedence over that file. The example's wildcard CORS origin is for local development; public deployment needs a reviewed origin policy and a separate deployment configuration.
+
+`GET /health` returns a fixed status and service name without probing user or health data. SIGINT and SIGTERM stop new connections and allow active requests to finish, with a 10-second deadline before remaining connections are closed. Shutdown logs contain fixed messages and error codes only. These controls do not provide process supervision, availability, authentication, or production readiness.
+
 ## Storage, deletion, and retention
 
 The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. App profile/consent deletion first requests the diary and grocery namespace purges; a failed purge must preserve local state and offer retry. The demo store can still remain in a developer-controlled file until that file is removed. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
 
 Only synthetic data is allowed. Before real health data is considered, the project needs authenticated identity and ownership, qualified privacy/security review, an approved retention and deletion policy, transport/storage protections, and tested backup/restore and incident handling.
+
+The CI Android export verifies that Metro can produce a bundle for Android; it does not verify installation, device networking, or physical-device behavior. The high/critical audit threshold is an automated dependency gate and does not remove the moderate findings recorded above.
 
 ## Incident reporting and unresolved ownership
 

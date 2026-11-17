@@ -32,6 +32,7 @@ Each feature owns its screen and feature-specific UI/state. Move a component to 
 server/
 ├── server.js                       # Express composition and middleware
 ├── src/
+│   ├── config/server-config.js     # Parse and validate startup environment once
 │   ├── routes/api.js                # API composition and existing route mapping
 │   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
@@ -42,13 +43,16 @@ server/
 │       ├── nutrition.js             # Deterministic nutrient calculations
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
-│       └── meal-planner.js          # Deterministic demo planner
+│       ├── meal-planner.js          # Deterministic demo planner
+│       └── server-shutdown.js       # Bounded SIGINT/SIGTERM shutdown
 ├── data/                            # Demonstration catalogs and provenance
-├── tests/core.test.js               # Dependency-free domain tests
+├── tests/                            # Unit tests for domain, config and lifecycle rules
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
 
 Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. If a persistent database is introduced, add repositories for profiles, meal plans, diary entries, and shopping lists; do not put SQL or document-store access inside route handlers.
+
+Startup configuration is read and validated before opening the listener. `npm run api` optionally loads `server/.env`; runtime environment values take precedence. The root `.env` is for Expo `EXPO_PUBLIC_*` settings only. Signal handling belongs in the server lifecycle service, not feature routes.
 
 ## Current mobile-to-API contract
 
