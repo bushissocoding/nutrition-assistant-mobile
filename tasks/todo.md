@@ -37,9 +37,9 @@ Status: approved; implementation in progress
 **Description:** Add a small pure configuration reader for supported server settings and fail fast on invalid values before opening the listener. Preserve current defaults and CORS semantics.
 
 **Acceptance criteria:**
-- [ ] Invalid `PORT` and invalid explicit demo-mode values fail with a concise message that contains no secret or user data.
-- [ ] Valid/default settings preserve current port, host, demo-disabled default, and CORS behavior.
-- [ ] API handlers no longer parse the port ad hoc from `process.env`.
+- [x] Invalid `PORT` and invalid explicit demo-mode values fail with a concise message that contains no secret or user data.
+- [x] Valid/default settings preserve current port, host, demo-disabled default, and CORS behavior.
+- [x] API handlers no longer parse the port ad hoc from `process.env`.
 
 **Verification:** Focused `node --test server/tests/server-config.test.js`; then `npm run test:unit` and `npm run test:api`.
 
@@ -74,9 +74,9 @@ Status: approved; implementation in progress
 
 ## Checkpoint: API configuration and lifecycle
 
-- [ ] Configuration and lifecycle tests pass.
-- [ ] Existing `/api/v1` route behavior remains unchanged.
-- [ ] Invalid configuration cannot start a server that appears healthy.
+- [x] Configuration tests pass; process startup rejects invalid environment values.
+- [x] Existing `/api/v1` route behavior remains unchanged.
+- [ ] Process lifecycle tests pass (Task 3).
 
 ## Task 4: Provide safe environment examples and local setup instructions
 

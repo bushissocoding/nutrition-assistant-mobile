@@ -2,23 +2,29 @@ const express = require('express');
 const { loadCatalog } = require('./src/repositories/catalog');
 const { createDemoContext } = require('./src/demo-context');
 const { createApiRouter } = require('./src/routes/api');
+const { readServerConfig } = require('./src/config/server-config');
 
 const app = express();
-const port = Number(process.env.PORT || 4000);
+let config;
+try { config = readServerConfig(process.env); }
+catch (error) { console.error(error.message); process.exit(1); }
+
 let catalog;
 try { catalog = loadCatalog(); }
 catch (error) { console.error(error.message); process.exit(1); }
 
 app.use(express.json({ limit: '32kb' }));
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || '*');
+  res.setHeader('Access-Control-Allow-Origin', config.corsOrigin);
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Demo-Namespace, Idempotency-Key');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(204);
   return next();
 });
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'nutrition-assistant-api' }));
-const demoContext = createDemoContext({ env: process.env });
+const demoContext = createDemoContext({
+  env: { ...process.env, DEMO_DATA_ENABLED: String(config.demoDataEnabled) },
+});
 app.use('/api/v1', createApiRouter(catalog, demoContext));
 app.use((err, req, res, _next) => {
   const isMealEntryRequest = req.path.startsWith('/api/v1/meal-entries');
@@ -29,4 +35,4 @@ app.use((err, req, res, _next) => {
   }
   return res.status(500).json({ error: 'Lỗi nội bộ.' });
 });
-app.listen(port, '0.0.0.0', () => console.log(`Nutrition API listening on ${port}`));
+app.listen(config.port, '0.0.0.0', () => console.log(`Nutrition API listening on ${config.port}`));

@@ -1,10 +1,21 @@
 const assert = require('node:assert/strict');
-const { spawn } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const port = 4400 + Math.floor(Math.random() * 1000);
 const demoDataFile = path.join(os.tmpdir(), `nutrition-assistant-api-${process.pid}-${port}.json`);
+const invalidConfig = spawnSync(process.execPath, [path.join(__dirname, 'server.js')], {
+  cwd: path.join(__dirname, '..'),
+  env: { ...process.env, PORT: 'invalid-port', DEMO_DATA_ENABLED: 'false' },
+  encoding: 'utf8',
+  timeout: 10000,
+});
+const invalidConfigOutput = `${invalidConfig.stdout || ''}${invalidConfig.stderr || ''}`;
+assert.equal(invalidConfig.status, 1, 'server should reject invalid configuration before listening');
+assert.match(invalidConfigOutput, /PORT must be an integer between 1 and 65535/);
+assert.doesNotMatch(invalidConfigOutput, /invalid-port/);
+
 const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], { cwd: path.join(__dirname, '..'), env: { ...process.env, PORT: String(port), CORS_ORIGIN: 'http://localhost', DEMO_DATA_ENABLED: 'true', DEMO_DATA_FILE: demoDataFile }, stdio: 'ignore' });
 const base = `http://127.0.0.1:${port}`;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
