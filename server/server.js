@@ -3,6 +3,7 @@ const { loadCatalog } = require('./src/repositories/catalog');
 const { createDemoContext } = require('./src/demo-context');
 const { createApiRouter } = require('./src/routes/api');
 const { readServerConfig } = require('./src/config/server-config');
+const { registerGracefulShutdown } = require('./src/services/server-shutdown');
 
 const app = express();
 let config;
@@ -35,4 +36,5 @@ app.use((err, req, res, _next) => {
   }
   return res.status(500).json({ error: 'Lỗi nội bộ.' });
 });
-app.listen(config.port, '0.0.0.0', () => console.log(`Nutrition API listening on ${config.port}`));
+const server = app.listen(config.port, '0.0.0.0', () => console.log(`Nutrition API listening on ${config.port}`));
+registerGracefulShutdown(server);

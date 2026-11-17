@@ -58,25 +58,27 @@ Status: approved; implementation in progress
 **Description:** Keep `/health` deterministic and secret-free; handle SIGINT/SIGTERM by stopping acceptance of new requests, allowing active requests to finish, and enforcing a bounded shutdown deadline.
 
 **Acceptance criteria:**
-- [ ] Health smoke test keeps the existing response contract.
-- [ ] Process-level tests show SIGINT and SIGTERM exit cleanly and do not hang beyond the documented deadline.
-- [ ] Shutdown errors are visible and no request body, namespace, or health data is logged.
+- [x] Health smoke test keeps the existing response contract.
+- [ ] POSIX process-level tests assert SIGINT and SIGTERM exit cleanly within five seconds; the current Windows worktree cannot execute these signal cases.
+- [x] Shutdown errors are visible and no request body, namespace, or health data is logged.
 
-**Verification:** `npm run test:api`; focused process smoke test for both signals; `npm run test:unit` if lifecycle logic is extracted into a pure module.
+**Verification:** `npm run test:api`; focused `node --test server/tests/server-shutdown.test.js`. On Windows, the API smoke test skips POSIX process signals because Node cannot deliver SIGTERM as a catchable signal; the committed process smoke test will run on Linux CI.
 
 **Dependencies:** Task 2.
 
 **Files likely touched:**
 - `server/server.js`
 - `server/server.test.js`
+- `server/src/services/server-shutdown.js`
+- `server/tests/server-shutdown.test.js`
 
-**Estimated scope:** Small.
+**Estimated scope:** Medium.
 
 ## Checkpoint: API configuration and lifecycle
 
 - [x] Configuration tests pass; process startup rejects invalid environment values.
 - [x] Existing `/api/v1` route behavior remains unchanged.
-- [ ] Process lifecycle tests pass (Task 3).
+- [ ] POSIX process-level signal checks pass in CI. Local Windows unit/API suites passed; WSL is unavailable, so the signal-specific integration branch did not execute here.
 
 ## Task 4: Provide safe environment examples and local setup instructions
 

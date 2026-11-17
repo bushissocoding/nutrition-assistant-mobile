@@ -30,6 +30,39 @@ const entryPayload = {
 };
 const scopedHeaders = extra => ({ 'content-type': 'application/json', 'X-Demo-Namespace': namespace, ...(extra || {}) });
 
+async function verifySignalShutdown(signal, portOffset) {
+  const signalPort = port + portOffset;
+  const signalChild = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, PORT: String(signalPort), DEMO_DATA_ENABLED: 'false' },
+    stdio: 'ignore',
+  });
+  const signalBase = `http://127.0.0.1:${signalPort}`;
+
+  try {
+    let ready = false;
+    for (let i = 0; i < 50; i++) {
+      try { if ((await fetch(`${signalBase}/health`)).ok) { ready = true; break; } } catch {}
+      await sleep(100);
+    }
+    assert.equal(ready, true, `server should start before ${signal} test`);
+
+    const exit = new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error(`${signal} shutdown did not finish in time`)), 5000);
+      signalChild.once('exit', (code, exitSignal) => {
+        clearTimeout(timeout);
+        resolve({ code, signal: exitSignal });
+      });
+    });
+    assert.equal(signalChild.kill(signal), true, `should send ${signal}`);
+    const result = await exit;
+    assert.equal(result.code, 0, `${signal} should close the server cleanly`);
+    assert.equal(result.signal, null, `${signal} should be handled by the process`);
+  } finally {
+    if (signalChild.exitCode === null && signalChild.signalCode === null) signalChild.kill();
+  }
+}
+
 (async () => {
   try {
     let ready = false;
@@ -217,6 +250,13 @@ const scopedHeaders = extra => ({ 'content-type': 'application/json', 'X-Demo-Na
     const groceryStoreFailure = await fetch(groceryCurrentUrl, { headers: { 'X-Demo-Namespace': namespace } });
     assert.equal(groceryStoreFailure.status, 503);
     assert.equal((await groceryStoreFailure.json()).code, 'DEMO_STORE_UNAVAILABLE');
+    // Node documents that SIGTERM cannot be delivered as a catchable signal on Windows.
+    // The process-level signal checks therefore run on POSIX CI; unit tests cover both handlers everywhere.
+    // https://nodejs.org/download/release/v22.23.0/docs/api/process.html#signal-events
+    if (process.platform !== 'win32') {
+      await verifySignalShutdown('SIGINT', 10000);
+      await verifySignalShutdown('SIGTERM', 11000);
+    }
     console.log('Backend smoke tests passed.');
   } catch (error) {
     console.error(error);
