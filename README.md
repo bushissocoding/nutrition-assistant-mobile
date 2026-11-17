@@ -56,6 +56,17 @@ The API listens on `0.0.0.0:4000` for development. On Windows, use `ipconfig` to
 
 Verify the backend from the same device/emulator that runs the app by opening `http://<the-same-host>:4000/health` in its browser. The response should include `{"status":"ok"}`. You can also check locally on the computer with `http://localhost:4000/health`.
 
+### Troubleshooting startup and connectivity
+
+| Symptom | What it points to | Check |
+|---|---|---|
+| `npm start` fails before showing the Expo QR code | Metro startup or local Node/dependency setup | Confirm the supported Node version above, run `npm ci`, and read the Metro terminal error. |
+| Expo Go opens the project but the JavaScript bundle does not load | The phone cannot reach Metro | Check the Expo terminal and network mode. `npx expo start --tunnel` can diagnose Metro reachability; it does not tunnel the API. `npx expo start --clear` retries with a cleared Metro cache. |
+| App loads, but API requests fail | API process, API URL, LAN, or firewall | Check the API terminal for startup/config errors. Call `http://localhost:4000/health` on the development computer, then open the same target-specific API host plus `/health` on the device. If the computer succeeds but the device fails, check `EXPO_PUBLIC_API_URL`, same-network access, and the firewall rule for TCP 4000. |
+| `/health` works from the device, but a feature still fails | Route, request validation, response handling, or app logic | Check the API status/error code and the feature's expected `/api/v1` contract; run `npm run test:api`, `npm run test:unit`, or `npm run test:ui` for the relevant layer. Do not copy health data, headers, or credentials into logs or public issues. |
+
+The API's startup validation prints the setting and requirement for invalid `PORT` or `DEMO_DATA_ENABLED` values without echoing the supplied value. A successful `/health` response confirms only that the API process responds; it does not prove authentication, persistence durability, or production readiness.
+
 Run deterministic business-logic tests with `npm run test:unit`, UI component tests with `npm run test:ui`, and backend API smoke tests with `npm run test:api`. CI also exports the Android JavaScript bundle and runs `npm audit --audit-level=high`; the export is not a physical-device test. Detailed routes, provenance and limitations are in [`server/README.md`](server/README.md) and the [security and operations baseline](docs/security-and-operations.md). The synthetic profile and a versioned, timestamped consent receipt are stored locally with SecureStore; the receipt is not linked to an account. The meal diary and current grocery list use the development-only namespaced JSON store and survive app/API restarts while that file is retained. Plans remain in memory. There is no authentication or secure account ownership, and demo storage is not production persistence.
 
 ### Development-only demo storage
