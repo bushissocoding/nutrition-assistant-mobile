@@ -16,7 +16,10 @@
     "api:dev": "node --env-file-if-exists=server/.env --watch server/server.js",
     "test:api": "node server/server.test.js",
     "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs app/src/features/onboarding/consent-model.test.cjs app/src/services/api-config.test.cjs app/src/services/demo-namespace-storage.test.cjs app/src/services/api-client.test.cjs app/src/app/purge-before-local-delete.test.cjs",
-    "test:ui": "jest --runInBand"
+    "test:ui": "jest --runInBand",
+    "catalog:validate": "node server/scripts/import-food-catalog.js --input server/data/foods.json --check --allow-legacy",
+    "catalog:fixture": "node server/scripts/import-food-catalog.js --input server/data/fixtures/synthetic-foods.json --check",
+    "catalog:import": "node server/scripts/import-food-catalog.js"
   },
   "dependencies": {
     "expo": "~58.0.0",

@@ -21,7 +21,7 @@ CI runs the Android bundle export and a high/critical dependency audit after the
 ### Routes
 
 - `GET /health`
-- `GET /api/v1/foods?q=...&category=...`
+- `GET /api/v1/foods?q=...&category=...` — returns `{ items, count, disclaimer, catalog }`. `catalog` contains the catalog version/status, source registry, nutrient units and limitations; food records include aliases, preparation, serving conversions, nutrient basis/units, missingness, provenance and review state.
 - `GET /api/v1/foods/:id`
 - `POST /api/v1/nutrition/calculate` — `{ "items": [{ "foodId": "rice-steamed", "grams": 100 }] }`
 - `POST /api/v1/meal-plans/generate` — `{ "budgetVnd": 120000, "allergies": ["cá"], "excludedFoodIds": [], "preferences": "...", "targets": { "fiberG": { "min": 25 }, "sodiumMg": { "max": 2000 } }, "hardLimits": { "sodiumMg": { "max": 2300 } } }`
@@ -58,6 +58,8 @@ The list is a snapshot submitted by the mobile client from the planner response.
 
 The planner searches the finite meal-template catalog across 0.75×, 1×, and 1.25× portions per meal slot. `targets` are soft objectives (below-minimum/above-maximum results are allowed but returned as warnings); `hardLimits` are enforced ceilings/floors and plans that violate them are rejected. Omitted soft targets use generic demonstration ranges from `server/src/services/meal-planner.js`. They are product examples, not personalized dietary recommendations or medical constraints. The optimizer cannot create a recipe outside `server/data/meals.json`.
 
+Food values are stored on a 100 g edible-portion basis. Each nutrient carries its unit and either a numeric `value` with `status: "reported"` or `value: null` with `status: "missing"` and a reason. Zero is a valid reported value and is never treated as missing. Calculations preserve unknowns as `null`; the API does not turn missing nutrients into zero. The meal-planner catalog loader refuses foods referenced by active templates when any planner nutrient is missing. Metric mass conversion is deterministic (`mg`, `g`, `kg`); volume or household units require an explicit per-food grams conversion, and the system does not assume a water-like density.
+
 ## Local demo data storage
 
 The API composition provides namespaced JSON repositories used by the meal diary and current grocery list. Its default file is `server/.local-data/demo-store.json`; set `DEMO_DATA_FILE` to override the path. The directory is ignored by Git and is created only when the first record is written.
@@ -79,9 +81,31 @@ Meal generation is deterministic template selection, not AI, a clinical optimize
 
 ## Food data provenance / Vietnam data
 
-The project request asks to use Vietnam's National Institute of Nutrition. This repository does **not** yet include an official Institute dataset: in this implementation session, an official machine-readable download and its reuse terms could not be verified. We therefore do not attribute any values to the Institute. The handful of prototype records use approximate comparator values referenced to USDA FoodData Central, with record-level notes in `data/foods.json`; they are not Vietnam-specific and are not clinical-grade.
+The active catalog is `server/data/foods.json`, versioned as `prototype-2026-11-17.1`. Each record keeps Vietnamese labels and aliases, raw/cooked and maturity state, household serving and any explicit unit conversion, nutrients with units/missingness, provenance by field group, a record version, and review status. The API preserves the existing `/api/v1` fields (including `name`, `serving`, and numeric `per100g`) and adds the richer metadata. A missing `per100g` nutrient is omitted from that compatibility projection; calculation responses preserve it as `null`.
 
-Before production, obtain an official Vietnamese food composition table and confirm permission/license for redistribution. Preserve edition, food identifiers, preparation state, units, source page/value, missing-value semantics and transformations on every imported record. Have a qualified Vietnamese dietitian review recipes and serving sizes. Do not load a scraped/unclear-license table or label estimates as official Institute data.
+`server/data/sources.json` records editions, verification dates, licensing, redistribution rights and attribution. USDA FoodData Central states its data are CC0 1.0/public domain and requests attribution. The existing comparator entries retain that attribution, but the old data did not retain exact FDC IDs or releases, so their match and edition remain explicitly unverified. They are not Vietnam-specific.
+
+The Institute's 2007/2017 tables and the 2013 SMILING Vietnam table were reviewed against official Institute/FAO-INFOODS sources on 2026-11-17. No explicit redistribution license or written permission was found. None of their values are imported or transcribed. The Institute data source and redistribution rights remain a blocker; do not call this catalog an official Vietnamese table. Full findings and links are in [`docs/research/issue-4-food-data-sources.md`](../docs/research/issue-4-food-data-sources.md).
+
+### Reproducible import and validation
+
+The dependency-free pipeline accepts canonical JSON, validates required fields, units, nutrient ranges, duplicate identities, provenance, source licensing and exact external record/edition references, then writes deterministic catalog JSON and an added/updated/removed/unchanged report. Strict imports from an external source fail unless the source registry confirms redistribution permission, license, verification date and attribution and every external provenance group names its source record and edition. `--allow-legacy` is validation-only and cannot write output.
+
+```sh
+npm run catalog:validate
+npm run catalog:fixture
+npm run catalog:import -- --input <licensed-source.json> --sources server/data/sources.json --previous server/data/foods.json --output <candidate-catalog.json> --report <change-report.json>
+```
+
+The checked-in synthetic fixture exists only to exercise the pipeline; it is not loaded by the API and its numbers do not describe real food. Do not use it to replace the active catalog. Do not import or publish a Vietnamese dataset until redistribution rights are confirmed and the records have a qualified food/nutrition review. `npm run catalog:import` never downloads or scrapes data.
+
+### Updating or removing a source
+
+Ask the publisher/rights holder named in the research report for permission covering copying, transformation, app/API redistribution and required attribution. Record the written grant or official license URL, exact edition, verification date and the scope of the grant in the registry before mapping values. A registry flag records reviewed evidence; the validator cannot make a legal determination or prove the source's authenticity. Keep the original authorized input and its checksum with the reviewed change; never commit restricted source files.
+
+For an update, increment the catalog version and each changed record version, retain source identifiers and transformations, run a strict import to a separate candidate file, and inspect its change report. Have a qualified reviewer check names/aliases, raw versus cooked matching, servings, conversions and nutrient definitions; record reviewer/date only after actual review. Run the required repository checks before promoting the candidate. Existing legacy comparators fail strict import until their exact source IDs and editions are recovered.
+
+For withdrawal or changed terms, stop distributing the affected source, remove every food whose provenance references it, update dependent meal templates and bump the catalog version. Preserve nonrestricted attribution and a removal note in the registry/change report. Check existing demo diary records and purge affected local demo stores as needed; their stored nutrient snapshots are not automatically migrated. Do not restore withdrawn values from an older release without checking rights again.
 
 ## Mobile connection
 

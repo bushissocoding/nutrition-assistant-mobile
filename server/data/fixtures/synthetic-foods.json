@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "version": "synthetic-fixture-1",
+  "status": "synthetic-fixture",
+  "notice": "Synthetic pipeline fixture only; these values do not describe a real food and must never be served as catalog data.",
+  "limitations": ["Synthetic values exist only to exercise null, zero, units and conversions."],
+  "foods": [
+    {
+      "id": "synthetic-test-food",
+      "version": "synthetic-fixture-1",
+      "name": "Synthetic test food",
+      "aliases": ["fixture food"],
+      "category": "fixture",
+      "allergens": [],
+      "tags": ["test-only"],
+      "preparation": { "state": "cooked", "maturity": "not-applicable", "description": "Synthetic fixture state." },
+      "serving": {
+        "amount": 50,
+        "unit": "g",
+        "household": "one synthetic unit",
+        "conversions": [{ "amount": 1, "unit": "piece", "grams": 50, "method": "synthetic fixture conversion; not a real serving" }]
+      },
+      "nutrition": {
+        "basis": { "amount": 100, "unit": "g", "ediblePortion": true },
+        "values": {
+          "energyKcal": { "value": 0, "unit": "kcal", "status": "reported" },
+          "proteinG": { "value": 2, "unit": "g", "status": "reported" },
+          "carbohydrateG": { "value": null, "unit": "g", "status": "missing", "reason": "not-in-fixture" },
+          "fatG": { "value": 0, "unit": "g", "status": "reported" },
+          "fiberG": { "value": 1, "unit": "g", "status": "reported" },
+          "sodiumMg": { "value": 0, "unit": "mg", "status": "reported" }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": { "sourceId": "synthetic-fixture", "sourceRecordId": "synthetic-test-food", "edition": "synthetic-fixture-1", "method": "Synthetic test fixture." },
+          "preparation": { "sourceId": "synthetic-fixture", "sourceRecordId": "synthetic-test-food", "edition": "synthetic-fixture-1", "method": "Synthetic test fixture." },
+          "serving": { "sourceId": "synthetic-fixture", "sourceRecordId": "synthetic-test-food", "edition": "synthetic-fixture-1", "method": "Synthetic test fixture." },
+          "nutrition": { "sourceId": "synthetic-fixture", "sourceRecordId": "synthetic-test-food", "edition": "synthetic-fixture-1", "method": "Synthetic test values." }
+        }
+      },
+      "review": { "status": "fixture-only", "reviewedBy": null, "reviewedOn": null }
+    }
+  ]
+}

@@ -66,6 +66,23 @@ function createIdempotencyKey() {
   return `diary-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
+function displayValue(value) {
+  return Number.isFinite(value) ? value : '—';
+}
+
+function sourceEdition(food) {
+  const edition = food.source?.edition;
+  if (!edition || /not-recorded|unknown/i.test(edition)) return 'edition không ghi nhận';
+  return `edition ${edition}`;
+}
+
+function sourceLine(food) {
+  const name = food.source?.name || 'Nguồn chưa ghi';
+  const license = food.source?.license?.name;
+  const rowStatus = food.source?.sourceRecordId ? '' : ' · ID bản ghi cụ thể chưa được lưu';
+  return `Nguồn: ${name} · ${sourceEdition(food)}${license ? ` · ${license}` : ''}${rowStatus}`;
+}
+
 export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [initialDateTime] = useState(getDeviceDateTime);
   const [selectedDate, setSelectedDate] = useState(initialDateTime.date);
@@ -78,6 +95,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [reloadCount, setReloadCount] = useState(0);
   const [query, setQuery] = useState('');
   const [foods, setFoods] = useState([]);
+  const [catalogInfo, setCatalogInfo] = useState(null);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState('');
   const [selectedFood, setSelectedFood] = useState(null);
@@ -120,6 +138,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     try {
       const result = await api.getFoods(query.trim());
       setFoods(Array.isArray(result?.items) ? result.items : []);
+      setCatalogInfo(result?.catalog || null);
     } catch (error) {
       setSearchError(error?.message || 'Không tìm được thực phẩm. Hãy kiểm tra kết nối rồi thử lại.');
     } finally {
@@ -249,10 +268,18 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
       {searchLoading && <ActivityIndicator accessibilityLabel="Đang tìm thực phẩm" color={colors.primary} style={styles.spinner} />}
       {!!searchError && <View><Text accessibilityRole="alert" style={styles.error}>{searchError}</Text><TouchableOpacity onPress={searchFoods}><Text style={styles.link}>Thử tìm lại</Text></TouchableOpacity></View>}
       {!searchLoading && !searchError && foods.length === 0 && query.trim() !== '' && <Text style={styles.small}>Không tìm thấy thực phẩm phù hợp.</Text>}
-      {foods.map(food => <TouchableOpacity key={food.id} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.per100g?.energyKcal) && <Text style={styles.small}>Mỗi 100 g · {food.per100g.energyKcal} kcal</Text>}</TouchableOpacity>)}
+      {catalogInfo && <View style={styles.catalogNotice}>
+        <Text style={styles.catalogNoticeTitle}>Danh mục {catalogInfo.version} · {catalogInfo.status}</Text>
+        <Text style={styles.catalogNoticeText}>{catalogInfo.notice}</Text>
+        {catalogInfo.status === 'prototype' && <Text style={styles.catalogNoticeText}>Danh mục mẫu, chưa được chuyên gia rà soát. Không phải bảng dữ liệu chính thức của Viện Dinh dưỡng.</Text>}
+        {(catalogInfo.limitations || []).map((limitation, index) => <Text key={`${index}-${limitation}`} style={styles.catalogLimitation}>• {limitation}</Text>)}
+      </View>}
+      {foods.map(food => <TouchableOpacity key={food.id} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.per100g?.energyKcal) && <Text style={styles.small}>Mỗi 100 g · {food.per100g.energyKcal} kcal</Text>}<Text style={styles.small}>{sourceLine(food)}</Text></TouchableOpacity>)}
 
       {selectedFood && <View style={styles.selected}>
         <Text style={styles.heading}>{selectedFood.name}</Text>
+        {selectedFood.serving && <Text style={styles.small}>Khẩu phần tham khảo: {selectedFood.serving.amount} {selectedFood.serving.unit} · {selectedFood.serving.household}. Dinh dưỡng tính trên {selectedFood.nutrition?.basis?.amount || 100} {selectedFood.nutrition?.basis?.unit || 'g'} phần ăn được.</Text>}
+        {selectedFood.source && <Text style={styles.small}>{sourceLine(selectedFood)}</Text>}
         <Text style={styles.small}>Khẩu phần (g)</Text>
         <TextInput accessibilityLabel="Khối lượng" value={grams} onChangeText={setGrams} keyboardType="decimal-pad" style={styles.input} placeholder="Khối lượng (g)" />
         <Text style={styles.small}>Ngày và giờ theo múi giờ thiết bị</Text>
@@ -272,9 +299,9 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
     <View style={styles.summaryCard}>
       <Text style={styles.heading}>Tổng dinh dưỡng trong ngày</Text>
-      <Text style={styles.summaryValue}>{totals.energyKcal || 0} kcal</Text>
-      <Text style={styles.small}>Đạm {totals.proteinG || 0} g · Carb {totals.carbohydrateG || 0} g · Béo {totals.fatG || 0} g</Text>
-      <Text style={styles.small}>Chất xơ {totals.fiberG || 0} g · Natri {totals.sodiumMg || 0} mg</Text>
+      <Text style={styles.summaryValue}>{displayValue(totals.energyKcal)} kcal</Text>
+      <Text style={styles.small}>Đạm {displayValue(totals.proteinG)} g · Carb {displayValue(totals.carbohydrateG)} g · Béo {displayValue(totals.fatG)} g</Text>
+      <Text style={styles.small}>Chất xơ {displayValue(totals.fiberG)} g · Natri {displayValue(totals.sodiumMg)} mg</Text>
     </View>
 
     <Text style={styles.heading}>Các món đã ghi ({entries.length})</Text>
@@ -282,8 +309,8 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     {!!listError && <View style={styles.errorCard}><Text accessibilityRole="alert" style={styles.error}>{listError}</Text><TouchableOpacity style={styles.retryButton} onPress={() => setReloadCount(value => value + 1)}><Text style={styles.buttonText}>Thử tải lại</Text></TouchableOpacity></View>}
     {!listLoading && !listError && entries.map(entry => <View key={entry.id} style={styles.card}>
       <View style={styles.entryHeader}><Text style={styles.foodName}>{entry.foodName}</Text><Text style={styles.small}>{formatEntryTime(entry)} · {formatMealType(entry.mealType)}</Text></View>
-      <Text style={styles.small}>{entry.portion.amount} g · {entry.nutrients.energyKcal} kcal</Text>
-      <Text style={styles.small}>Đạm {entry.nutrients.proteinG} g · Carb {entry.nutrients.carbohydrateG} g · Natri {entry.nutrients.sodiumMg} mg</Text>
+      <Text style={styles.small}>{entry.portion.amount} {entry.portion.unit || 'g'} · {displayValue(entry.nutrients.energyKcal)} kcal</Text>
+      <Text style={styles.small}>Đạm {displayValue(entry.nutrients.proteinG)} g · Carb {displayValue(entry.nutrients.carbohydrateG)} g · Natri {displayValue(entry.nutrients.sodiumMg)} mg</Text>
       {!!entry.notes && <Text style={styles.small}>{entry.notes}</Text>}
       <View style={styles.actionRow}>
         <TouchableOpacity style={styles.textButton} onPress={() => startEditing(entry)} disabled={mutationLoading}><Text style={styles.link}>Sửa</Text></TouchableOpacity>
@@ -299,6 +326,10 @@ const styles = StyleSheet.create({
   content: { padding: 18, paddingBottom: 110 },
   title: { color: colors.primary, fontSize: 23, fontWeight: '800' },
   disclaimer: { backgroundColor: '#FFF5DE', color: colors.warning, padding: 11, borderRadius: 10, fontSize: 11, lineHeight: 16, marginVertical: 10 },
+  catalogNotice: { backgroundColor: '#FFF5DE', padding: 10, borderRadius: 9, marginTop: 10 },
+  catalogNoticeTitle: { color: colors.warning, fontSize: 11, lineHeight: 16, fontWeight: '800' },
+  catalogNoticeText: { color: colors.warning, fontSize: 11, lineHeight: 16, marginTop: 3 },
+  catalogLimitation: { color: colors.warning, fontSize: 10, lineHeight: 15, marginTop: 3 },
   card: { backgroundColor: 'white', padding: 15, borderRadius: radius.md, marginVertical: 7, elevation: 1 },
   summaryCard: { backgroundColor: 'white', padding: 15, borderRadius: radius.md, marginVertical: 7, borderWidth: 1, borderColor: colors.border },
   heading: { color: colors.text, fontSize: 15, fontWeight: '800' },
