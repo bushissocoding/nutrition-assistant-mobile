@@ -10,6 +10,7 @@ Expo mobile app + initial Node.js/Express nutrition API MVP.
 - `server/src/` — API routes, catalog/demo repositories, request middleware, nutrition and meal-planning services.
 - `server/data/` — explicitly attributed demonstration food and meal catalogs.
 - `server/tests/` — deterministic unit tests for nutrition and meal-planning logic; `server/server.test.js` contains API smoke tests.
+- [`CAPABILITY-MAP.md`](CAPABILITY-MAP.md) — cross-issue module boundaries and implementation dependencies for GitHub issues #1–#5.
 - `assets/design/ui-reference/` — supplied UI PNG references; implemented meal and dashboard screens use their visual direction.
 - `docs/` — project presentation/requirements material.
 

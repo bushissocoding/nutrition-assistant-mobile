@@ -26,4 +26,4 @@ For the integrated authenticated prototype: `project-platform` → (`identity-pr
 - Preserve source attribution and reuse rights for food data. Do not label comparator values as official Vietnamese data.
 - Keep allergy exclusions and `hardLimits` hard. Soft targets may be unmet only with a clear warning; no clinical claim is allowed without qualified review.
 - Do not imply production authentication, persistence, legal compliance, clinical validation, backup, or retention unless implemented and verified.
-- Do not overwrite the existing issue #1 plans/specs; extend them only when a reviewed implementation changes their contracts.
+- GitHub issues are the source of truth for scope and status. Keep durable architecture and safety rules in `CONSTRAINTS.md`, `docs/architecture.md`, and `docs/security-and-operations.md`; this map records module boundaries and dependencies.
