@@ -19,7 +19,7 @@ Before changing dependencies, run `npm audit --json`, inspect the installed depe
 
 ## Current data and trust boundaries
 
-- The Expo app stores consent and a minimal prototype profile locally through SecureStore. This is not a server identity or proof of consent compliance.
+- The Expo app stores a versioned, timestamped consent receipt and a minimal synthetic prototype profile locally through SecureStore. The receipt is device-local, is not account-linked, and is not server-verified proof of consent compliance.
 - Diary and grocery API data is persisted in `server/.local-data/demo-store.json` only when `DEMO_DATA_ENABLED=true`. Demo routes are disabled by default and always disabled in production.
 - `X-Demo-Namespace` is caller-controlled. It separates local demo collections but is not authentication, authorization, or account ownership.
 - Catalog and planner values are estimates with the source limitations recorded in `server/data/sources.json`. They are not clinical advice and the catalog does not claim to be official Vietnamese Institute of Nutrition data.
@@ -33,9 +33,9 @@ The root `.env` contains Expo `EXPO_PUBLIC_*` configuration. Expo embeds those v
 
 ## Storage, deletion, and retention
 
-The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. App profile/consent deletion first requests the diary and grocery namespace purges; a failed purge must preserve local state and offer retry. The demo store can still remain in a developer-controlled file until that file is removed. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
+The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. App profile/consent deletion first requests the diary and grocery namespace purges; a failed purge must preserve local state and offer retry. The demo store can still remain in a developer-controlled file until that file is removed. The consent disclosure explains these limitations but has not been reviewed by a privacy/legal owner. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
 
-Only synthetic data is allowed. Before real health data is considered, the project needs authenticated identity and ownership, qualified privacy/security review, an approved retention and deletion policy, transport/storage protections, and tested backup/restore and incident handling.
+Only synthetic data is allowed. No identity provider or auth SDK has been selected, and the server has no authenticated profile routes. Before real health data is considered, the project needs a selected provider, authenticated identity and ownership, qualified privacy/security review, an approved retention and deletion policy, transport/storage protections, and tested backup/restore and incident handling. Do not treat the local consent receipt or `X-Demo-Namespace` as authentication or ownership.
 
 The CI Android export verifies that Metro can produce a bundle for Android; it does not verify installation, device networking, or physical-device behavior. The high/critical audit threshold is an automated dependency gate and does not remove the moderate findings recorded above.
 
