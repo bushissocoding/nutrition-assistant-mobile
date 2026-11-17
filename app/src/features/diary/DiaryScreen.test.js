@@ -89,6 +89,33 @@ test('ignores a late response for a day the user has already left', async () => 
   expect(screen.queryByText('Cơm trắng')).toBeNull();
 });
 
+test('shows catalog version, food source, units and serving limits in search results', async () => {
+  api.getFoods.mockResolvedValue({
+    catalog: { version: 'prototype-test-v1', status: 'prototype', notice: 'Demo source values are unreviewed.' },
+    items: [{
+      id: 'synthetic-food',
+      name: 'Synthetic food',
+      per100g: { energyKcal: 10 },
+      serving: { amount: 50, unit: 'g', household: 'one synthetic piece' },
+      nutrition: { basis: { amount: 100, unit: 'g' } },
+      source: {
+        name: 'USDA FoodData Central',
+        edition: 'not-recorded-in-legacy-data',
+        sourceRecordId: null,
+        license: { name: 'CC0 1.0 Universal' },
+      },
+    }],
+  });
+  const screen = renderDiary();
+
+  await press(screen, 'Tìm');
+  expect(screen.getByText(/Danh mục prototype-test-v1 · prototype/)).toBeTruthy();
+  expect(screen.getByText(/USDA FoodData Central · edition không ghi nhận · CC0 1.0 Universal/)).toBeTruthy();
+  await press(screen, 'Synthetic food');
+  expect(screen.getByText(/Khẩu phần tham khảo: 50 g · one synthetic piece/)).toBeTruthy();
+  expect(screen.getByText(/Dinh dưỡng tính trên 100 g phần ăn được/)).toBeTruthy();
+});
+
 test('preserves the form on create failure and retries the same intent with the same key', async () => {
   api.getFoods.mockResolvedValue({ items: [{ id: 'rice-steamed', name: 'Cơm trắng', per100g: { energyKcal: 130 } }] });
   api.createMealEntry.mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });

@@ -31,21 +31,23 @@ Each feature owns its screen and feature-specific UI/state. Move a component to 
 ```text
 server/
 ├── server.js                       # Express composition and middleware
+├── scripts/import-food-catalog.js  # Reproducible JSON catalog import/validation CLI
 ├── src/
 │   ├── config/server-config.js     # Parse and validate startup environment once
 │   ├── routes/api.js                # API composition and existing route mapping
 │   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
-│   ├── repositories/catalog.js      # Loading the current JSON catalog
+│   ├── repositories/catalog.js      # Validate/load catalog and its source registry
 │   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
 │   ├── repositories/shopping-list-repository.js # Current grocery list and idempotency ledger
 │   └── services/
 │       ├── nutrition.js             # Deterministic nutrient calculations
+│       ├── food-catalog.js          # Catalog schema, source-rights checks and diff report
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
 │       ├── meal-planner.js          # Deterministic demo planner
 │       └── server-shutdown.js       # Bounded SIGINT/SIGTERM shutdown
-├── data/                            # Demonstration catalogs and provenance
+├── data/                            # Versioned demonstration catalogs, source registry and synthetic fixture
 ├── tests/                            # Unit tests for domain, config and lifecycle rules
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
@@ -56,7 +58,7 @@ Startup configuration is read and validated before opening the listener. `npm ru
 
 ## Current mobile-to-API contract
 
-- `GET /api/v1/foods?q=...` — search the demonstration food catalog.
+- `GET /api/v1/foods?q=...` — search the demonstration food catalog; response includes additive catalog version, source, unit and limitation metadata. The existing `/api/v1` food and nutrition fields remain available.
 - `POST /api/v1/nutrition/calculate` — deterministic nutrients for `{ items: [{ foodId, grams }] }`.
 - `POST /api/v1/meal-plans/generate` — sample meal plan plus nutrient totals, warnings and aggregated groceries.
 - `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.

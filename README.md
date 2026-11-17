@@ -7,8 +7,9 @@ Expo mobile app + initial Node.js/Express nutrition API MVP.
 - `app/App.js` — Expo entry point.
 - `app/src/` — feature-first mobile app: app shell, navigation, shared UI, theme, API client, and home/planning/grocery/diary/dashboard/profile features.
 - `server/server.js` — Express API entry point.
-- `server/src/` — API routes, catalog/demo repositories, request middleware, nutrition and meal-planning services.
-- `server/data/` — explicitly attributed demonstration food and meal catalogs.
+- `server/src/` — API routes, catalog/demo repositories, request middleware, catalog validation, nutrition and meal-planning services.
+- `server/data/` — versioned demonstration catalog, source/license registry, meal templates and a synthetic import-only fixture.
+- `server/scripts/import-food-catalog.js` — deterministic catalog validation/import and change-report CLI; it does not fetch or scrape sources.
 - `server/tests/` — deterministic unit tests for nutrition and meal-planning logic; `server/server.test.js` contains API smoke tests.
 - [`CAPABILITY-MAP.md`](CAPABILITY-MAP.md) — cross-issue module boundaries and implementation dependencies for GitHub issues #1–#5.
 - `assets/design/ui-reference/` — supplied UI PNG references; implemented meal and dashboard screens use their visual direction.
@@ -71,4 +72,4 @@ Remove the environment variable or set it to `false` to turn demo data off. `NOD
 
 ## Important data and medical boundary
 
-This is a software prototype. The backend uses a small demonstration set with comparator values attributed record-by-record to USDA FoodData Central; it does not claim to use or represent data from Vietnam's National Institute of Nutrition. The official dataset and redistribution license were not verified. Meal templates, prices, and nutrition estimates are not validated clinical advice. The app is not suitable for treatment planning until its food data, recipes and clinical constraints have been sourced and reviewed by qualified professionals.
+This is a software prototype. The active catalog is `prototype-2026-11-17.1`. It does not claim to use or represent a dataset from Vietnam's National Institute of Nutrition: redistribution rights for the Vietnamese tables have not been verified, so none of their values were imported. Existing non-Vietnamese USDA FoodData Central comparators keep attribution; their original FDC IDs and editions were not retained and remain unverified. The API and diary display catalog version, source, units and these limits. Meal templates, prices, and nutrient estimates are not validated clinical advice. The catalog, recipes, household portions and clinical constraints still need qualified review.
