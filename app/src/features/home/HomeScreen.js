@@ -21,7 +21,7 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
     </View>
     <View style={styles.sectionHeading}><Text style={styles.sectionTitle}>Bữa ăn hôm nay</Text><Text style={styles.link} onPress={() => onNavigate('diary')}>+ Ghi món</Text></View>
     {diary.length ? diary.slice(0, 4).map(item => <TouchableOpacity key={item.id} style={styles.meal} onPress={() => onNavigate('diary')}><Text style={styles.time}>{mealLabels[item.mealType] || 'Hôm nay'}</Text><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.foodName}</Text><Text style={styles.muted}>{item.portion?.amount} g · {item.nutrients?.energyKcal || 0} kcal</Text></View><Text style={{ color: colors.primary }}>›</Text></TouchableOpacity>) : <View style={styles.meal}><Text style={styles.muted}>Chưa có nhật ký thực tế. Hãy thêm món trong mục Nhật ký.</Text></View>}
-    {plan && <TouchableOpacity style={styles.banner} onPress={() => onNavigate('planner')}><Text style={styles.cardTitle}>Thực đơn gợi ý đã sẵn sàng</Text><Text style={styles.muted}>{plan.plan.length} bữa · khoảng {Number(plan.estimatedCostVnd || 0).toLocaleString('vi-VN')}đ</Text></TouchableOpacity>}
+    {plan && <TouchableOpacity style={styles.banner} onPress={() => onNavigate('planner')}><Text style={styles.cardTitle}>Thực đơn gợi ý đã sẵn sàng</Text><Text style={styles.muted}>{plan.plan.length} bữa · {Number.isSafeInteger(plan.estimatedCostVnd) ? `khoảng ${plan.estimatedCostVnd.toLocaleString('vi-VN')}đ` : 'chưa có giá có nguồn'}</Text></TouchableOpacity>}
   </ScrollView>;
 }
 

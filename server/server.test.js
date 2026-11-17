@@ -98,24 +98,52 @@ async function verifySignalShutdown(signal, portOffset) {
     assert.equal(calc.totals.energyKcal, 130);
     assert.equal(calc.totals.sodiumMg, 1);
     assert.equal(calc.catalog.version, 'prototype-2026-11-17.1');
-    const planRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:120000,allergies:['cá']}) });
+    const planRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({contractVersion:1}) });
     const plan = await planRes.json();
-    assert.equal(plan.plan.length, 2, 'fish allergy makes the sample dinner unavailable; other slots remain');
-    assert.equal(plan.plan.some(m => m.name.includes('Cá')), false, 'allergy should filter fish meals');
+    assert.equal(plan.contractVersion, 1);
+    assert.equal(plan.status, 'feasible');
+    assert.equal(plan.plan.length, 3);
     assert.ok(plan.grocery.length > 0);
-    assert.ok(plan.plan.every(m => m.nutrients.energyKcal > 0));
-    const constrainedRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:120000,hardLimits:{sodiumMg:{max:500}}}) });
+    assert.ok(plan.plan.every(m => m.nutrients.energyKcal > 0 && m.provenance.foods.length > 0));
+    assert.equal(plan.metadata.catalogVersion, 'prototype-2026-11-17.1');
+    assert.equal(plan.metadata.algorithmVersion, 'meal-planner-v2');
+    assert.equal(plan.estimatedCostVnd, null, 'the planner must not expose the old unsourced template estimates');
+    const budgetUnavailable = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:120000}) });
+    const budgetUnavailableBody = await budgetUnavailable.json();
+    assert.equal(budgetUnavailableBody.status, 'unavailable');
+    assert.equal(budgetUnavailableBody.unavailability.code, 'PRICE_DATA_UNAVAILABLE');
+    assert.deepEqual(budgetUnavailableBody.plan, []);
+    const allergenUnavailable = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({allergies:['đậu phộng']}) });
+    const allergenUnavailableBody = await allergenUnavailable.json();
+    assert.equal(allergenUnavailableBody.status, 'unavailable');
+    assert.equal(allergenUnavailableBody.unavailability.code, 'ALLERGEN_NOT_COVERED');
+    const fishInfeasible = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({allergies:['cá']}) });
+    const fishInfeasibleBody = await fishInfeasible.json();
+    assert.equal(fishInfeasibleBody.status, 'infeasible', 'a missing safe dinner must not be returned as a partial success');
+    assert.equal(fishInfeasibleBody.infeasibility.code, 'NO_SAFE_MEAL_FOR_SLOT');
+    assert.deepEqual(fishInfeasibleBody.plan, []);
+    const constrainedRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({hardLimits:{sodiumMg:{max:500}}}) });
     const constrained = await constrainedRes.json();
-    assert.ok(constrained.dailyTotals.sodiumMg <= 500 || constrained.plan.length === 0, 'hard nutrient ceiling must be honored');
-    const impossibleRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:120000,hardLimits:{sodiumMg:{max:0}}}) });
+    assert.ok(constrained.status === 'feasible' ? constrained.dailyTotals.sodiumMg <= 500 : constrained.plan.length === 0, 'hard nutrient ceiling must be honored');
+    const impossibleRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({hardLimits:{sodiumMg:{max:0}}}) });
     const impossible = await impossibleRes.json();
     assert.equal(impossible.plan.length, 0, 'infeasible clinical hard limits must not be relaxed');
     assert.equal(impossible.planFeasible, false);
-    const goalRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:120000,targets:{fiberG:{min:10}}}) });
+    assert.equal(impossible.status, 'infeasible');
+    assert.equal(impossible.infeasibility.code, 'HARD_LIMITS_UNSATISFIABLE');
+    const goalRes = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({targets:{fiberG:{min:10}}}) });
     const goal = await goalRes.json();
     assert.ok(goal.dailyTotals.fiberG >= 10 || goal.warnings.length > 0, 'goals reported as satisfied or soft-goal warning');
     const invalidTargets = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({targets:{energyKcal:{min:-1}}}) });
     assert.equal(invalidTargets.status, 400);
+    assert.deepEqual(await invalidTargets.json(), {
+      error: 'Dữ liệu tạo thực đơn không hợp lệ.',
+      code: 'INVALID_MEAL_PLAN_REQUEST',
+      issues: [{ path: 'targets.energyKcal.min', code: 'OUT_OF_RANGE', message: 'Giá trị phải nằm trong miền cho phép.' }]
+    });
+    const invalidBudget = await fetch(`${base}/api/v1/meal-plans/generate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({budgetVnd:'120000'}) });
+    assert.equal(invalidBudget.status, 400);
+    assert.equal((await invalidBudget.json()).code, 'INVALID_MEAL_PLAN_REQUEST');
     const bad = await fetch(`${base}/api/v1/nutrition/calculate`, { method: 'POST', headers: {'content-type':'application/json'}, body: JSON.stringify({items:[{foodId:'missing',grams:10}]}) });
     assert.equal(bad.status, 400);
 

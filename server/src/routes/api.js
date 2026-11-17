@@ -1,6 +1,6 @@
 const express = require('express');
 const { calculateFood, calculateTotals } = require('../services/nutrition');
-const { generatePlan } = require('../services/meal-planner');
+const { generatePlan, validateMealPlanRequest } = require('../services/meal-planner');
 const { createMealEntryRouter } = require('./meal-entries');
 const { createShoppingListRouter } = require('./shopping-lists');
 
@@ -34,8 +34,14 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
     res.json({ totals: calculateTotals(items, foods), items: items.map(item => ({ food: foods.find(food => food.id === item.foodId).name, grams: item.grams, nutrients: calculateFood(foods.find(food => food.id === item.foodId), item.grams) })), sources: [...new Set(items.map(item => foods.find(food => food.id === item.foodId).source.name))], catalog });
   });
   router.post('/meal-plans/generate', (req, res) => {
-    try { return res.json({ ...generatePlan({ foods, mealTemplates, ...(req.body || {}) }), catalog }); }
-    catch (error) { return res.status(400).json({ error: error.message || 'Tham số tạo thực đơn không hợp lệ.' }); }
+    let request;
+    try {
+      request = validateMealPlanRequest(req.body, { foods });
+    } catch (error) {
+      if (error.code !== 'INVALID_MEAL_PLAN_REQUEST') throw error;
+      return res.status(400).json({ error: 'Dữ liệu tạo thực đơn không hợp lệ.', code: error.code, issues: error.issues });
+    }
+    return res.json({ ...generatePlan({ foods, mealTemplates, catalog, request }), catalog });
   });
   router.use('/meal-entries', createMealEntryRouter({ foods, demoContext }));
   router.use('/shopping-lists', createShoppingListRouter({ foods, demoContext }));

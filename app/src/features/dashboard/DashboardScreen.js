@@ -20,7 +20,7 @@ export default function DashboardScreen({ diary = [], diaryTotals = { energyKcal
       {(plan?.plan || []).map((meal, index) =>
         <View key={`${meal.slot}-${index}`} style={styles.mealCard}>
           <Text style={styles.mealImage}>{['🍳', '🥗', '🍲', '🍎'][index] || '🍽️'}</Text><Text style={styles.mealTitle}>{meal.slot}</Text>
-          <Text style={styles.caption}>{meal.name}</Text><Text style={styles.detail}>Calories　　{meal.nutrients.energyKcal} kcal</Text><Text style={styles.detail}>Chi phí　　 {meal.estimatedCostVnd.toLocaleString('vi-VN')}đ</Text>
+          <Text style={styles.caption}>{meal.name}</Text><Text style={styles.detail}>Calories　　{meal.nutrients.energyKcal} kcal</Text><Text style={styles.detail}>Chi phí　　 {Number.isSafeInteger(meal.estimatedCostVnd) ? `${meal.estimatedCostVnd.toLocaleString('vi-VN')}đ` : 'chưa có giá có nguồn'}</Text>
         </View>)}
     </ScrollView>
     {!plan?.plan?.length && <Text style={styles.empty}>Chưa có thực đơn. Tạo thực đơn để xem lịch ăn trong ngày.</Text>}

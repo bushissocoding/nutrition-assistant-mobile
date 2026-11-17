@@ -1,7 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { NUTRIENTS, validateFoodCatalog } = require('../services/food-catalog');
-const PLANNER_NUTRIENTS = ['energyKcal', 'proteinG', 'carbohydrateG', 'fatG', 'fiberG', 'sodiumMg'];
 
 function readJson(fileName) {
   const filePath = path.join(__dirname, '..', '..', 'data', fileName);
@@ -36,6 +35,7 @@ function loadCatalog() {
       ...food,
       per100g,
       source: {
+        id: source.id,
         name: source.name,
         url: source.url,
         note: nutritionProvenance.method,
@@ -48,14 +48,6 @@ function loadCatalog() {
       },
     };
   });
-
-  const foodById = new Map(foods.map(food => [food.id, food]));
-  for (const meal of mealTemplates) for (const item of meal.items || []) {
-    const food = foodById.get(item.foodId);
-    if (!food) throw new Error(`Meal template ${meal.id} references missing food ${item.foodId}.`);
-    const missing = PLANNER_NUTRIENTS.filter(key => !Number.isFinite(food.per100g[key]));
-    if (missing.length) throw new Error(`Meal template ${meal.id} uses ${food.id} with missing planner nutrients: ${missing.join(', ')}.`);
-  }
 
   const catalog = {
     version: catalogFile.version,

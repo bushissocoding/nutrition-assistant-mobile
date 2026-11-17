@@ -1,6 +1,6 @@
 {
   "verifiedOn": "2026-11-17",
-  "note": "The current MVP catalog is a small demonstration set and is not Vietnamese-specific. No Vietnamese composition dataset is imported because redistribution rights are unconfirmed. Existing FDC comparators lack recoverable record IDs/editions.",
+  "note": "The current MVP catalog is a small demonstration set and is not Vietnamese-specific. No Vietnamese composition dataset is imported because redistribution rights are unconfirmed. Existing FDC comparators lack recoverable record IDs/editions. Meal templates are project-authored examples; no sourced food-price data is available.",
   "preferredVietnamSource": {
     "name": "Bảng thành phần thực phẩm Việt Nam / Vietnamese Food Composition Table",
     "publisher": "Viện Dinh dưỡng (National Institute of Nutrition), Vietnam",
@@ -142,6 +142,23 @@
         "attributionRequested": false
       },
       "scope": "Approximate household servings and piece-to-gram conversions."
+    },
+    {
+      "id": "project-curated-meal-templates",
+      "kind": "internal",
+      "name": "Project-curated demonstration meal templates",
+      "publisher": "Nutrition Assistant prototype maintainers",
+      "url": null,
+      "edition": "prototype-meal-templates-1",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "internal-project-data",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Project-authored sample templates; not professionally reviewed.",
+        "attributionRequested": false
+      },
+      "scope": "Demonstration ingredient lists, meal slots and gram portions. Does not provide food prices or claim recipe validation."
     },
     {
       "id": "synthetic-fixture",
