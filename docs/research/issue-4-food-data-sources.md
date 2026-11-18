@@ -30,3 +30,9 @@
 1. Vietnamese composition-table redistribution rights are still unverified; request written authorization or a license from the relevant rights holder, including required attribution and whether modified/derived records may be redistributed.
 2. A qualified nutrition reviewer must assess food identity, preparation state, portions, units/conversions, and the imported values before any Vietnamese catalog is presented as reviewed.
 3. Until both are resolved, keep the catalog labelled as a prototype and use only synthetic fixtures for pipeline tests; existing USDA comparator rows are not Vietnam-specific.
+
+## Follow-up verification: 2026-11-18
+
+The USDA publisher homepage's Licensing section was checked directly again on 2026-11-18: it publishes FDC data under CC0 and requests source attribution. The registry now retains that publisher page as `rights.evidenceUrl`. This confirms the published general reuse terms only; it does not recover missing legacy record IDs or editions. Other source findings above retain their original check date; no new Vietnamese rights grant or expert review has been obtained.
+
+For the Vietnam 2007/2017 and SMILING candidates, contact the publisher/rights holder through its official publication/contact page and request terms covering the exact edition, digitization, translation, transformations, API display, downloadable redistribution, attribution, commercial/noncommercial scope and withdrawal conditions. Preserve the written response and have the project owner or qualified rights reviewer record the permitted scope and evidence before import. If permission is absent, keep import blocked; even internal use must comply with the actual terms. Use FDC with exact source records or synthetic test inputs as the available alternatives, without claiming Vietnamese representativeness.

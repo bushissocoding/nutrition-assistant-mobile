@@ -112,3 +112,16 @@ For withdrawal or changed terms, stop distributing the affected source, remove e
 The Expo app reads `EXPO_PUBLIC_API_URL` from the repository-root `.env` file; see the [root README's target-specific URL and connectivity instructions](../README.md#choose-the-api-url-for-the-app-target). The client fails clearly when the URL is missing or malformed rather than silently using `localhost`. The API binds to `0.0.0.0` for development, but a phone still needs a reachable computer LAN address, the same non-isolated network, and a firewall rule allowing TCP port 4000. Confirm access by opening `http://<backend-host>:4000/health` in the phone/emulator browser and checking for `{"status":"ok"}`. A Metro tunnel does not tunnel this API.
 
 The demo namespace is persisted by the app only to keep a local demo partition stable across app restarts. The API accepts that namespace from the caller, so it is not authentication, verified identity, or ownership protection. Demo routes are disabled by default and always disabled in production. Diary and grocery CRUD use this demo partition. Only synthetic demo data may be used until issue #3 provides authenticated identity and the backend adds production-grade ownership and storage protections.
+
+### Nutrient-level source overrides (issue #4)
+
+Each nutrient inherits the nutrition group's source, edition and method and the food's record version. When a nutrient comes from another source, set `nutrition.values.<key>.provenance` to a complete provenance object (`sourceId`, `sourceRecordId`, `edition`, `method`). An explicitly null or incomplete override is rejected, not silently inherited. Every override undergoes the same rights checks as the group, including for missing values. Describe any aggregation, weighting, cooking yield or imputation in the method; do not label an internal calculation as a measured source value. Preserve original source names in that method/source record reference and keep Vietnamese labels in the separate identity group.
+
+The API exposes resolved `nutrientSources` with attribution and record version and reports all contributing nutrient source names in calculation responses. Single-food responses also include the catalog notice and limitations. Strict import requires an HTTP(S) `rights.evidenceUrl` pointing to the publisher's grant/terms and a valid verification date. Duplicate source IDs are rejected. A changed catalog and each changed record must have new versions when `--previous` is supplied.
+
+To reproduce a permitted test catalog without importing restricted data:
+```sh
+npm run catalog:import -- --input server/data/fixtures/synthetic-foods.json --output /tmp/synthetic-catalog.json --report /tmp/synthetic-catalog-report.json
+```
+
+Human review is still pending. A reviewer should document the source food's original name, Vietnamese name/aliases, raw/cooked and edible-portion match, household portion evidence, nutrient definitions and missingness, and comparison limitations. Record reviewer identity/date and disposition only after that review. A prototype name or a cooked-food comparator is not evidence for the composition of a Vietnamese recipe. No permission request has been sent on the project's behalf.

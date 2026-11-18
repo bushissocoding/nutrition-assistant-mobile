@@ -25,13 +25,13 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
   router.get('/foods/:id', (req, res) => {
     const food = foods.find(item => item.id === req.params.id);
     if (!food) return res.status(404).json({ error: 'Không tìm thấy thực phẩm.' });
-    res.json({ ...food, catalogVersion: catalog?.version || null });
+    res.json({ ...food, catalogVersion: catalog?.version || null, catalog });
   });
   router.post('/nutrition/calculate', (req, res) => {
     const { items } = req.body || {};
     if (!Array.isArray(items) || items.length === 0 || items.length > 100) return res.status(400).json({ error: 'items phải là danh sách 1–100 thực phẩm.' });
     for (const item of items) if (!item || typeof item !== 'object' || Array.isArray(item) || !foods.some(food => food.id === item.foodId) || !Number.isFinite(item.grams) || item.grams <= 0 || item.grams > 5000) return res.status(400).json({ error: 'foodId hoặc khối lượng không hợp lệ.' });
-    res.json({ totals: calculateTotals(items, foods), items: items.map(item => ({ food: foods.find(food => food.id === item.foodId).name, grams: item.grams, nutrients: calculateFood(foods.find(food => food.id === item.foodId), item.grams) })), sources: [...new Set(items.map(item => foods.find(food => food.id === item.foodId).source.name))], catalog });
+    res.json({ totals: calculateTotals(items, foods), items: items.map(item => ({ food: foods.find(food => food.id === item.foodId).name, grams: item.grams, nutrients: calculateFood(foods.find(food => food.id === item.foodId), item.grams) })), sources: [...new Set(items.flatMap(item => Object.values(foods.find(food => food.id === item.foodId).nutrientSources).map(source => source.name)))], catalog });
   });
   router.post('/meal-plans/generate', (req, res) => {
     try { return res.json({ ...generatePlan({ foods, mealTemplates, ...(req.body || {}) }), catalog }); }

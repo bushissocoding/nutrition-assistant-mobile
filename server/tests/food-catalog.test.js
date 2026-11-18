@@ -201,3 +201,64 @@ test('import command writes stable output and a machine-readable change report f
   assert.equal(secondRun.status, 0, secondRun.stderr);
   assert.equal(fs.readFileSync(output, 'utf8'), outputBytes);
 });
+
+test('every nutrient override is checked for provenance and redistribution rights', () => {
+  const catalog = makeCatalog();
+  const nutrient = catalog.foods[0].nutrition.values.proteinG;
+  nutrient.provenance = {
+    sourceId: 'external', sourceRecordId: 'record-1', edition: '2026-01',
+    method: 'direct transcription; other nutrients retain the group source',
+  };
+  const registry = structuredClone(sourceRegistry);
+  registry.records.push({ id: 'external', kind: 'external', rights: {
+    redistributionStatus: 'permitted', license: { name: 'CC0' },
+    verifiedOn: '2026-11-18', attribution: 'Test source', evidenceUrl: 'https://example.org/terms',
+  } });
+  assert.deepEqual(validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true }).errors, []);
+  for (const mutate of [
+    r => { r.records[1].rights.redistributionStatus = 'unconfirmed'; },
+    r => { delete r.records[1].rights.evidenceUrl; },
+    r => { r.records[1].rights.verifiedOn = '2026-02-30'; },
+    r => { r.records.push(structuredClone(r.records[1])); },
+  ]) {
+    const invalid = structuredClone(registry);
+    mutate(invalid);
+    assert.ok(validateFoodCatalog(catalog, { sourceRegistry: invalid, strictImport: true }).errors.length);
+  }
+  nutrient.provenance = null;
+  assert.ok(validateFoodCatalog(catalog, { sourceRegistry: registry }).errors.length);
+});
+
+test('changed values require catalog and record version bumps before writing', t => {
+  const { importCatalog } = require('../scripts/import-food-catalog');
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'catalog-version-'));
+  t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
+  const previous = makeCatalog();
+  const candidate = structuredClone(previous);
+  candidate.foods[0].nutrition.values.proteinG.value = 3;
+  const options = Object.fromEntries(['input', 'sources', 'previous', 'output'].map(key => [key, path.join(directory, key + '.json')]));
+  fs.writeFileSync(options.sources, JSON.stringify(sourceRegistry));
+  fs.writeFileSync(options.previous, JSON.stringify(previous));
+  fs.writeFileSync(options.input, JSON.stringify(candidate));
+  assert.throws(() => importCatalog(options), /catalog requires a new version/);
+  candidate.version = 'fixture-2';
+  fs.writeFileSync(options.input, JSON.stringify(candidate));
+  assert.throws(() => importCatalog(options), /record .* requires a new version/);
+  assert.equal(fs.existsSync(options.output), false);
+  candidate.foods[0].version = 'fixture-2';
+  fs.writeFileSync(options.input, JSON.stringify(candidate));
+  assert.equal(importCatalog(options).report.counts.updated, 1);
+});
+
+test('served legacy catalog exposes resolved source and version for every nutrient', () => {
+  const { loadCatalog } = require('../src/repositories/catalog');
+  const { foods, catalog } = loadCatalog();
+  assert.equal(catalog.status, 'prototype');
+  for (const food of foods) {
+    for (const key of Object.keys(food.nutrition.values)) {
+      assert.equal(food.nutrientSources[key].recordVersion, food.version);
+      assert.equal(food.nutrientSources[key].sourceId, food.provenance.groups.nutrition.sourceId);
+      assert.ok(food.nutrientSources[key].attribution);
+    }
+  }
+});

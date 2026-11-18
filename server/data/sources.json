@@ -31,10 +31,12 @@
           "url": "https://creativecommons.org/publicdomain/zero/1.0/"
         },
         "redistributionStatus": "permitted",
-        "verifiedOn": "2026-11-17",
+        "verifiedOn": "2026-11-18",
         "attribution": "USDA Agricultural Research Service. FoodData Central. Accessed 2026-11-17. https://fdc.nal.usda.gov/",
         "attributionRequested": true,
-        "attributionRequiredByLicense": false
+        "attributionRequiredByLicense": false,
+        "evidenceUrl": "https://fdc.nal.usda.gov/",
+        "verificationNote": "Publisher licensing statement checked directly; this verifies general FDC reuse terms, not the identity of legacy comparator rows."
       },
       "scope": "Existing comparator values for cooked white rice, boiled egg, firm tofu, raw pumpkin/cabbage/spinach, roasted chicken breast, and cooked tilapia. Not Vietnamese-specific. Exact source row and edition are not recoverable from the legacy records."
     },

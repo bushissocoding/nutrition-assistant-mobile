@@ -17,7 +17,7 @@ function loadCatalog() {
   if (catalogFile.status === 'synthetic-fixture') throw new Error('Synthetic fixture catalogs cannot be served by the API.');
   const mealTemplates = readJson('meals.json');
   const sourceRegistry = readJson('sources.json');
-  const validation = validateFoodCatalog(catalogFile, { sourceRegistry });
+  const validation = validateFoodCatalog(catalogFile, { sourceRegistry, strictImport: catalogFile.status !== 'prototype' });
   if (validation.errors.length) {
     throw new Error(`Food catalog is invalid: ${validation.errors.join(' ')}`);
   }
@@ -35,6 +35,12 @@ function loadCatalog() {
     return {
       ...food,
       per100g,
+      nutrientSources: Object.fromEntries(Object.entries(food.nutrition.values).map(([key, nutrient]) => {
+        const provenance = nutrient.provenance || nutritionProvenance;
+        const nutrientSource = sourceById.get(provenance.sourceId);
+        return [key, { ...provenance, name: nutrientSource.name, url: nutrientSource.url,
+          attribution: nutrientSource.rights?.attribution || null, recordVersion: food.version }];
+      })),
       source: {
         name: source.name,
         url: source.url,

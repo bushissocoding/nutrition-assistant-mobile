@@ -10,6 +10,15 @@ const PROVENANCE_GROUPS = ['identity', 'preparation', 'serving', 'nutrition'];
 const PREPARATION_STATES = ['raw', 'cooked', 'processed', 'dried', 'fermented', 'unknown'];
 const MATURITY_STATES = ['ripe', 'unripe', 'not-applicable', 'unknown'];
 
+function validDate(value) {
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+}
+
+function validUrl(value) {
+  try { return ['https:', 'http:'].includes(new URL(value).protocol); } catch { return false; }
+}
+
 function normalizedText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('vi').trim().replace(/\s+/g, ' ');
 }
@@ -31,7 +40,15 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
   if (!['prototype', 'synthetic-fixture', 'licensed'].includes(input.status)) fail('status must be prototype, synthetic-fixture, or licensed.');
   if (!Array.isArray(input.foods) || input.foods.length === 0) fail('foods must be a non-empty array.');
   const sourceRows = Array.isArray(sourceRegistry?.records) ? sourceRegistry.records : [];
-  const sources = new Map(sourceRows.map(source => [source.id, source]));
+  const sources = new Map();
+  for (const source of sourceRows) {
+    if (!source || typeof source.id !== 'string' || !source.id.trim()) {
+      fail('source registry requires non-empty source IDs.');
+      continue;
+    }
+    if (sources.has(source.id)) fail(`source registry duplicate ID: ${source.id}.`);
+    sources.set(source.id, source);
+  }
   if (!Array.isArray(sourceRegistry?.records)) fail('source registry records must be an array.');
   const ids = new Set();
   const names = new Set();
@@ -91,8 +108,11 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
 
     const groups = food.provenance?.groups;
     if (!groups || typeof groups !== 'object' || Array.isArray(groups)) fail(`${path}.provenance.groups is required.`);
-    else for (const group of PROVENANCE_GROUPS) {
-      const provenance = groups[group];
+    else for (const [group, provenance] of [
+      ...PROVENANCE_GROUPS.map(group => [group, groups[group]]),
+      ...Object.entries(nutrition?.values || {}).filter(([, value]) => value && Object.hasOwn(value, 'provenance'))
+        .map(([key, value]) => [`nutrition.values.${key}`, value.provenance]),
+    ]) {
       const source = sources.get(provenance?.sourceId);
       if (!provenance || !source || typeof provenance.method !== 'string' || !provenance.method.trim() || typeof provenance.edition !== 'string' || !provenance.edition.trim()) {
         fail(`${path}.provenance.groups.${group} requires a registered source, edition, and method.`);
@@ -103,10 +123,10 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
       if (source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') fail(`${path} synthetic fixture data requires a fixture catalog.`);
       if (strictImport && source.kind === 'external') {
         const rights = source.rights || {};
-        if (rights.redistributionStatus !== 'permitted' || !rights.license?.name || !rights.verifiedOn || !rights.attribution) {
-          fail(`${path}.provenance.groups.${group} source ${source.id} lacks confirmed redistribution rights, license, verification date, or attribution.`);
+        if (rights.redistributionStatus !== 'permitted' || !rights.license?.name || !validDate(rights.verifiedOn) || !rights.attribution || !validUrl(rights.evidenceUrl)) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} lacks confirmed redistribution rights, license, verification date, attribution, or rights evidence URL.`);
         }
-        if (!provenance.sourceRecordId || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
+        if (typeof provenance.sourceRecordId !== 'string' || !provenance.sourceRecordId.trim() || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
           fail(`${path}.provenance.groups.${group} external source requires an exact sourceRecordId and edition.`);
         }
       }
@@ -114,8 +134,9 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
         fail(`${path}.provenance.groups.${group} synthetic fixture data cannot be imported into a non-fixture catalog.`);
       }
     }
+    if (input.status === 'licensed' && food.review?.status === 'needs-source-verification') fail(`${path} licensed catalog cannot contain unverified source records.`);
     if (!food.review || !['fixture-only', 'needs-source-verification', 'pending-review', 'approved'].includes(food.review.status)) fail(`${path}.review.status is required and must be supported.`);
-    else if (food.review.status === 'approved' && (!food.review.reviewedBy || !food.review.reviewedOn)) fail(`${path}.review approved status requires reviewer and date.`);
+    else if (food.review.status === 'approved' && (typeof food.review.reviewedBy !== 'string' || !food.review.reviewedBy.trim() || !validDate(food.review.reviewedOn))) fail(`${path}.review approved status requires reviewer and date.`);
 
     const duplicateKey = [normalizedText(food.name), normalizedText(food.category), food.preparation?.state, food.preparation?.maturity].join('|');
     if (duplicateKey.startsWith('|') || duplicateKey.includes('||')) continue;

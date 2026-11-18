@@ -44,6 +44,14 @@ function importCatalog(options) {
   if (validation.errors.length) throw new Error(`Catalog validation failed:\n- ${validation.errors.join('\n- ')}`);
   const previous = options.previous ? readJson(options.previous, 'previous catalog') : null;
   const report = createChangeReport(previous, candidate);
+  if (previous && (report.added.length || report.removed.length || report.updated.length)) {
+    if (previous.version === candidate.version) throw new Error('Changed catalog requires a new version.');
+    for (const change of report.updated) {
+      if (previous.foods.find(food => food.id === change.id).version === candidate.foods.find(food => food.id === change.id).version) {
+        throw new Error(`Changed record ${change.id} requires a new version.`);
+      }
+    }
+  }
   if (!options.check) {
     fs.writeFileSync(options.output, `${JSON.stringify(candidate, null, 2)}\n`, 'utf8');
     if (options.report) fs.writeFileSync(options.report, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
