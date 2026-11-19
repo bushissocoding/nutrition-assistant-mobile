@@ -1,8 +1,8 @@
 const express = require('express');
 const { calculateFood, calculateTotals } = require('../services/nutrition');
-const { generatePlan } = require('../services/meal-planner');
+const { generatePlan, validateGenerateRequest } = require('../services/meal-planner');
 
-function createApiRouter({ foods, mealTemplates }) {
+function createApiRouter({ foods, mealTemplates, metadata = {} }) {
   const router = express.Router();
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
@@ -22,8 +22,15 @@ function createApiRouter({ foods, mealTemplates }) {
     res.json({ totals: calculateTotals(items, foods), items: items.map(item => ({ food: foods.find(food => food.id === item.foodId).name, grams: item.grams, nutrients: calculateFood(foods.find(food => food.id === item.foodId), item.grams) })), sources: [...new Set(items.map(item => foods.find(food => food.id === item.foodId).source.name))] });
   });
   router.post('/meal-plans/generate', (req, res) => {
-    try { return res.json(generatePlan({ foods, mealTemplates, ...(req.body || {}) })); }
-    catch (error) { return res.status(400).json({ error: error.message || 'Tham số tạo thực đơn không hợp lệ.' }); }
+    try {
+      const input = validateGenerateRequest(req.body);
+      return res.json(generatePlan({ foods, mealTemplates, catalog: metadata, ...input }));
+    } catch (error) {
+      const status = error.code === 'CATALOG_DATA_INCOMPLETE' ? 503 : 400;
+      return res.status(status).json({
+        error: { code: error.code || 'INVALID_INPUT', message: error.message || 'Tham số tạo thực đơn không hợp lệ.', field: error.field || null },
+      });
+    }
   });
   return router;
 }

@@ -1,0 +1,7 @@
+{
+  "catalogVersion": "demo-1.0.0",
+  "foodsVersion": "foods-demo-1.0.0",
+  "mealTemplatesVersion": "meals-demo-1.0.0",
+  "pricingVersion": "sample-prices-1.0.0",
+  "note": "Local demonstration catalog revision only; does not verify external source edition, record identifiers, reuse rights, current prices, or clinical validity."
+}

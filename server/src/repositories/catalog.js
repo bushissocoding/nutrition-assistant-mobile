@@ -13,10 +13,11 @@ function readJson(fileName) {
 function loadCatalog() {
   const foods = readJson('foods.json');
   const mealTemplates = readJson('meals.json');
-  if (!Array.isArray(foods) || !Array.isArray(mealTemplates)) {
-    throw new Error('Catalog files must contain JSON arrays.');
+  const metadata = readJson('catalog-manifest.json');
+  if (!Array.isArray(foods) || !Array.isArray(mealTemplates) || !metadata || typeof metadata !== 'object') {
+    throw new Error('Catalog files must contain JSON arrays and a versioned manifest.');
   }
-  return { foods, mealTemplates };
+  return { foods, mealTemplates, metadata };
 }
 
 module.exports = { loadCatalog };
