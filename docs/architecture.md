@@ -48,14 +48,14 @@ Keep HTTP concerns in routes, calculations/rules in services, and storage access
 
 - `GET /api/v1/foods?q=...` — search the demonstration food catalog.
 - `POST /api/v1/nutrition/calculate` — deterministic nutrients for `{ items: [{ foodId, grams }] }`.
-- `POST /api/v1/meal-plans/generate` — sample meal plan plus nutrient totals, warnings and aggregated groceries.
+- `POST /api/v1/meal-plans/generate` — versioned contract `1.0`; documented request/response, stable validation errors, provenance, deterministic full-day feasibility and soft-goal warnings are in [`server/README.md`](../server/README.md).
 - `GET /health` — service health.
 
 The current client stores consent and a minimal profile locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Generated plan, diary and grocery state remain in memory and are lost when the app restarts. SecureStore uses platform-provided protected storage, but this prototype has no server-side identity, retention service or audited compliance. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 
-1. Add domain/schema definitions and input validation shared through documented API contracts.
+1. Consider generated/shared client-server schemas and stricter catalog provenance (external dataset edition, source record identifiers and verified reuse rights); current `1.0` API validation is server-side and its internal manifest does not establish external source revisions.
 2. Add persistence and authentication only after the team chooses a database/provider and a safe data lifecycle.
 3. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
 4. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.

@@ -6,7 +6,13 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Yêu cầu thất bại (${response.status}).`);
+  if (!response.ok) {
+    const message = typeof data.error === 'string' ? data.error : data.error?.message;
+    const error = new Error(message || `Yêu cầu thất bại (${response.status}).`);
+    error.code = data.error?.code || 'HTTP_ERROR';
+    error.field = data.error?.field || null;
+    throw error;
+  }
   return data;
 }
 
