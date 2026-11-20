@@ -3,15 +3,23 @@
   "version": "1.0.0",
   "private": true,
   "main": "app/App.js",
+  "engines": {
+    "node": ">=22.13.0 <23 || >=24.3.0 <25 || >=26.0.0",
+    "npm": ">=10.9.0 <12"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "api": "node server/server.js",
-    "api:dev": "node --watch server/server.js",
+    "api": "node --env-file-if-exists=server/.env server/server.js",
+    "api:dev": "node --env-file-if-exists=server/.env --watch server/server.js",
     "test:api": "node server/server.test.js",
-    "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs"
+    "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs app/src/features/onboarding/consent-model.test.cjs app/src/services/api-config.test.cjs app/src/services/demo-namespace-storage.test.cjs app/src/services/api-client.test.cjs app/src/app/purge-before-local-delete.test.cjs",
+    "test:ui": "jest --runInBand",
+    "catalog:validate": "node server/scripts/import-food-catalog.js --input server/data/foods.json --check --allow-legacy",
+    "catalog:fixture": "node server/scripts/import-food-catalog.js --input server/data/fixtures/synthetic-foods.json --check",
+    "catalog:import": "node server/scripts/import-food-catalog.js"
   },
   "dependencies": {
     "expo": "~58.0.0",
@@ -24,7 +32,11 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@expo/metro-runtime": "~58.0.17",
+    "@testing-library/react-native": "^13.3.3",
+    "jest": "~30.5.2",
+    "jest-expo": "~58.0.0",
     "react-dom": "19.3.0",
-    "react-native-web": "^0.21.4"
+    "react-native-web": "^0.21.4",
+    "react-test-renderer": "19.3.0"
   }
 }

@@ -1,10 +1,860 @@
-[
-  {"id":"rice-steamed","name":"Cơm trắng","category":"Ngũ cốc","serving":{"amount":100,"unit":"g","household":"khoảng 1/2 bát cơm"},"per100g":{"energyKcal":130,"proteinG":2.7,"carbohydrateG":28.2,"fatG":0.3,"fiberG":0.4,"sodiumMg":1},"allergens":[],"tags":["staple"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: rice, white, long-grain, regular, cooked. Giá trị tham khảo, chưa phải số liệu phân tích món ăn Việt Nam."}},
-  {"id":"egg-boiled","name":"Trứng gà luộc","category":"Đạm","serving":{"amount":50,"unit":"g","household":"1 quả cỡ vừa"},"per100g":{"energyKcal":155,"proteinG":12.6,"carbohydrateG":1.1,"fatG":10.6,"fiberG":0,"sodiumMg":124},"allergens":["trứng"],"tags":["protein"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: egg, whole, cooked, hard-boiled. Giá trị tham khảo."}},
-  {"id":"tofu-firm","name":"Đậu phụ","category":"Đạm thực vật","serving":{"amount":100,"unit":"g","household":"1 miếng nhỏ"},"per100g":{"energyKcal":144,"proteinG":17.3,"carbohydrateG":2.8,"fatG":8.7,"fiberG":2.3,"sodiumMg":14},"allergens":["đậu nành"],"tags":["plant-protein"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: tofu, raw, firm. Giá trị thay đổi theo loại đậu phụ."}},
-  {"id":"pumpkin","name":"Bí đỏ","category":"Rau củ","serving":{"amount":100,"unit":"g","household":"1 bát nhỏ cắt miếng"},"per100g":{"energyKcal":26,"proteinG":1,"carbohydrateG":6.5,"fatG":0.1,"fiberG":0.5,"sodiumMg":1},"allergens":[],"tags":["vegetable"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: pumpkin, raw. Giống và cách sơ chế có thể làm thay đổi giá trị."}},
-  {"id":"cabbage","name":"Bắp cải","category":"Rau củ","serving":{"amount":100,"unit":"g","household":"1 bát rau thái"},"per100g":{"energyKcal":25,"proteinG":1.3,"carbohydrateG":5.8,"fatG":0.1,"fiberG":2.5,"sodiumMg":18},"allergens":[],"tags":["vegetable","fiber"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: cabbage, raw. Giá trị tham khảo."}},
-  {"id":"chicken-breast","name":"Ức gà bỏ da","category":"Đạm","serving":{"amount":100,"unit":"g","household":"1 miếng lòng bàn tay"},"per100g":{"energyKcal":165,"proteinG":31,"carbohydrateG":0,"fatG":3.6,"fiberG":0,"sodiumMg":74},"allergens":[],"tags":["protein","lean"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: chicken breast, meat only, cooked, roasted. Không bao gồm gia vị/nước chấm."}},
-  {"id":"tilapia","name":"Cá rô phi","category":"Hải sản","serving":{"amount":100,"unit":"g","household":"1 miếng phi lê nhỏ"},"per100g":{"energyKcal":128,"proteinG":26.2,"carbohydrateG":0,"fatG":2.7,"fiberG":0,"sodiumMg":56},"allergens":["cá"],"tags":["protein","fish"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: tilapia, cooked, dry heat. Thành phần thực tế phụ thuộc loài và chế biến."}},
-  {"id":"spinach","name":"Rau bina (cải bó xôi)","category":"Rau củ","serving":{"amount":100,"unit":"g","household":"1 bát rau"},"per100g":{"energyKcal":23,"proteinG":2.9,"carbohydrateG":3.6,"fatG":0.4,"fiberG":2.2,"sodiumMg":79},"allergens":[],"tags":["vegetable","fiber"],"source":{"name":"USDA FoodData Central","url":"https://fdc.nal.usda.gov/","note":"Mục đối chiếu: spinach, raw. Không đại diện cho mọi loại rau lá Việt Nam."}}
-]
+{
+  "schemaVersion": 1,
+  "version": "prototype-2026-11-17.1",
+  "status": "prototype",
+  "notice": "Demo comparator catalog only. No Vietnamese composition dataset is imported; existing values are approximate, not Vietnam-specific, not record-level verified and not clinical data.",
+  "limitations": [
+    "Does not represent or claim to contain data from the Vietnam National Institute of Nutrition.",
+    "Existing USDA FoodData Central comparator rows lack retained FDC IDs and source releases; exact source matches are unverified.",
+    "Vietnamese labels, household portions and serving conversions are prototype interpretations without qualified review.",
+    "Nutrient values are estimates per 100 g edible portion and are not clinical advice."
+  ],
+  "foods": [
+    {
+      "id": "rice-steamed",
+      "version": "legacy-comparator-1",
+      "name": "Cơm trắng",
+      "aliases": [
+        "Cơm nấu chín",
+        "Gạo trắng nấu chín"
+      ],
+      "category": "Ngũ cốc",
+      "allergens": [],
+      "tags": [
+        "staple"
+      ],
+      "preparation": {
+        "state": "cooked",
+        "maturity": "not-applicable",
+        "description": "Mục đối chiếu: rice, white, long-grain, regular, cooked. Giá trị tham khảo, chưa phải số liệu phân tích món ăn Việt Nam."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "khoảng 1/2 bát cơm",
+        "conversions": [
+          {
+            "amount": 0.5,
+            "unit": "bowl",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 130,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 2.7,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 28.2,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 0.3,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 0.4,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 1,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "rice-steamed",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: rice, white, long-grain, regular, cooked. Giá trị tham khảo, chưa phải số liệu phân tích món ăn Việt Nam."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "rice-steamed",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: rice, white, long-grain, regular, cooked. Giá trị tham khảo, chưa phải số liệu phân tích món ăn Việt Nam. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "egg-boiled",
+      "version": "legacy-comparator-1",
+      "name": "Trứng gà luộc",
+      "aliases": [
+        "Trứng luộc",
+        "Trứng gà chín"
+      ],
+      "category": "Đạm",
+      "allergens": [
+        "trứng"
+      ],
+      "tags": [
+        "protein"
+      ],
+      "preparation": {
+        "state": "cooked",
+        "maturity": "not-applicable",
+        "description": "Mục đối chiếu: egg, whole, cooked, hard-boiled. Giá trị tham khảo."
+      },
+      "serving": {
+        "amount": 50,
+        "unit": "g",
+        "household": "1 quả cỡ vừa",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "piece",
+            "grams": 50,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 155,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 12.6,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 1.1,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 10.6,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 0,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 124,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "egg-boiled",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: egg, whole, cooked, hard-boiled. Giá trị tham khảo."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "egg-boiled",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: egg, whole, cooked, hard-boiled. Giá trị tham khảo. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "tofu-firm",
+      "version": "legacy-comparator-1",
+      "name": "Đậu phụ",
+      "aliases": [
+        "Đậu hũ",
+        "Đậu phụ trắng"
+      ],
+      "category": "Đạm thực vật",
+      "allergens": [
+        "đậu nành"
+      ],
+      "tags": [
+        "plant-protein"
+      ],
+      "preparation": {
+        "state": "raw",
+        "maturity": "not-applicable",
+        "description": "Mục đối chiếu: tofu, raw, firm. Giá trị thay đổi theo loại đậu phụ."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 miếng nhỏ",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "piece",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 144,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 17.3,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 2.8,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 8.7,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 2.3,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 14,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "tofu-firm",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: tofu, raw, firm. Giá trị thay đổi theo loại đậu phụ."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "tofu-firm",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: tofu, raw, firm. Giá trị thay đổi theo loại đậu phụ. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "pumpkin",
+      "version": "legacy-comparator-1",
+      "name": "Bí đỏ",
+      "aliases": [
+        "Bí ngô"
+      ],
+      "category": "Rau củ",
+      "allergens": [],
+      "tags": [
+        "vegetable"
+      ],
+      "preparation": {
+        "state": "raw",
+        "maturity": "unknown",
+        "description": "Mục đối chiếu: pumpkin, raw. Giống và cách sơ chế có thể làm thay đổi giá trị."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 bát nhỏ cắt miếng",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "bowl",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 26,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 1,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 6.5,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 0.1,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 0.5,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 1,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "pumpkin",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: pumpkin, raw. Giống và cách sơ chế có thể làm thay đổi giá trị."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "pumpkin",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: pumpkin, raw. Giống và cách sơ chế có thể làm thay đổi giá trị. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "cabbage",
+      "version": "legacy-comparator-1",
+      "name": "Bắp cải",
+      "aliases": [
+        "Bắp cải trắng"
+      ],
+      "category": "Rau củ",
+      "allergens": [],
+      "tags": [
+        "vegetable",
+        "fiber"
+      ],
+      "preparation": {
+        "state": "raw",
+        "maturity": "unknown",
+        "description": "Mục đối chiếu: cabbage, raw. Giá trị tham khảo."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 bát rau thái",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "bowl",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 25,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 1.3,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 5.8,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 0.1,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 2.5,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 18,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "cabbage",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: cabbage, raw. Giá trị tham khảo."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "cabbage",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: cabbage, raw. Giá trị tham khảo. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "chicken-breast",
+      "version": "legacy-comparator-1",
+      "name": "Ức gà bỏ da",
+      "aliases": [
+        "Thịt ức gà"
+      ],
+      "category": "Đạm",
+      "allergens": [],
+      "tags": [
+        "protein",
+        "lean"
+      ],
+      "preparation": {
+        "state": "cooked",
+        "maturity": "not-applicable",
+        "description": "Mục đối chiếu: chicken breast, meat only, cooked, roasted. Không bao gồm gia vị/nước chấm."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 miếng lòng bàn tay",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "palm",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 165,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 31,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 0,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 3.6,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 0,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 74,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "chicken-breast",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: chicken breast, meat only, cooked, roasted. Không bao gồm gia vị/nước chấm."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "chicken-breast",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: chicken breast, meat only, cooked, roasted. Không bao gồm gia vị/nước chấm. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "tilapia",
+      "version": "legacy-comparator-1",
+      "name": "Cá rô phi",
+      "aliases": [
+        "Cá rô phi chín"
+      ],
+      "category": "Hải sản",
+      "allergens": [
+        "cá"
+      ],
+      "tags": [
+        "protein",
+        "fish"
+      ],
+      "preparation": {
+        "state": "cooked",
+        "maturity": "not-applicable",
+        "description": "Mục đối chiếu: tilapia, cooked, dry heat. Thành phần thực tế phụ thuộc loài và chế biến."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 miếng phi lê nhỏ",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "fillet",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 128,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 26.2,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 0,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 2.7,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 0,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 56,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "tilapia",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: tilapia, cooked, dry heat. Thành phần thực tế phụ thuộc loài và chế biến."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "tilapia",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: tilapia, cooked, dry heat. Thành phần thực tế phụ thuộc loài và chế biến. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    },
+    {
+      "id": "spinach",
+      "version": "legacy-comparator-1",
+      "name": "Rau bina (cải bó xôi)",
+      "aliases": [
+        "Cải bó xôi",
+        "Rau bina"
+      ],
+      "category": "Rau củ",
+      "allergens": [],
+      "tags": [
+        "vegetable",
+        "fiber"
+      ],
+      "preparation": {
+        "state": "raw",
+        "maturity": "unknown",
+        "description": "Mục đối chiếu: spinach, raw. Không đại diện cho mọi loại rau lá Việt Nam."
+      },
+      "serving": {
+        "amount": 100,
+        "unit": "g",
+        "household": "1 bát rau",
+        "conversions": [
+          {
+            "amount": 1,
+            "unit": "bowl",
+            "grams": 100,
+            "method": "prototype-estimate; not professionally reviewed"
+          }
+        ]
+      },
+      "nutrition": {
+        "basis": {
+          "amount": 100,
+          "unit": "g",
+          "ediblePortion": true
+        },
+        "values": {
+          "energyKcal": {
+            "value": 23,
+            "unit": "kcal",
+            "status": "reported"
+          },
+          "proteinG": {
+            "value": 2.9,
+            "unit": "g",
+            "status": "reported"
+          },
+          "carbohydrateG": {
+            "value": 3.6,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fatG": {
+            "value": 0.4,
+            "unit": "g",
+            "status": "reported"
+          },
+          "fiberG": {
+            "value": 2.2,
+            "unit": "g",
+            "status": "reported"
+          },
+          "sodiumMg": {
+            "value": 79,
+            "unit": "mg",
+            "status": "reported"
+          }
+        }
+      },
+      "provenance": {
+        "groups": {
+          "identity": {
+            "sourceId": "project-curated-labels",
+            "sourceRecordId": "spinach",
+            "edition": "prototype-1",
+            "method": "Vietnamese display name and aliases curated for this prototype; not expert-reviewed."
+          },
+          "preparation": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Mục đối chiếu: spinach, raw. Không đại diện cho mọi loại rau lá Việt Nam."
+          },
+          "serving": {
+            "sourceId": "project-estimated-portions",
+            "sourceRecordId": "spinach",
+            "edition": "prototype-estimates-1",
+            "method": "Legacy household serving estimate; exact weighing source not recorded."
+          },
+          "nutrition": {
+            "sourceId": "usda-fooddata-central",
+            "sourceRecordId": null,
+            "edition": "not-recorded-in-legacy-data",
+            "method": "Approximate legacy comparator: Mục đối chiếu: spinach, raw. Không đại diện cho mọi loại rau lá Việt Nam. Exact FDC record and release were not retained; do not infer them."
+          }
+        }
+      },
+      "review": {
+        "status": "needs-source-verification",
+        "reviewedBy": null,
+        "reviewedOn": null,
+        "notes": "Existing prototype comparator; exact FDC row/edition, food matching, household serving and specialist review remain outstanding."
+      }
+    }
+  ]
+}

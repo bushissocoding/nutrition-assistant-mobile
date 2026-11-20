@@ -1,22 +1,181 @@
 {
-  "note": "The current MVP catalog is a small demonstration set and does NOT claim to contain data from the Vietnam National Institute of Nutrition. Each record names an explicit comparator source. Replace/extend only with a licensed, provenance-preserving Vietnamese composition dataset.",
+  "verifiedOn": "2026-11-17",
+  "note": "The current MVP catalog is a small demonstration set and is not Vietnamese-specific. No Vietnamese composition dataset is imported because redistribution rights are unconfirmed. Existing FDC comparators lack recoverable record IDs/editions. Meal templates are project-authored examples; no sourced food-price data is available.",
   "preferredVietnamSource": {
-    "name": "Bảng thành phần thực phẩm Việt Nam / Vietnam food composition table",
+    "name": "Bảng thành phần thực phẩm Việt Nam / Vietnamese Food Composition Table",
     "publisher": "Viện Dinh dưỡng (National Institute of Nutrition), Vietnam",
-    "sourceUrl": "https://viendinhduong.vn/",
-    "status": "Not imported: an official downloadable dataset and reuse terms were not verifiably located in this session. Do not attribute USDA values to the Institute."
-  },
-  "regionalCatalog": {
-    "name": "FAO/INFOODS Asia food composition tables and databases index",
-    "publisher": "FAO/INFOODS",
-    "url": "https://www.fao.org/infoods/infoods/tables-and-databases/asia/en/",
-    "note": "Index lists regional food-composition resources; it does not establish a verified current Vietnamese dataset license."
+    "sourceUrl": "https://chuyentrang.viendinhduong.vn/viewfilenew/vi/thu-vien-sach-chuyen-nganh/189/1.html",
+    "editions": [
+      "2007",
+      "2017"
+    ],
+    "status": "Not imported. Official tables are available as publications, but no redistribution license or written permission was verified. A publicly accessible PDF or FAO directory listing is not reuse permission."
   },
   "records": [
     {
+      "id": "usda-fooddata-central",
+      "kind": "external",
       "name": "USDA FoodData Central",
+      "publisher": "U.S. Department of Agriculture, Agricultural Research Service",
       "url": "https://fdc.nal.usda.gov/",
-      "scope": "Explicit comparator records in foods.json (cooked white rice, boiled egg, firm tofu, raw pumpkin/cabbage/spinach, roasted chicken breast, cooked tilapia). Not Vietnamese-specific."
+      "dataset": "FoodData Central; current legacy comparator row IDs and release not retained",
+      "edition": "Unrecorded for existing prototype rows; do not infer from current releases",
+      "availableEditions": [
+        "SR Legacy: 04/2018 (final release)",
+        "Foundation Foods: 10/2026"
+      ],
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": {
+          "name": "CC0 1.0 Universal",
+          "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+        },
+        "redistributionStatus": "permitted",
+        "verifiedOn": "2026-11-17",
+        "attribution": "USDA Agricultural Research Service. FoodData Central. Accessed 2026-11-17. https://fdc.nal.usda.gov/",
+        "attributionRequested": true,
+        "attributionRequiredByLicense": false
+      },
+      "scope": "Existing comparator values for cooked white rice, boiled egg, firm tofu, raw pumpkin/cabbage/spinach, roasted chicken breast, and cooked tilapia. Not Vietnamese-specific. Exact source row and edition are not recoverable from the legacy records."
+    },
+    {
+      "id": "vietnam-table-2007",
+      "kind": "external",
+      "name": "Vietnamese Food Composition Table 2007",
+      "publisher": "Viện Dinh dưỡng, Bộ Y tế; Nhà xuất bản Y học",
+      "url": "https://www.fao.org/food-composition/tables-and-databases/detail/%28viet-nam--2007%29-vietnamese-food-composition-table/en",
+      "edition": "2007",
+      "format": "PDF publication",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "unconfirmed",
+        "verifiedOn": "2026-11-17",
+        "attribution": "No reuse attribution terms verified; request the rights holder's written terms.",
+        "attributionRequested": null
+      },
+      "scope": "FAO/INFOODS lists the publication as free access; the publication itself does not grant an explicit redistribution license."
+    },
+    {
+      "id": "vietnam-table-2017",
+      "kind": "external",
+      "name": "Vietnamese Food Composition Table 2017",
+      "publisher": "Viện Dinh dưỡng, Bộ Y tế",
+      "url": "https://www.fao.org/food-composition/tables-and-databases/detail/%28viet-nam--2017%29-vietnamese-food-composition-table/en",
+      "edition": "2017",
+      "format": "FAO lists print-only. The separate Institute-domain PDF has no verified edition or redistribution grant in this check.",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "unconfirmed",
+        "verifiedOn": "2026-11-17",
+        "attribution": "No reuse attribution terms verified; request the rights holder's written terms.",
+        "attributionRequested": null
+      },
+      "scope": "Official source confirms the Vietnamese table publication. Availability does not establish redistribution permission."
+    },
+    {
+      "id": "smiling-vietnam-2013",
+      "kind": "external",
+      "name": "SMILING Food Composition Table for Vietnam",
+      "publisher": "SMILING project contributors, including Viện Dinh dưỡng and Wageningen University; indexed by FAO/INFOODS",
+      "url": "https://www.fao.org/infoods/infoods/tables-and-databases/asia/en/",
+      "edition": "2013",
+      "format": "FAO/INFOODS directory lists value-reference and quality-assessment spreadsheets; linked files returned 404 when checked",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "unconfirmed",
+        "verifiedOn": "2026-11-17",
+        "attribution": "No dataset-specific redistribution or attribution terms verified.",
+        "attributionRequested": null
+      },
+      "scope": "The FAO/INFOODS listing is a directory entry, not rights clearance for the third-party table."
+    },
+    {
+      "id": "fao-infoods-directory",
+      "kind": "external",
+      "name": "FAO/INFOODS food composition table directory",
+      "publisher": "Food and Agriculture Organization of the United Nations / INFOODS",
+      "url": "https://www.fao.org/food-composition/tables-and-databases/",
+      "edition": "Directory checked 2026-11-17; page says last updated 2022-10-20",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "not-a-food-dataset",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Use FAO's current terms for its own database content; directory inclusion does not clear third-party source datasets.",
+        "attributionRequested": null
+      },
+      "scope": "Discovery index only; not a license for listed tables."
+    },
+    {
+      "id": "project-curated-labels",
+      "kind": "internal",
+      "name": "Project-curated display labels and aliases",
+      "publisher": "Nutrition Assistant prototype maintainers",
+      "url": null,
+      "edition": "prototype-1",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "internal-project-data",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Internal labels; not expert-reviewed.",
+        "attributionRequested": false
+      },
+      "scope": "Vietnamese display labels and aliases used only for this prototype."
+    },
+    {
+      "id": "project-estimated-portions",
+      "kind": "internal",
+      "name": "Prototype serving-size estimates",
+      "publisher": "Nutrition Assistant prototype maintainers",
+      "url": null,
+      "edition": "prototype-estimates-1",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "internal-project-data",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Internal estimates; not measured or professionally reviewed.",
+        "attributionRequested": false
+      },
+      "scope": "Approximate household servings and piece-to-gram conversions."
+    },
+    {
+      "id": "project-curated-meal-templates",
+      "kind": "internal",
+      "name": "Project-curated demonstration meal templates",
+      "publisher": "Nutrition Assistant prototype maintainers",
+      "url": null,
+      "edition": "prototype-meal-templates-1",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "internal-project-data",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Project-authored sample templates; not professionally reviewed.",
+        "attributionRequested": false
+      },
+      "scope": "Demonstration ingredient lists, meal slots and gram portions. Does not provide food prices or claim recipe validation."
+    },
+    {
+      "id": "synthetic-fixture",
+      "kind": "synthetic-fixture",
+      "name": "Synthetic import test fixture",
+      "publisher": "Nutrition Assistant prototype maintainers",
+      "url": null,
+      "edition": "synthetic-fixture-1",
+      "verifiedOn": "2026-11-17",
+      "rights": {
+        "license": null,
+        "redistributionStatus": "permitted-for-tests",
+        "verifiedOn": "2026-11-17",
+        "attribution": "Synthetic test data created for this repository; not measured food data.",
+        "attributionRequested": false
+      },
+      "scope": "Test-only values. Not served by the API or used by the meal planner."
     }
   ]
 }

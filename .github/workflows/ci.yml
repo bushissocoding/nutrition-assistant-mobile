@@ -4,7 +4,6 @@ on:
   push:
     branches: [main, master]
   pull_request:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:
@@ -36,5 +35,14 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+      - name: Run UI component tests
+        run: npm run test:ui
+
       - name: Run API smoke tests
         run: npm run test:api
+
+      - name: Export Android app bundle
+        run: npx expo export --platform android
+
+      - name: Audit high and critical vulnerabilities
+        run: npm audit --audit-level=high
