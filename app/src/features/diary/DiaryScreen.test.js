@@ -175,3 +175,26 @@ test('updates and deletes only after the API confirms each mutation', async () =
   expect(alertSpy).toHaveBeenCalled();
   alertSpy.mockRestore();
 });
+
+test('preserves the original instant when editing an entry saved in another time zone', async () => {
+  const consumedAt = '2026-11-16T12:15:00.000Z';
+  const offsetFor = timeZone => new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'longOffset',
+  }).formatToParts(new Date(consumedAt)).find(part => part.type === 'timeZoneName').value;
+  const entryTimeZone = ['America/Los_Angeles', 'Pacific/Kiritimati', 'Asia/Tokyo']
+    .find(candidate => offsetFor(candidate) !== offsetFor(testTimeZone));
+  const entry = { ...savedEntry, consumedAt, timeZone: entryTimeZone };
+  api.getMealEntries.mockResolvedValue({ items: [entry], totals: entry.nutrients });
+  api.updateMealEntry.mockResolvedValue({ item: entry });
+  const screen = renderDiary();
+
+  await waitFor(() => expect(screen.getByText('Cơm trắng')).toBeTruthy());
+  await press(screen, 'Sửa');
+  await press(screen, 'Lưu thay đổi');
+
+  await waitFor(() => expect(api.updateMealEntry).toHaveBeenCalledTimes(1));
+  const [, payload] = api.updateMealEntry.mock.calls[0];
+  expect(Date.parse(payload.consumedAt)).toBe(Date.parse(consumedAt));
+  expect(payload.timeZone).toBe(testTimeZone);
+});

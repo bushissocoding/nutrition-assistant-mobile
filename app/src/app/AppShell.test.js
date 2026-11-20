@@ -98,8 +98,21 @@ async function press(screen, label) {
 }
 
 test('hydrates Home from the API for the current local day after loading the saved profile', async () => {
+  let resolveConsent;
+  let resolveProfile;
+  const consentRequest = new Promise(resolve => { resolveConsent = resolve; });
+  const profileRequest = new Promise(resolve => { resolveProfile = resolve; });
+  loadConsent.mockReturnValueOnce(consentRequest);
+  loadProfile.mockReturnValueOnce(profileRequest);
   const screen = render(<AppShell />);
 
+  expect(loadConsent).toHaveBeenCalledTimes(1);
+  expect(loadProfile).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    resolveConsent(true);
+    resolveProfile(profile);
+    await Promise.all([consentRequest, profileRequest]);
+  });
   await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
   expect(screen.getByText('80 kcal')).toBeTruthy();
   expect(api.getMealEntries).toHaveBeenCalledWith(expect.objectContaining({

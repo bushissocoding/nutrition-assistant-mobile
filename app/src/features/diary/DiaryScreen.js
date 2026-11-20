@@ -156,7 +156,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
   function startEditing(entry) {
     const localParts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-      timeZone: entry.timeZone,
+      timeZone,
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(new Date(entry.consumedAt)).map(part => [part.type, part.value]));
