@@ -3,21 +3,20 @@ import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 
 import { colors, radius } from '../../theme/tokens';
 
 const settingsRows = [
-  ['☼', 'Cài đặt thông báo', 'settings-notifications', 'Chọn loại thông báo muốn xem'],
-  ['⌑', 'Quản lý mật khẩu', 'settings-password', 'Tài khoản chưa được kết nối'],
-  ['♙', 'Chính sách và quyền riêng tư', 'settings-privacy', 'Cách dữ liệu demo được xử lý'],
-  ['?', 'Trung tâm hỗ trợ', 'settings-help', 'Câu hỏi thường gặp và hướng dẫn'],
+  ['♧', 'Cài đặt thông báo', 'settings-notifications', ''],
+  ['⚿', 'Quản lý mật khẩu', 'settings-password', ''],
+  ['♙', 'Xóa tài khoản', 'settings-delete', ''],
 ];
 
-export default function SettingsScreen({ screen = 'settings', onNavigate, onBack }) {
-  const [toggles, setToggles] = useState({ general: true, sound: false, appointment: true, meal: true });
+export default function SettingsScreen({ screen = 'settings', onNavigate, onBack, onForgotPassword }) {
+  const [toggles, setToggles] = useState({ general: true, sound: false, calls: false, payment: true });
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [feedback, setFeedback] = useState('');
   const [faq, setFaq] = useState(-1);
   const [tab, setTab] = useState('faq');
-  const title = ({ settings: 'Cài đặt', 'settings-notifications': 'Cài đặt thông báo', 'settings-password': 'Quản lý mật khẩu', 'settings-privacy': 'Chính sách và quyền riêng tư', 'settings-help': 'Trung tâm hỗ trợ' })[screen] || 'Cài đặt';
+  const title = ({ settings: 'Cài đặt', 'settings-notifications': 'Cài đặt thông báo', 'settings-password': 'Quản lý mật khẩu', 'settings-delete': 'Xóa tài khoản', 'settings-privacy': 'Chính sách và quyền riêng tư', 'settings-help': 'Trung tâm hỗ trợ' })[screen] || 'Cài đặt';
 
   function toggle(key) { setToggles(value => ({ ...value, [key]: !value[key] })); }
   function validatePassword() {
@@ -29,24 +28,31 @@ export default function SettingsScreen({ screen = 'settings', onNavigate, onBack
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.title}>{title}</Text><View style={styles.headerSpace} /></View>
     {screen === 'settings' && <>
-      {settingsRows.map(([icon, label, route, hint]) => <TouchableOpacity accessibilityRole="button" key={route} style={styles.menuRow} onPress={() => onNavigate?.(route)}><Text style={styles.menuIcon}>{icon}</Text><View style={styles.menuCopy}><Text style={styles.menuTitle}>{label}</Text><Text style={styles.menuHint}>{hint}</Text></View><Text style={styles.arrow}>›</Text></TouchableOpacity>)}
+      {settingsRows.map(([icon, label, route]) => <TouchableOpacity accessibilityRole="button" key={route} style={styles.menuRow} onPress={() => onNavigate?.(route)}><Text style={styles.menuIcon}>{icon}</Text><View style={styles.menuCopy}><Text style={styles.menuTitle}>{label}</Text></View><Text style={styles.arrow}>›</Text></TouchableOpacity>)}
       <View style={styles.demoBox}><Text style={styles.demoTitle}>TÀI KHOẢN DEMO TRÊN THIẾT BỊ</Text><Text style={styles.copy}>Không có tài khoản trực tuyến. Hồ sơ và lựa chọn đồng ý demo được lưu cục bộ trên thiết bị.</Text></View>
     </>}
     {screen === 'settings-notifications' && <>
-      <SettingToggle label="Thông báo thường" hint="Cập nhật và nhắc nhở trong bản demo" value={toggles.general} onPress={() => toggle('general')} />
+      <SettingToggle label="Thông báo thông thường" hint="Cập nhật và nhắc nhở trong bản demo" value={toggles.general} onPress={() => toggle('general')} />
       <SettingToggle label="Âm thanh" hint="Âm báo thông báo" value={toggles.sound} onPress={() => toggle('sound')} />
-      <SettingToggle label="Lịch hẹn" hint="Thay đổi yêu cầu lịch hẹn demo" value={toggles.appointment} onPress={() => toggle('appointment')} />
-      <SettingToggle label="Nhật ký bữa ăn" hint="Nhắc bạn ghi lại bữa ăn" value={toggles.meal} onPress={() => toggle('meal')} />
+      <SettingToggle label="Âm thanh gọi điện" hint="Âm báo cuộc gọi trong giao diện demo" value={toggles.calls} onPress={() => toggle('calls')} />
+      <SettingToggle label="Thanh toán" hint="Thông báo giao dịch demo" value={toggles.payment} onPress={() => toggle('payment')} />
       <Text style={styles.notice}>Các lựa chọn chỉ áp dụng khi màn hình còn mở. Bản demo chưa gửi thông báo đẩy.</Text>
     </>}
     {screen === 'settings-password' && <>
       <Text style={styles.notice}>Chức năng đổi mật khẩu chỉ là bản xem trước. Không nhập mật khẩu thật; app chưa có xác thực hay tài khoản.</Text>
       <Input label="Mật khẩu hiện tại" value={currentPassword} setValue={setCurrentPassword} placeholder="••••••••" secureTextEntry />
+      <TouchableOpacity accessibilityRole="button" style={styles.forgotButton} onPress={onForgotPassword}><Text style={styles.forgotText}>Quên mật khẩu?</Text></TouchableOpacity>
       <Input label="Mật khẩu mới" value={newPassword} setValue={setNewPassword} placeholder="Tối thiểu 8 ký tự" secureTextEntry />
       <Input label="Xác nhận mật khẩu mới" value={confirmPassword} setValue={setConfirmPassword} placeholder="••••••••" secureTextEntry />
       {!!feedback && <Text accessibilityRole="alert" style={styles.feedback}>{feedback}</Text>}
       <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={validatePassword}><Text style={styles.primaryText}>Xem trước thao tác</Text></TouchableOpacity>
     </>}
+    {screen === 'settings-delete' && <View style={styles.deleteCard}>
+      <View style={styles.deleteIcon}><Text style={styles.deleteIconText}>!</Text></View>
+      <Text accessibilityRole="header" style={styles.deleteHeading}>Không có tài khoản trực tuyến</Text>
+      <Text style={styles.copy}>Nutrition Assistant đang chạy ở chế độ demo nên không có tài khoản để xóa. Bạn có thể xem và xóa hồ sơ demo cùng dữ liệu liên quan trong trang Hồ sơ.</Text>
+      <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => onNavigate?.('profile')}><Text style={styles.primaryText}>Mở trang hồ sơ</Text></TouchableOpacity>
+    </View>}
     {screen === 'settings-privacy' && <View style={styles.policy}>
       <Text style={styles.policyDate}>CẬP NHẬT · PHIÊN BẢN DEMO</Text>
       <Text style={styles.policyHeading}>Chính sách và quyền riêng tư</Text>
@@ -81,11 +87,12 @@ function Input({ label, value, setValue, placeholder, secureTextEntry }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface }, content: { paddingHorizontal: 17, paddingTop: 12, paddingBottom: 112 },
-  header: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }, back: { width: 48, height: 48, justifyContent: 'center' }, backText: { color: colors.primary, fontSize: 31 }, title: { color: colors.primary, fontSize: 17, fontWeight: '800' }, headerSpace: { width: 38 },
-  menuRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: colors.border }, menuIcon: { width: 30, color: colors.primary, textAlign: 'center', fontSize: 21 }, menuCopy: { flex: 1 }, menuTitle: { color: colors.text, fontSize: 13, fontWeight: '800' }, menuHint: { color: colors.muted, fontSize: 11, marginTop: 4 }, arrow: { color: colors.primary, fontSize: 24 },
-  demoBox: { marginTop: 20, borderRadius: 13, padding: 13, backgroundColor: '#F2F5FD' }, demoTitle: { color: colors.primaryDark, fontSize: 11, fontWeight: '900', letterSpacing: 0.5 }, copy: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
-  toggleRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: colors.border }, toggleCopy: { flex: 1 }, track: { width: 40, height: 23, borderRadius: 13, justifyContent: 'center', padding: 3, backgroundColor: '#D8DFEE' }, trackOn: { backgroundColor: colors.primary }, thumb: { width: 17, height: 17, borderRadius: 9, backgroundColor: 'white' }, thumbOn: { alignSelf: 'flex-end' }, notice: { backgroundColor: '#FFF7E6', color: colors.warning, borderRadius: 11, padding: 12, marginTop: 17, fontSize: 12, lineHeight: 18 },
-  field: { marginTop: 16 }, label: { color: colors.text, fontSize: 12, fontWeight: '800', marginBottom: 6 }, input: { minHeight: 48, backgroundColor: '#F2F5FD', borderRadius: 11, paddingHorizontal: 12, color: colors.text, fontSize: 14 }, feedback: { color: colors.warning, fontSize: 12, lineHeight: 18, marginTop: 12 }, primary: { minHeight: 48, backgroundColor: colors.primary, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', marginTop: 22 }, primaryText: { color: 'white', fontSize: 13, fontWeight: '800' },
-  policy: { padding: 14, backgroundColor: '#FBFCFF', borderRadius: 13 }, policyDate: { color: colors.muted, fontSize: 10, fontWeight: '800' }, policyHeading: { color: colors.primaryDark, fontSize: 14, fontWeight: '800', marginTop: 15 }, policyCopy: { color: colors.text, fontSize: 12, lineHeight: 18, marginTop: 6 },
-  helpTabs: { flexDirection: 'row', gap: 8, marginBottom: 12 }, helpTab: { minHeight: 48, minWidth: 88, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: '#E7EBF9' }, helpTabActive: { backgroundColor: colors.primary }, helpTabText: { color: colors.primaryDark, fontSize: 12, fontWeight: '700' }, helpTabTextActive: { color: 'white' }, faqRow: { minHeight: 48, paddingVertical: 13, borderBottomWidth: 1, borderColor: colors.border }, faqTop: { flexDirection: 'row', alignItems: 'center' }, faqQuestion: { flex: 1, color: colors.text, fontSize: 12, fontWeight: '700' }, faqArrow: { color: colors.primary, fontSize: 20 }, contactCard: { padding: 14, backgroundColor: '#F5F7FC', borderRadius: 13 },
+  header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }, back: { width: 48, height: 48, justifyContent: 'center' }, backText: { color: colors.primary, fontSize: 31 }, title: { color: colors.primary, fontSize: 20, fontWeight: '800' }, headerSpace: { width: 38 },
+  menuRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, menuIcon: { width: 34, color: colors.primary, textAlign: 'center', fontSize: 25 }, menuCopy: { flex: 1 }, menuTitle: { color: colors.text, fontSize: 16, fontWeight: '700' }, menuHint: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 }, arrow: { color: colors.primary, fontSize: 27 },
+  demoBox: { marginTop: 20, borderRadius: 13, padding: 16, backgroundColor: '#F2F5FD' }, demoTitle: { color: colors.primaryDark, fontSize: 13, fontWeight: '900', letterSpacing: 0.5 }, copy: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  toggleRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: colors.border }, toggleCopy: { flex: 1, paddingRight: 14 }, track: { width: 51, height: 30, borderRadius: 16, justifyContent: 'center', padding: 4, backgroundColor: '#D8DFEE' }, trackOn: { backgroundColor: colors.primary }, thumb: { width: 22, height: 22, borderRadius: 12, backgroundColor: 'white' }, thumbOn: { alignSelf: 'flex-end' }, notice: { backgroundColor: '#FFF7E6', color: colors.warning, borderRadius: 11, padding: 14, marginTop: 17, fontSize: 14, lineHeight: 21 },
+  field: { marginTop: 16 }, label: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 8 }, input: { minHeight: 56, backgroundColor: '#EAF0FF', borderRadius: 13, paddingHorizontal: 15, color: colors.text, fontSize: 16 }, forgotButton: { minHeight: 48, alignSelf: 'flex-end', justifyContent: 'center', paddingHorizontal: 4 }, forgotText: { color: colors.primary, textDecorationLine: 'underline', fontSize: 14, fontWeight: '700' }, feedback: { color: colors.warning, fontSize: 14, lineHeight: 20, marginTop: 12 }, primary: { minHeight: 56, backgroundColor: colors.primary, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', marginTop: 22 }, primaryText: { color: 'white', fontSize: 16, fontWeight: '800' },
+  policy: { padding: 16, backgroundColor: '#FBFCFF', borderRadius: 13 }, policyDate: { color: colors.muted, fontSize: 12, fontWeight: '800' }, policyHeading: { color: colors.primaryDark, fontSize: 17, fontWeight: '800', marginTop: 18 }, policyCopy: { color: colors.text, fontSize: 14, lineHeight: 21, marginTop: 8 },
+  helpTabs: { flexDirection: 'row', gap: 8, marginBottom: 16 }, helpTab: { minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: '#E7EBF9' }, helpTabActive: { backgroundColor: colors.primary }, helpTabText: { color: colors.primaryDark, fontSize: 15, fontWeight: '700' }, helpTabTextActive: { color: 'white' }, faqRow: { minHeight: 56, paddingVertical: 15, borderBottomWidth: 1, borderColor: colors.border }, faqTop: { flexDirection: 'row', alignItems: 'center' }, faqQuestion: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700', lineHeight: 21 }, faqArrow: { color: colors.primary, fontSize: 24 }, contactCard: { padding: 16, backgroundColor: '#F5F7FC', borderRadius: 13 },
+  deleteCard: { alignItems: 'center', padding: 20, marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18 }, deleteIcon: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#FFF1F0', alignItems: 'center', justifyContent: 'center' }, deleteIconText: { color: colors.danger, fontSize: 30, fontWeight: '900' }, deleteHeading: { color: colors.text, textAlign: 'center', fontSize: 20, fontWeight: '800', marginTop: 18 },
 });

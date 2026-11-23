@@ -13,12 +13,11 @@ test('keeps authentication as a local preview and does not advance on invalid in
   expect(onModeChange).not.toHaveBeenCalled();
 });
 
-test('shows an explicit confirmation preview for email or SMS password recovery', () => {
+test('shows a confirmation preview after choosing email or SMS recovery', () => {
   const onModeChange = jest.fn();
   const screen = render(<AuthScreen mode="forgot" onModeChange={onModeChange} />);
   fireEvent.press(screen.getByRole('radio', { name: 'Gửi qua SMS' }));
-  fireEvent.changeText(screen.getByLabelText('Số điện thoại'), '+84900000000');
-  fireEvent.press(screen.getByText('Gửi yêu cầu demo'));
+  fireEvent.press(screen.getByRole('button', { name: /Đặt lại mật khẩu/ }));
 
   expect(onModeChange).toHaveBeenCalledWith('sent');
 });

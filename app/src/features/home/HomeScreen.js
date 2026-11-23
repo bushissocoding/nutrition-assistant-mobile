@@ -1,34 +1,59 @@
+import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { colors, radius, spacing } from '../../theme/tokens';
+import { colors, radius } from '../../theme/tokens';
 
 const shortcuts = [
-  ['＋', 'Đặt khám', 'appointments'],
+  ['♙', 'Đặt khám', 'appointments'],
   ['▣', 'Lịch hẹn', 'appointments-list'],
   ['▤', 'Hồ sơ y tế', 'medical-record'],
-  ['♨', 'Thực đơn', 'planner'],
-  ['≡', 'Nhật ký', 'diary'],
-  ['◉', 'Đi chợ', 'grocery'],
-  ['♡', 'Cá nhân hóa', 'personalization'],
-  ['♧', 'Thông báo', 'notifications'],
+  ['⚒', 'Thực đơn', 'planner'],
+  ['☷', 'Nhật ký', 'diary'],
+  ['♧', 'Đi chợ', 'grocery'],
+  ['◉', 'Cá nhân hóa', 'personalization'],
+  ['?', 'Hướng dẫn', 'chat'],
 ];
 
 const mealLabels = { BREAKFAST: 'Bữa sáng', LUNCH: 'Bữa trưa', DINNER: 'Bữa tối', SNACK: 'Bữa phụ' };
-const energyGoal = 1800;
+const mealTimes = { BREAKFAST: '8:30 AM', LUNCH: '12:00 PM', DINNER: '6:30 PM', SNACK: '3:30 PM' };
+const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function formatNumber(value) {
   return Math.round(Number(value) || 0).toLocaleString('vi-VN');
 }
 
+function getWeek(date) {
+  const sunday = new Date(date);
+  sunday.setDate(sunday.getDate() - sunday.getDay());
+  return dayNames.map((name, index) => {
+    const day = new Date(sunday);
+    day.setDate(sunday.getDate() + index);
+    return { name, day, key: `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}` };
+  });
+}
+
 export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, diaryError = '', diaryLoading = false, onRetryDiary, plan }) {
-  const energy = Number(diaryTotals.energyKcal) || 0;
-  const progress = Math.min(100, Math.max(0, energy / energyGoal * 100));
+  const today = useMemo(() => new Date(), []);
+  const [selectedDay, setSelectedDay] = useState(today.getDate());
+  const week = useMemo(() => getWeek(today), [today]);
+  const showingToday = selectedDay === today.getDate();
+  const meals = showingToday ? diary : [];
+  const events = useMemo(() => {
+    const slots = ['BREAKFAST', 'LUNCH', 'DINNER'];
+    const mealEvents = slots.flatMap(type => {
+      const entries = meals.filter(item => item.mealType === type);
+      return entries.length ? entries.map(entry => ({ type, entry, time: mealTimes[type] })) : [{ type, entry: null, time: mealTimes[type] }];
+    });
+    const snackEvents = meals.filter(item => item.mealType === 'SNACK').map(entry => ({ type: 'SNACK', entry, time: mealTimes.SNACK }));
+    const order = { BREAKFAST: 0, LUNCH: 1, SNACK: 2, DINNER: 3 };
+    return [...mealEvents, ...snackEvents].sort((left, right) => order[left.type] - order[right.type]);
+  }, [meals]);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
-      <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Text style={styles.avatarText}>♡</Text></View>
+      <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Text style={styles.avatarText}>KP</Text></View>
       <View style={styles.greeting}>
-        <Text style={styles.welcome}>CHÀO MỪNG BẠN</Text>
-        <Text style={styles.name}>Hồ sơ tham khảo</Text>
+        <Text style={styles.welcome}>Chào mừng trở lại</Text>
+        <Text style={styles.name}>Kiên Phạm</Text>
       </View>
       <View style={styles.headerActions}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Thông báo" style={styles.headerAction} onPress={() => onNavigate('notifications')}><Text style={styles.headerActionText}>♧</Text></TouchableOpacity>
@@ -36,11 +61,17 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
       </View>
     </View>
 
-    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ghi món ăn vào nhật ký" style={styles.searchAction} onPress={() => onNavigate('diary')}>
-      <Text style={styles.searchIcon}>⌕</Text>
-      <Text style={styles.searchText}>Ghi món ăn hôm nay</Text>
-      <Text style={styles.searchArrow}>›</Text>
-    </TouchableOpacity>
+    <View style={styles.quickRow}>
+      <TouchableOpacity accessibilityRole="button" style={styles.quickAction} onPress={() => onNavigate('appointments')}>
+        <Text style={styles.quickGlyph}>♧</Text><Text style={styles.quickText}>Bác sĩ</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" style={styles.quickAction} onPress={() => onNavigate('appointments')}>
+        <Text style={styles.quickGlyph}>♡</Text><Text style={styles.quickText}>Yêu thích</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tìm món ăn và ghi nhật ký" style={styles.searchAction} onPress={() => onNavigate('diary')}>
+        <Text style={styles.searchGlass}>⌕</Text><Text style={styles.searchPlaceholder}>Tìm kiếm</Text><Text style={styles.searchIcon}>⌕</Text>
+      </TouchableOpacity>
+    </View>
 
     <View style={styles.shortcutSection}>
       <View style={styles.shortcutGrid}>
@@ -57,124 +88,113 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
       </View>
     </View>
 
-    <View style={styles.sectionHeading}>
-      <View>
-        <Text accessibilityRole="header" style={styles.sectionTitle}>Hôm nay</Text>
-        <Text style={styles.sectionCaption}>Tóm tắt từ nhật ký bữa ăn</Text>
-      </View>
-      <TouchableOpacity accessibilityRole="button" onPress={() => onNavigate('dashboard')} style={{ minWidth: 48, minHeight: 48, justifyContent: "center", alignItems: "center" }}>
-        <Text style={styles.link}>Báo cáo ›</Text>
+    <View style={styles.calendarHeader}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tháng đang chọn" style={styles.monthSelect} onPress={() => onNavigate('dashboard')}>
+        <Text style={styles.monthLabel}>{new Date(today).toLocaleDateString('en-US', { month: 'long' })}</Text><Text style={styles.monthChevron}>⌄</Text>
       </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mở báo cáo dinh dưỡng" style={styles.calendarButton} onPress={() => onNavigate('dashboard')}><Text style={styles.calendarGlyph}>▣</Text></TouchableOpacity>
+    </View>
+    <View accessibilityRole="tablist" accessibilityLabel="Các ngày trong tuần" style={styles.dateStrip}>
+      {week.map(item => {
+        const selected = item.day.getDate() === selectedDay;
+        return <TouchableOpacity
+          key={item.key}
+          accessibilityRole="tab"
+          accessibilityLabel={`${item.name} ${item.day.getDate()}`}
+          accessibilityState={{ selected }}
+          style={[styles.dayCard, selected && styles.dayCardSelected]}
+          onPress={() => setSelectedDay(item.day.getDate())}
+        ><Text style={[styles.dayName, selected && styles.dayTextSelected]}>{item.name}</Text><Text style={[styles.dayNumber, selected && styles.dayTextSelected]}>{item.day.getDate()}</Text></TouchableOpacity>;
+      })}
     </View>
 
-    <View style={styles.summaryCard}>
-      <View style={styles.summaryTop}>
-        <View>
-          <Text style={styles.summaryLabel}>Năng lượng đã ghi</Text>
-          <Text style={styles.energyValue}>{formatNumber(energy)} <Text style={styles.energyUnit}>kcal</Text></Text>
+    <View style={styles.timeline}>
+      {events.map(({ type, entry, time }, index) => <View key={entry?.id || type} style={styles.timelineRow}>
+        <Text style={styles.timeLabel}>{time}</Text>
+        <View style={styles.timelineRail}>
+          <View style={styles.timelineDot} />
+          {index < events.length - 1 && <View style={styles.timelineLine} />}
         </View>
-        <View style={styles.energyBadge}><Text style={styles.energyBadgeText}>⚡</Text></View>
-      </View>
-      <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityLabel="Tiến độ năng lượng so với mục tiêu minh họa" accessibilityValue={{ min: 0, max: 100, now: Math.round(progress) }}>
-        <View style={[styles.progressFill, { width: `${progress}%` }]} />
-      </View>
-      <View style={styles.goalRow}>
-        <Text style={styles.summaryCaption}>{diaryLoading ? 'Đang đồng bộ nhật ký…' : `Mục tiêu minh họa: ${formatNumber(energyGoal)} kcal`}</Text>
-        {!!diaryError && <TouchableOpacity accessibilityRole="button" onPress={onRetryDiary} style={{ minWidth: 48, minHeight: 48, justifyContent: "center", alignItems: "center" }}><Text style={styles.link}>Tải lại</Text></TouchableOpacity>}
-      </View>
-      <Text style={styles.disclaimer}>Giá trị ước tính từ danh mục demo, không phải tư vấn y tế.</Text>
+        <TouchableOpacity accessibilityRole="button" style={[styles.mealCard, entry && styles.mealCardLogged]} onPress={() => onNavigate('diary')}>
+          <View style={[styles.mealIcon, type === 'BREAKFAST' ? styles.breakfastIcon : type === 'LUNCH' ? styles.lunchIcon : styles.otherMealIcon]}><Text style={styles.mealGlyph}>{type === 'BREAKFAST' ? '♨' : '⚒'}</Text></View>
+          <View style={styles.mealCopy}>
+            <Text style={styles.mealName}>{entry?.foodName || mealLabels[type]}</Text>
+            <Text style={styles.mealDetails}>{entry ? `${formatNumber(entry.nutrients?.energyKcal)} kcal` : (diaryLoading && showingToday ? 'Đang tải nhật ký…' : showingToday ? 'Chưa ghi món ăn' : 'Chưa có dữ liệu cho ngày này')}</Text>
+          </View>
+        </TouchableOpacity>
+      </View>)}
     </View>
 
-    <View style={styles.sectionHeading}>
-      <Text accessibilityRole="header" style={styles.sectionTitle}>Bữa ăn hôm nay</Text>
-      <TouchableOpacity accessibilityRole="button" onPress={() => onNavigate('diary')} style={{ minWidth: 48, minHeight: 48, justifyContent: "center", alignItems: "center" }}>
-        <Text style={styles.link}>+ Ghi món</Text>
-      </TouchableOpacity>
-    </View>
-    {diary.length ? diary.slice(0, 4).map(item => <TouchableOpacity
-      key={item.id}
-      accessibilityRole="button"
-      accessibilityLabel={`${item.foodName}, ${mealLabels[item.mealType] || 'Bữa ăn'}, ${item.portion?.amount} g, ${formatNumber(item.nutrients?.energyKcal)} kcal`}
-      style={styles.mealRow}
-      onPress={() => onNavigate('diary')}
-    >
-      <View style={styles.mealIcon}><Text style={styles.mealIconText}>◷</Text></View>
-      <View style={styles.mealCopy}>
-        <Text style={styles.mealTitle}>{item.foodName}</Text>
-        <Text style={styles.mealCaption}>{mealLabels[item.mealType] || 'Bữa ăn'} · {item.portion?.amount} g</Text>
-      </View>
-      <Text style={styles.mealCalories}>{formatNumber(item.nutrients?.energyKcal)} kcal</Text>
-    </TouchableOpacity>) : <View style={styles.emptyCard}>
-      <View style={styles.emptyIcon}><Text style={styles.emptyIconText}>＋</Text></View>
-      <View style={styles.emptyCopy}>
-        <Text style={styles.emptyTitle}>{diaryLoading ? 'Đang tải nhật ký' : diaryError ? 'Chưa tải được dữ liệu' : 'Chưa có bữa ăn nào'}</Text>
-        <Text style={styles.emptyText}>{diaryError || 'Ghi lại món ăn để xem tóm tắt dinh dưỡng trong ngày.'}</Text>
-      </View>
-      {diaryError ? <TouchableOpacity accessibilityRole="button" onPress={onRetryDiary} style={{ minWidth: 48, minHeight: 48, justifyContent: "center", alignItems: "center" }}><Text style={styles.link}>Thử lại</Text></TouchableOpacity> : null}
-    </View>}
+    {!!diaryError && <View style={styles.errorNotice}><Text style={styles.errorText}>{diaryError}</Text><TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={onRetryDiary}><Text style={styles.retryText}>Thử lại</Text></TouchableOpacity></View>}
+    <Text style={styles.disclaimer}>Thông tin dinh dưỡng là ước tính từ bản demo, không phải tư vấn y tế.</Text>
 
     {plan?.plan?.length ? <TouchableOpacity accessibilityRole="button" style={styles.planBanner} onPress={() => onNavigate('planner')}>
       <View style={styles.planMark}><Text style={styles.planMarkText}>✓</Text></View>
-      <View style={styles.planCopy}>
-        <Text style={styles.planTitle}>Thực đơn demo đã sẵn sàng</Text>
-        <Text style={styles.planCaption}>{plan.plan.length} bữa trong ngày · Xem chi tiết</Text>
-      </View>
+      <View style={styles.planCopy}><Text style={styles.planTitle}>Thực đơn demo đã sẵn sàng</Text><Text style={styles.planCaption}>{plan.plan.length} bữa trong ngày · Xem chi tiết</Text></View>
       <Text style={styles.planArrow}>›</Text>
     </TouchableOpacity> : null}
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingBottom: 112 },
-  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md, gap: spacing.md },
-  avatar: { width: 46, height: 46, borderRadius: 23, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: colors.primary, fontSize: 27, fontWeight: '700' },
+  screen: { flex: 1, width: '100%', backgroundColor: colors.surface },
+  content: { paddingBottom: 94 },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 9, paddingBottom: 7, gap: 10 },
+  avatar: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#D8E2F2', alignItems: 'center', justifyContent: 'center' },
+  avatarText: { color: colors.primaryDark, fontSize: 12, fontWeight: '900' },
   greeting: { flex: 1 },
-  welcome: { color: colors.primary, fontSize: 12, fontWeight: '800', letterSpacing: 0.6 },
-  name: { color: colors.text, fontSize: 17, fontWeight: '800', marginTop: 3 },
+  welcome: { color: colors.primary, fontSize: 12, fontWeight: '700' },
+  name: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: 1 },
   headerActions: { flexDirection: 'row', gap: 7 },
-  headerAction: { width: 48, height: 48, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.softBlue },
-  headerActionText: { color: colors.primary, fontSize: 17, fontWeight: '800' },
-  searchAction: { minHeight: 48, flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing.lg, marginVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: colors.softBlue },
-  searchIcon: { color: colors.primary, fontSize: 24, marginRight: 8 },
-  searchText: { flex: 1, color: colors.primaryDark, fontSize: 14, fontWeight: '700' },
-  searchArrow: { color: colors.primary, fontSize: 25 },
-  shortcutSection: { backgroundColor: '#CED9FF', paddingHorizontal: spacing.md, paddingVertical: spacing.md },
+  headerAction: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#CED9FF' },
+  headerActionText: { color: colors.text, fontSize: 18, fontWeight: '800' },
+  quickRow: { minHeight: 62, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 20, paddingBottom: 7 },
+  quickAction: { width: 54, minHeight: 54, alignItems: 'center', justifyContent: 'center' },
+  quickGlyph: { color: colors.primary, fontSize: 24, lineHeight: 27 },
+  quickText: { color: colors.primary, fontSize: 12, fontWeight: '700', marginTop: 2 },
+  searchAction: { flex: 1, minWidth: 0, minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 9, borderRadius: 24, backgroundColor: '#CED9FF' },
+  searchGlass: { width: 32, height: 32, textAlign: 'center', textAlignVertical: 'center', color: colors.primaryDark, fontSize: 21, backgroundColor: 'white', borderRadius: 16, overflow: 'hidden' },
+  searchPlaceholder: { flex: 1, color: '#71809D', fontSize: 14, marginLeft: 7 },
+  searchIcon: { color: colors.primary, fontSize: 20, marginHorizontal: 2 },
+  shortcutSection: { backgroundColor: '#CED9FF', paddingHorizontal: 10, paddingVertical: 10 },
   shortcutGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  shortcut: { width: '25%', minHeight: 74, alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.sm },
-  shortcutIcon: { width: 44, height: 44, textAlign: 'center', textAlignVertical: 'center', color: colors.primary, backgroundColor: colors.surface, borderRadius: 13, overflow: 'hidden', fontSize: 23 },
+  shortcut: { width: '25%', minHeight: 82, alignItems: 'center', justifyContent: 'center', paddingVertical: 4 },
+  shortcutIcon: { width: 48, height: 48, textAlign: 'center', textAlignVertical: 'center', color: colors.primary, backgroundColor: colors.surface, borderRadius: 14, overflow: 'hidden', fontSize: 25 },
   shortcutText: { color: colors.text, fontSize: 12, fontWeight: '700', marginTop: 5, textAlign: 'center' },
-  sectionHeading: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginHorizontal: spacing.lg, marginTop: spacing.lg, marginBottom: spacing.sm },
-  sectionTitle: { color: colors.text, fontWeight: '800', fontSize: 19 },
-  sectionCaption: { color: colors.muted, fontSize: 12, marginTop: 3 },
-  link: { color: colors.primary, fontWeight: '800', fontSize: 13 },
-  summaryCard: { backgroundColor: colors.surface, marginHorizontal: spacing.lg, padding: spacing.lg, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  summaryLabel: { color: colors.muted, fontSize: 13, fontWeight: '700' },
-  energyValue: { color: colors.text, fontSize: 29, fontWeight: '800', marginTop: 3 },
-  energyUnit: { color: colors.muted, fontSize: 14, fontWeight: '700' },
-  energyBadge: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
-  energyBadgeText: { color: colors.primary, fontSize: 22 },
-  progressTrack: { height: 8, borderRadius: 8, backgroundColor: '#E4EAF7', overflow: 'hidden', marginTop: spacing.md },
-  progressFill: { height: '100%', borderRadius: 8, backgroundColor: colors.primary },
-  goalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
-  summaryCaption: { color: colors.muted, fontSize: 12 },
-  disclaimer: { color: colors.muted, fontSize: 11, marginTop: 9, lineHeight: 16 },
-  mealRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, marginBottom: spacing.sm, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  mealIcon: { width: 38, height: 38, borderRadius: 12, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
-  mealIconText: { color: colors.primary, fontSize: 21 },
-  mealCopy: { flex: 1 },
-  mealTitle: { color: colors.text, fontWeight: '800', fontSize: 14 },
-  mealCaption: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  mealCalories: { color: colors.primary, fontSize: 12, fontWeight: '800' },
-  emptyCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginHorizontal: spacing.lg, padding: spacing.md, backgroundColor: '#F8FAFE', borderRadius: radius.md },
-  emptyIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
-  emptyIconText: { color: colors.primary, fontSize: 22 },
-  emptyCopy: { flex: 1 },
-  emptyTitle: { color: colors.text, fontSize: 14, fontWeight: '800' },
-  emptyText: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 3 },
-  planBanner: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: spacing.md, margin: spacing.lg, padding: spacing.md, backgroundColor: colors.softBlue, borderRadius: radius.md },
+  calendarHeader: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 13, paddingTop: 3 },
+  monthSelect: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, borderRadius: 20, borderWidth: 1, borderColor: '#E2E4E9', backgroundColor: 'white' },
+  monthLabel: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  monthChevron: { color: colors.text, fontSize: 16 },
+  calendarButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  calendarGlyph: { color: '#343A46', fontSize: 22 },
+  dateStrip: { flexDirection: 'row', gap: 6, paddingHorizontal: 11, paddingBottom: 13 },
+  dayCard: { flex: 1, minWidth: 0, minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E3E6EA', backgroundColor: 'white' },
+  dayCardSelected: { backgroundColor: '#D3F3FF', borderColor: '#4BBEFF' },
+  dayName: { color: '#616875', fontSize: 12 },
+  dayNumber: { color: '#333A46', fontSize: 15, fontWeight: '700', marginTop: 1 },
+  dayTextSelected: { color: '#103F76' },
+  timeline: { paddingHorizontal: 11, paddingTop: 1 },
+  timelineRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center' },
+  timeLabel: { width: 62, color: '#323844', fontSize: 12, fontWeight: '500' },
+  timelineRail: { width: 18, height: '100%', alignItems: 'center', justifyContent: 'center' },
+  timelineDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: '#CACFD6', zIndex: 1 },
+  timelineLine: { position: 'absolute', width: 1, height: '100%', backgroundColor: '#E1E4E9' },
+  mealCard: { minHeight: 68, flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 17, borderWidth: 1, borderColor: '#E4E7EB', backgroundColor: 'white', marginLeft: 5, marginBottom: 4 },
+  mealCardLogged: { backgroundColor: '#D7F4FF', borderColor: '#4BBEFF' },
+  mealIcon: { width: 37, height: 37, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  breakfastIcon: { backgroundColor: '#D8F8F3' },
+  lunchIcon: { backgroundColor: '#D7F4FF' },
+  otherMealIcon: { backgroundColor: '#EBF0FF' },
+  mealGlyph: { color: '#27B9C6', fontSize: 20, fontWeight: '700' },
+  mealCopy: { flex: 1, minWidth: 0 },
+  mealName: { color: '#252B37', fontSize: 14, fontWeight: '800' },
+  mealDetails: { color: '#616875', fontSize: 12, marginTop: 3 },
+  errorNotice: { marginHorizontal: 16, marginTop: 6, padding: 10, borderRadius: 10, backgroundColor: '#FFF3E0' },
+  errorText: { color: colors.warning, fontSize: 11, lineHeight: 16 },
+  retryButton: { minHeight: 40, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 8 },
+  retryText: { color: colors.primary, fontSize: 12, fontWeight: '800' },
+  disclaimer: { color: colors.muted, fontSize: 11, lineHeight: 15, textAlign: 'center', paddingHorizontal: 16, marginTop: 7 },
+  planBanner: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, margin: 16, padding: 10, backgroundColor: colors.softBlue, borderRadius: radius.md },
   planMark: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' },
   planMarkText: { color: colors.surface, fontWeight: '800' },
   planCopy: { flex: 1 },

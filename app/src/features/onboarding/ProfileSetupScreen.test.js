@@ -14,12 +14,14 @@ test('moves through the assessment wizard and saves only the completed demo prof
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.changeText(screen.getByLabelText('Tuổi'), '30');
   fireEvent.press(screen.getByText(/Tiếp tục/));
+  fireEvent.press(screen.getByRole('radio', { name: 'Suy thận cấp' }));
+  fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.changeText(screen.getByLabelText('Dị ứng hoặc thực phẩm cần tránh'), 'tôm');
   fireEvent.press(screen.getByRole('button', { name: /Lưu hồ sơ demo/ }));
 
   expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({
-    gender: 'male', age: '30', heightCm: '170', weightKg: '65', allergies: ['tôm'],
+    gender: 'male', age: '30', heightCm: '170', weightKg: '65', conditionType: 'acute-kidney-disease', allergies: ['tôm'],
   }));
 });
 
@@ -41,6 +43,7 @@ test('skipping optional steps preserves existing allergy exclusions and safety f
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.press(screen.getByText(/Tiếp tục/));
+  fireEvent.press(screen.getByText('Bỏ qua'));
   fireEvent.press(screen.getByText('Bỏ qua'));
   fireEvent.press(screen.getByText('Bỏ qua'));
 

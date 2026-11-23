@@ -35,6 +35,12 @@ test('normalizes the optional gender selection from the assessment flow', () => 
   assert.equal(normalizeProfile({ gender: 'unsupported' }).gender, 'unspecified');
 });
 
+test('keeps one supported health-condition selection as profile metadata', () => {
+  assert.equal(createEmptyProfile().conditionType, 'unspecified');
+  assert.equal(normalizeProfile({ conditionType: 'acute-kidney-disease' }).conditionType, 'acute-kidney-disease');
+  assert.equal(normalizeProfile({ conditionType: 'unknown-disease' }).conditionType, 'unspecified');
+});
+
 test('validates activity values and bounds profile notes and allergy entries', () => {
   const valid = { ...createEmptyProfile(), age: '30', heightCm: '170', weightKg: '65', allergies: ['cá'] };
   const errors = validateProfile({

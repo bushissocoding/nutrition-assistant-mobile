@@ -14,6 +14,10 @@ jest.mock('../services/profile-storage', () => ({
   saveConsent: jest.fn(),
   saveProfile: jest.fn(),
 }));
+jest.mock('../features/onboarding/LaunchScreen', () => {
+  const React = require('react');
+  return function MockLaunch({ onComplete }) { React.useEffect(() => { onComplete(); }, [onComplete]); return null; };
+});
 jest.mock('../features/onboarding/ConsentScreen', () => {
   const ReactNative = require('react-native');
   return function MockConsent({ onContinue, onBack, onWithdraw }) {
@@ -60,7 +64,7 @@ jest.mock('../features/home/HomeScreen', () => {
 jest.mock('../features/profile/ProfileScreen', () => {
   const ReactNative = require('react-native');
   const React = require('react');
-  return function MockProfile({ onDeleted, onWithdrawConsent, onReviewConsent }) {
+  return function MockProfile({ onDeleted, onWithdrawConsent, onReviewConsent, onNavigate }) {
     const [error, setError] = React.useState('');
     async function remove() {
       try { await onDeleted(); }
@@ -69,6 +73,7 @@ jest.mock('../features/profile/ProfileScreen', () => {
     return <>
       <ReactNative.Pressable onPress={remove}><ReactNative.Text>Delete profile</ReactNative.Text></ReactNative.Pressable>
       <ReactNative.Pressable onPress={onReviewConsent}><ReactNative.Text>Review consent</ReactNative.Text></ReactNative.Pressable>
+      <ReactNative.Pressable onPress={() => onNavigate('settings')}><ReactNative.Text>Open settings</ReactNative.Text></ReactNative.Pressable>
       <ReactNative.Pressable onPress={onWithdrawConsent}><ReactNative.Text>Withdraw consent</ReactNative.Text></ReactNative.Pressable>
       {!!error && <ReactNative.Text>{error}</ReactNative.Text>}
     </>;
@@ -130,7 +135,10 @@ test('refreshes the Home cache after a diary mutation is confirmed by the server
   await press(screen, 'Open diary');
   await press(screen, 'Notify saved diary change');
   await waitFor(() => expect(api.getMealEntries).toHaveBeenCalledTimes(2));
-  await press(screen, 'Trang chủ');
+  await act(async () => {
+    fireEvent.press(screen.getByRole('tab', { name: 'Trang chủ' }));
+    for (let index = 0; index < 8; index += 1) await Promise.resolve();
+  });
   await waitFor(() => expect(screen.getByText('115 kcal')).toBeTruthy());
 });
 
@@ -140,8 +148,9 @@ test('records the required choices before moving from consent to profile setup',
   const choices = { local_profile_storage: true };
   const screen = render(<AppShell />);
 
-  await waitFor(() => expect(screen.getByText('Chào mừng bạn')).toBeTruthy());
-  await press(screen, 'Khám phá bản demo không cần tài khoản');
+  await waitFor(() => expect(screen.getByText('Đăng Nhập')).toBeTruthy());
+  await press(screen, 'Đăng Nhập');
+  await press(screen, 'Tiếp tục không cần tài khoản');
   await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
   await press(screen, 'Continue consent');
   await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
@@ -172,7 +181,7 @@ test('keeps consent when a withdrawal purge fails and clears it after a successf
   expect(screen.getByText('Delete profile')).toBeTruthy();
 
   await press(screen, 'Withdraw consent');
-  await waitFor(() => expect(screen.getByText('Chào mừng bạn')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Đăng Nhập')).toBeTruthy());
   expect(revokeConsentAndClear).toHaveBeenCalledTimes(1);
   expect(alertSpy).toHaveBeenCalledWith('Đã rút đồng ý và xóa dữ liệu demo', expect.any(String));
   alertSpy.mockRestore();
@@ -191,6 +200,22 @@ test('purges the server diary and grocery list before clearing the local profile
   await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
 
   expect(order).toEqual(['diary-purge', 'grocery-purge', 'local-profile-clear']);
+});
+
+test('returns from password recovery through settings to the profile', async () => {
+  const screen = render(<AppShell />);
+
+  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
+  await press(screen, 'Open profile');
+  await press(screen, 'Open settings');
+  await press(screen, 'Quản lý mật khẩu');
+  await press(screen, 'Quên mật khẩu?');
+  await waitFor(() => expect(screen.getByText('Gửi qua email')).toBeTruthy());
+
+  await act(async () => fireEvent.press(screen.getByLabelText('Quay lại')));
+  expect(screen.getByText('Quản lý mật khẩu')).toBeTruthy();
+  await act(async () => fireEvent.press(screen.getByLabelText('Quay lại')));
+  expect(screen.getByText('Delete profile')).toBeTruthy();
 });
 
 test('keeps the local profile when the server refuses to purge the diary', async () => {

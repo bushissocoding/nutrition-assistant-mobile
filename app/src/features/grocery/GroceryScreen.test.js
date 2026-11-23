@@ -67,6 +67,22 @@ test('shows load error and retries the current-list request', async () => {
   expect(api.getCurrentShoppingList).toHaveBeenCalledTimes(2);
 });
 
+test('adds and adjusts pantry ingredients locally without changing the saved shopping list', async () => {
+  const screen = render(<GroceryScreen />);
+  await waitFor(() => expect(screen.getByText('Chưa có danh sách đi chợ đã lưu.')).toBeTruthy());
+
+  expect(screen.getByText('3 món có sẵn · 0 món sắp hết')).toBeTruthy();
+  await press(screen, 'Thêm nguyên liệu');
+  await changeText(screen, 'Nhập tên nguyên liệu…', 'Yến mạch');
+  await press(screen, 'Thêm');
+  expect(screen.getByText('Yến mạch')).toBeTruthy();
+  expect(api.createShoppingList).not.toHaveBeenCalled();
+
+  await pressNode(screen.getByRole('button', { name: 'Giảm Ức gà phi lê' }));
+  expect(screen.getByLabelText('Ức gà phi lê, 200 g')).toBeTruthy();
+  expect(api.updateShoppingListItem).not.toHaveBeenCalled();
+});
+
 test('retries a failed purchased update without reflecting it before server confirmation', async () => {
   api.getCurrentShoppingList.mockResolvedValue({ list: savedList });
   api.updateShoppingListItem.mockRejectedValueOnce(new Error('Không lưu được trạng thái.')).mockResolvedValueOnce({ item: { ...item, purchased: true } });
@@ -90,10 +106,10 @@ test('keeps an edited quantity out of the saved row until a retry is confirmed',
   await changeText(screen, 'Số lượng Cơm trắng', '500');
   await pressNode(screen.getByLabelText('Lưu thay đổi Cơm trắng'));
   await waitFor(() => expect(screen.getByText('Không lưu được số lượng.')).toBeTruthy());
-  expect(screen.getByText(/300\s*g/)).toBeTruthy();
+  expect(screen.getByLabelText('Cơm trắng, 300 g')).toBeTruthy();
 
   await press(screen, 'Thử thao tác lại');
-  await waitFor(() => expect(screen.getByText(/500\s*g/)).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText('Cơm trắng, 500 g')).toBeTruthy());
 });
 
 test('saves amount/unit edits and deletes an item only after API confirmation', async () => {
@@ -109,7 +125,7 @@ test('saves amount/unit edits and deletes an item only after API confirmation', 
   await changeText(screen, 'Số lượng Cơm trắng', '1.5');
   await changeText(screen, 'Đơn vị Cơm trắng', 'kg');
   await pressNode(screen.getByLabelText('Lưu thay đổi Cơm trắng'));
-  await waitFor(() => expect(screen.getByText(/1\.5\s*kg/)).toBeTruthy());
+  await waitFor(() => expect(screen.getByLabelText('Cơm trắng, 1.5 kg')).toBeTruthy());
   expect(api.updateShoppingListItem).toHaveBeenCalledWith('item-rice', { amount: 1.5, unit: 'kg' });
 
   await act(async () => {

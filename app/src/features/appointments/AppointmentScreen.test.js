@@ -16,6 +16,22 @@ test('walks through doctor, schedule, and payment preview without submitting a r
   expect(onRequestCreate).toHaveBeenCalledWith(expect.objectContaining({ method: 'paypal' }));
 });
 
+test('keeps patient and preliminary symptom fields in the local preview only', () => {
+  const onRequestCreate = jest.fn();
+  const screen = render(<AppointmentScreen onRequestCreate={onRequestCreate} />);
+  fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết PGS\.TS\. Trương Lê Quân/ }));
+  fireEvent.press(screen.getByText('Chọn lịch hẹn demo'));
+  fireEvent.changeText(screen.getByLabelText('Tên bệnh nhân demo'), 'Người dùng mẫu');
+  fireEvent.changeText(screen.getByLabelText('Triệu chứng sơ bộ demo'), 'Ghi chú tổng hợp cho giao diện.');
+  fireEvent.press(screen.getByText('Tiếp tục xem phương thức thanh toán'));
+  fireEvent.press(screen.getByText('Xem lại yêu cầu'));
+
+  expect(screen.getByText('Người bệnh demo: Người dùng mẫu')).toBeTruthy();
+  expect(screen.getByText('Ghi chú sơ bộ: Đã nhập trong phiên demo')).toBeTruthy();
+  fireEvent.press(screen.getByText('Hoàn tất xem trước'));
+  expect(onRequestCreate).toHaveBeenCalledWith(expect.objectContaining({ patientName: 'Người dùng mẫu', symptomNote: 'Ghi chú tổng hợp cho giao diện.' }));
+});
+
 test('removes a local request preview without claiming that a real appointment was cancelled', () => {
   const onRequestClear = jest.fn();
   const screen = render(<AppointmentScreen onRequestClear={onRequestClear} />);

@@ -4,6 +4,11 @@ import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
 
 const supportedUnits = new Set(['g', 'kg', 'ml', 'l', 'piece', 'bunch', 'pack']);
+const initialPantry = [
+  { id: 'pantry-chicken', name: 'Ức gà phi lê', amount: 300, unit: 'g' },
+  { id: 'pantry-eggs', name: 'Trứng gà ta', amount: 4, unit: 'quả' },
+  { id: 'pantry-tomatoes', name: 'Cà chua bi', amount: 200, unit: 'g' },
+];
 
 function createIntentKey() {
   return `grocery-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
@@ -37,7 +42,11 @@ function createPayloadFromPlan(sourceItems) {
   };
 }
 
-export default function GroceryScreen({ sourceItems = [] }) {
+export default function GroceryScreen({ sourceItems = [], onBack }) {
+  const [pantryItems, setPantryItems] = useState(initialPantry);
+  const [pantryDraft, setPantryDraft] = useState('');
+  const [pantryError, setPantryError] = useState('');
+  const [addingPantryItem, setAddingPantryItem] = useState(false);
   const [list, setList] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -52,6 +61,21 @@ export default function GroceryScreen({ sourceItems = [] }) {
   const itemCount = list?.items?.length || 0;
   const purchasedCount = list?.items?.filter(item => item.purchased).length || 0;
   const purchaseProgress = itemCount ? purchasedCount / itemCount * 100 : 0;
+  const lowStockCount = pantryItems.filter(item => item.amount <= 1).length;
+
+  function changePantryAmount(itemId, amount) {
+    setPantryItems(current => current.map(item => item.id === itemId ? { ...item, amount: Math.max(0, item.amount + amount) } : item));
+  }
+
+  function addPantryItem() {
+    const name = pantryDraft.trim();
+    if (!name) { setPantryError('Nhập tên nguyên liệu trước khi thêm.'); return; }
+    if (name.length > 80) { setPantryError('Tên nguyên liệu không vượt quá 80 ký tự.'); return; }
+    setPantryItems(current => [...current, { id: `pantry-${Date.now()}`, name, amount: 1, unit: 'phần' }]);
+    setPantryDraft('');
+    setPantryError('');
+    setAddingPantryItem(false);
+  }
 
   useEffect(() => {
     let active = true;
@@ -184,9 +208,28 @@ export default function GroceryScreen({ sourceItems = [] }) {
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text accessibilityRole="header" style={styles.title}>Đi chợ</Text>
-    <Text style={styles.subtitle}>Danh sách được lưu trong API demo và có thể mở lại.</Text>
-    <Text style={styles.disclaimer}>Ước tính từ thực đơn mẫu; không phải tư vấn y tế. Chỉnh danh sách không thay đổi khẩu phần hoặc dinh dưỡng của thực đơn.</Text>
+    <View style={styles.header}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.backButton} onPress={() => onBack?.()}><Text style={styles.backGlyph}>‹</Text></TouchableOpacity>
+      <View style={styles.headerCopy}><Text accessibilityRole="header" style={styles.title}>Nguyên liệu</Text><Text style={styles.subtitle}>Kho nhà & danh sách đi chợ</Text></View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Thêm nguyên liệu" style={styles.addHeaderButton} onPress={() => { setAddingPantryItem(value => !value); setPantryError(''); }}><Text style={styles.addHeaderText}>{addingPantryItem ? '×' : '+'}</Text></TouchableOpacity>
+    </View>
+    <Text style={styles.disclaimer}>Kho nhà mẫu chỉ giữ trong phiên này. Danh sách đi chợ được lưu riêng trong API demo.</Text>
+
+    <View style={styles.pantrySummary}>
+      <View style={styles.pantrySummaryTop}><View><Text style={styles.pantrySummaryTitle}>Tóm tắt kho</Text><Text style={styles.pantrySummaryCopy}>{pantryItems.length} món có sẵn · {lowStockCount} món sắp hết</Text></View><View style={styles.needBadge}><Text style={styles.needBadgeText}>{lowStockCount} cần mua</Text></View></View>
+      <View style={styles.pantryProgress}><View style={[styles.pantryProgressFill, { width: `${pantryItems.length ? Math.max(12, (pantryItems.length - lowStockCount) / pantryItems.length * 100) : 0}%` }]} /></View>
+    </View>
+    <View style={styles.sectionHeader}><Text accessibilityRole="header" style={styles.section}>Nguyên liệu trong nhà</Text><Text style={styles.sectionCount}>Xem {pantryItems.length} món</Text></View>
+    <View style={styles.pantryList}>{pantryItems.map(item => <View key={item.id} style={styles.pantryRow}>
+      <View style={styles.pantryState}><Text style={styles.pantryStateText}>{item.amount <= 1 ? '!' : '✓'}</Text></View>
+      <View style={styles.pantryCopy}><Text style={styles.pantryName}>{item.name}</Text><Text style={styles.pantryHint}>{item.amount <= 1 ? 'Sắp hết' : 'Có sẵn trong kho'}</Text></View>
+      <View style={styles.amountControls}><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Giảm ${item.name}`} style={styles.amountButton} onPress={() => changePantryAmount(item.id, item.unit === 'g' ? -100 : -1)}><Text style={styles.amountButtonText}>−</Text></TouchableOpacity><Text accessibilityLabel={`${item.name}, ${item.amount} ${item.unit}`} style={styles.amountValue}>{item.amount} {item.unit}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Tăng ${item.name}`} style={styles.amountButton} onPress={() => changePantryAmount(item.id, item.unit === 'g' ? 100 : 1)}><Text style={styles.amountButtonText}>＋</Text></TouchableOpacity></View>
+    </View>)}</View>
+    {addingPantryItem && <View style={styles.addPantryRow}><TextInput accessibilityLabel="Tên nguyên liệu mới" value={pantryDraft} onChangeText={setPantryDraft} onSubmitEditing={addPantryItem} placeholder="Nhập tên nguyên liệu…" style={styles.pantryInput} returnKeyType="done" maxLength={80} /><TouchableOpacity accessibilityRole="button" style={styles.addPantryButton} onPress={addPantryItem}><Text style={styles.addPantryButtonText}>Thêm</Text></TouchableOpacity></View>}
+    {!!pantryError && <Text accessibilityRole="alert" style={styles.error}>{pantryError}</Text>}
+    <View style={styles.actions}><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => setAddingPantryItem(true)}><Text style={styles.actionText}>Thêm nguyên liệu</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => Alert.alert('Chia sẻ danh sách', 'Chia sẻ chưa được kết nối trong bản demo.')}><Text style={styles.actionText}>Chia sẻ</Text></TouchableOpacity></View>
+
+    <Text style={styles.disclaimer}>Giá trị dinh dưỡng trong thực đơn chỉ là ước tính, không phải tư vấn y tế.</Text>
 
     {loading ? <View style={styles.state}><ActivityIndicator color={colors.primary} /><Text style={styles.stateText}>Đang tải danh sách đi chợ…</Text></View>
       : loadError ? <View style={styles.state}><Text style={styles.error}>{loadError}</Text><TouchableOpacity style={styles.secondary} onPress={() => setLoadVersion(value => value + 1)}><Text style={styles.secondaryText}>Thử tải lại</Text></TouchableOpacity></View>
@@ -220,7 +263,7 @@ export default function GroceryScreen({ sourceItems = [] }) {
                   ><Text style={styles.checkText}>{item.purchased ? '✓' : ''}</Text></TouchableOpacity>
                   <View style={styles.itemContent}>
                     <Text style={[styles.name, item.purchased && styles.strike]}>{item.name}</Text>
-                    <Text style={styles.savedAmount}>{item.amount} {item.unit}</Text>
+                    <Text accessibilityLabel={`${item.name}, ${item.amount} ${item.unit}`} style={styles.savedAmount}>{item.amount} {item.unit}</Text>
                     <View style={styles.editRow}>
                       <TextInput
                         accessibilityLabel={`Số lượng ${item.name}`}
@@ -262,21 +305,27 @@ export default function GroceryScreen({ sourceItems = [] }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { padding: 16, paddingBottom: 124 },
-  title: { color: colors.text, fontWeight: '800', fontSize: 24 },
-  subtitle: { color: colors.muted, fontSize: 13, marginTop: 4 },
-  disclaimer: { color: colors.warning, fontSize: 12, lineHeight: 17, backgroundColor: '#FFF7E6', padding: 11, borderRadius: radius.sm, marginTop: 10 },
+  content: { padding: 15, paddingTop: 8, paddingBottom: 124 },
+  header: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 9 },
+  backButton: { width: 37, height: 48, justifyContent: 'center' }, backGlyph: { color: colors.primary, fontSize: 30 },
+  headerCopy: { flex: 1 }, title: { color: colors.text, fontWeight: '800', fontSize: 21 },
+  subtitle: { color: colors.muted, fontSize: 13, marginTop: 1 },
+  addHeaderButton: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, addHeaderText: { color: 'white', fontSize: 27, lineHeight: 29 },
+  disclaimer: { color: colors.muted, fontSize: 14, lineHeight: 14, marginTop: 7 },
+  pantrySummary: { backgroundColor: 'white', padding: 12, borderRadius: 16, borderWidth: 1, borderColor: '#EBEEF4', marginTop: 10 }, pantrySummaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, pantrySummaryTitle: { color: colors.text, fontSize: 14, fontWeight: '900' }, pantrySummaryCopy: { color: colors.muted, fontSize: 14, marginTop: 4 }, needBadge: { backgroundColor: '#EEF3FF', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 14 }, needBadgeText: { color: colors.primary, fontSize: 14, fontWeight: '800' }, pantryProgress: { height: 7, borderRadius: 5, overflow: 'hidden', backgroundColor: '#E9EDF5', marginTop: 10 }, pantryProgressFill: { height: '100%', borderRadius: 5, backgroundColor: colors.primary },
+  pantryList: { gap: 7 }, pantryRow: { minHeight: 68, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 9, borderRadius: 13, borderWidth: 1, borderColor: '#EEF0F4', backgroundColor: 'white' }, pantryState: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#E7EEFF' }, pantryStateText: { color: colors.primary, fontSize: 19, fontWeight: '900' }, pantryCopy: { flex: 1, minWidth: 0 }, pantryName: { color: colors.text, fontSize: 14, fontWeight: '800' }, pantryHint: { color: colors.muted, fontSize: 12, lineHeight: 16, marginTop: 4 }, amountControls: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 4, borderWidth: 1, borderColor: '#EAF0FF', borderRadius: 12 }, amountButton: { minWidth: 38, minHeight: 40, borderRadius: 10, backgroundColor: '#F1F5FF', alignItems: 'center', justifyContent: 'center' }, amountButtonText: { color: colors.text, fontSize: 19, fontWeight: '900' }, amountValue: { color: colors.text, fontSize: 12, fontWeight: '800', minWidth: 48, textAlign: 'center' },
+  addPantryRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 }, pantryInput: { flex: 1, minHeight: 54, borderRadius: 12, paddingHorizontal: 12, backgroundColor: '#F1F5FF', color: colors.text, fontSize: 14 }, addPantryButton: { minHeight: 54, minWidth: 66, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: colors.primary }, addPantryButtonText: { color: 'white', fontSize: 14, fontWeight: '800' },
   summary: { backgroundColor: colors.surface, padding: 15, borderRadius: radius.md, marginTop: 14, borderWidth: 1, borderColor: colors.border },
   summaryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heading: { color: colors.text, fontSize: 16, fontWeight: '800' },
-  small: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 5 },
+  small: { color: colors.muted, fontSize: 14, lineHeight: 17, marginTop: 5 },
   countBadge: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: radius.pill, backgroundColor: colors.softBlue },
-  countText: { color: colors.primaryDark, fontSize: 12, fontWeight: '800' },
+  countText: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' },
   progressTrack: { height: 7, borderRadius: 8, backgroundColor: '#E5EBF6', overflow: 'hidden', marginTop: 12 },
   progressFill: { height: '100%', borderRadius: 8, backgroundColor: colors.primary },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 20, marginBottom: 8 },
   section: { fontWeight: '800', color: colors.text, fontSize: 16 },
-  sectionCount: { color: colors.muted, fontSize: 12, fontWeight: '700' },
+  sectionCount: { color: colors.muted, fontSize: 14, fontWeight: '700' },
   card: { backgroundColor: colors.surface, borderRadius: radius.md, paddingHorizontal: 12, borderWidth: 1, borderColor: colors.border },
   row: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, borderBottomWidth: 1, borderBottomColor: '#F0F2F6', paddingVertical: 14 },
   check: { width: 48, height: 48, borderRadius: 11, backgroundColor: colors.softBlue, justifyContent: 'center', alignItems: 'center', marginTop: 2 },
@@ -285,23 +334,23 @@ const styles = StyleSheet.create({
   itemContent: { flex: 1, minWidth: 0 },
   name: { color: colors.text, fontWeight: '800', fontSize: 14 },
   strike: { textDecorationLine: 'line-through', color: colors.muted },
-  savedAmount: { color: colors.primary, fontSize: 12, fontWeight: '700', marginTop: 3 },
+  savedAmount: { color: colors.primary, fontSize: 14, fontWeight: '700', marginTop: 3 },
   editRow: { flexDirection: 'row', gap: 7, marginTop: 8 },
-  inputAmount: { flex: 1, minWidth: 70, minHeight: 48, backgroundColor: '#F5F7FB', borderRadius: 9, paddingHorizontal: 9, color: colors.text, fontSize: 13 },
-  inputUnit: { width: 78, minHeight: 48, backgroundColor: '#F5F7FB', borderRadius: 9, paddingHorizontal: 9, color: colors.text, fontSize: 13 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7 },
-  smallButton: { minHeight: 48, justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 9, backgroundColor: '#F2F5FB', borderRadius: 9 },
-  actionText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  deleteText: { color: colors.danger, fontWeight: '700', fontSize: 12 },
+  inputAmount: { flex: 1, minWidth: 70, minHeight: 54, backgroundColor: '#F5F7FB', borderRadius: 9, paddingHorizontal: 9, color: colors.text, fontSize: 13 },
+  inputUnit: { width: 78, minHeight: 54, backgroundColor: '#F5F7FB', borderRadius: 9, paddingHorizontal: 9, color: colors.text, fontSize: 13 },
+  actions: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 9 },
+  smallButton: { flex: 1, minHeight: 54, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, paddingHorizontal: 9, backgroundColor: '#EEF3FF', borderRadius: 12 },
+  actionText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
+  deleteText: { color: colors.danger, fontWeight: '700', fontSize: 14 },
   state: { padding: 22, alignItems: 'center', backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.md, marginTop: 14 },
   stateText: { color: colors.muted, marginTop: 8, fontSize: 13 },
   empty: { alignItems: 'center', padding: 22, backgroundColor: '#F8FAFE', borderRadius: radius.md },
   emptyIcon: { width: 38, height: 38, borderRadius: 19, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center', marginBottom: 9 },
   emptyGlyph: { color: colors.primary, fontSize: 22 },
-  primary: { minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: 12, paddingHorizontal: 16 },
+  primary: { minHeight: 54, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: 12, paddingHorizontal: 16 },
   primaryText: { color: 'white', fontWeight: '800', fontSize: 14 },
-  secondary: { minHeight: 48, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  secondary: { minHeight: 54, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   secondaryText: { color: 'white', fontWeight: '800', fontSize: 13 },
-  error: { color: colors.danger, marginTop: 10, fontSize: 13, lineHeight: 18 },
+  error: { color: colors.danger, marginTop: 7, fontSize: 14, lineHeight: 17 },
   success: { color: colors.success, marginTop: 10, fontSize: 13, fontWeight: '700' },
 });

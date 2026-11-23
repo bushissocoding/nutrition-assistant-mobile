@@ -54,6 +54,21 @@ test('passes a feasible backend plan to the create-list flow and displays proven
   expect(api.generateMealPlan.mock.calls[0][0]).not.toHaveProperty('budgetVnd');
 });
 
+test('opens a recipe detail from a generated meal and returns to the schedule', async () => {
+  api.generateMealPlan.mockResolvedValue(generatedPlan);
+  const screen = render(<MealPlanScreen profile={profile} />);
+
+  await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' })).toBeTruthy());
+  fireEvent.press(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' }));
+  expect(screen.getByText('FOOD')).toBeTruthy();
+  expect(screen.getByText('Cơm trắng')).toBeTruthy();
+  expect(screen.getByText('100 g')).toBeTruthy();
+  expect(screen.getByText(/Hướng dẫn chế biến chi tiết chưa có/i)).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Quay lại thực đơn' }));
+  expect(screen.getByText('Lịch ăn hằng ngày')).toBeTruthy();
+});
+
 test('shows an explicit infeasible state and does not expose a partial plan as success', async () => {
   api.generateMealPlan.mockResolvedValue({
     contractVersion: 1,
