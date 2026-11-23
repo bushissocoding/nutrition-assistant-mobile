@@ -53,7 +53,7 @@ Existing app shell/profile/API contracts
 
 ### Phase 3: Documentation and acceptance
 
-- [ ] Task 6: Update app architecture and README for PDF and synthetic lab behavior
+- [x] Task 6: Update app architecture and README for PDF and synthetic lab behavior
 - [ ] Task 7: Run required tests, Android export, catalog validation, and CI audit; review branch diff/status
 
 ### Checkpoint: Complete

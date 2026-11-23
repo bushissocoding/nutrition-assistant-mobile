@@ -24,14 +24,14 @@ app/
         ├── chat/                    # Local FAQ assistant and non-delivering provider conversation preview
         ├── notifications/           # In-memory sample notices; no push service
         ├── settings/                # Device demo preferences, privacy text and help
-        ├── medical-record/          # Local profile summary preview; no verified records
-        ├── personalization/         # Session-only preferences and scan-state preview
+        ├── medical-record/          # Local profile summary and on-device PDF export; no verified records
+        ├── personalization/         # Session-only preferences and synthetic lab-result preview
         └── appointments/            # Synthetic provider, schedule and payment UI previews
 ```
 
 Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication. Consent receipts are versioned and timestamped in device SecureStore, are not account-linked, and do not provide authentication or authorization. The local profile is synthetic demo data only.
 
-Welcome and account screens are visual previews; login, registration and password recovery are not connected. Chat, notifications and personalization operate only in the current UI session. A provider conversation is a non-delivering screen preview, not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. Medical-record and lab-scan screens show only user-entered demo profile values and explicit empty states; there is no verified medical record or image extraction service.
+Welcome and account screens are visual previews; login, registration and password recovery validate locally but are not connected to an identity service. Chat, notifications and personalization operate only in the current UI session. A provider conversation is a non-delivering screen preview and is available only after a matching appointment preview exists; it is not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. The medical-record screen summarizes the local demo profile and can create a PDF in the device cache and open the native share sheet; it does not upload the PDF or verify a medical record. The lab-scan screen has an empty state and an optional, editable synthetic sample that remains in session memory. There is no camera capture, image upload, OCR, or lab interpretation service.
 
 ## API (`server/`)
 
@@ -79,5 +79,5 @@ The current client stores consent and a minimal profile locally with `expo-secur
 1. Replace demo JSON storage with production-grade persistence and authenticated ownership only after the team chooses a provider and documents a safe data lifecycle.
 2. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
 3. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
-4. Add weekly analytics from dated diary records, then reminders. Doctor booking/payment and telehealth are separate modules, not placeholders to imply working functionality.
+4. Add weekly analytics from dated diary records, then reminders. Real doctor booking, payment, and telehealth require identity and provider/payment services; current mobile screens remain clearly labeled previews.
 5. Add end-to-end mobile tests and API integration tests; keep nutrient/source, allergy, infeasible-plan, and error-state tests as acceptance gates.

@@ -105,10 +105,10 @@
 **Description:** Document the new local PDF flow, explicit scan preview behavior, share boundary, and unchanged absence of identity/clinical services.
 
 **Acceptance criteria:**
-- [ ] `docs/architecture.md` matches the code and preserves existing layer/health constraints.
-- [ ] `README.md` describes local PDF export and does not claim real scanning or cloud account behavior.
+- [x] `docs/architecture.md` matches the code and preserves existing layer/health constraints.
+- [x] `README.md` describes local PDF export and does not claim real scanning or cloud account behavior.
 
-**Verification:** Review changed paragraphs against `CONSTRAINTS.md` and app behavior.
+**Verification:** [x] Reviewed changed paragraphs against `CONSTRAINTS.md` and app behavior.
 
 **Dependencies:** Tasks 3–5.
 
