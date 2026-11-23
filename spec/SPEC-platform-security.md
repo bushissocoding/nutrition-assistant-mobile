@@ -4,7 +4,7 @@ Status: approved by the agent under the user's explicit delegation (2026-11-24).
 
 ## Objective
 
-Provide the shared, testable identity and data-security seam required by all private features: validated production configuration, Supabase client composition, verified user identity, user-scoped database access, Postgres migrations/RLS conventions, safe HTTP defaults, and deterministic error handling. No private route may depend on `X-Demo-Namespace` or a client-selected owner.
+Provide the shared, testable identity and data-security seam required by all private features: validated production configuration, Supabase client composition, verified user identity, user-scoped database access, Postgres migrations/RLS conventions, safe HTTP defaults, and deterministic error handling. Use current Supabase publishable/secret API keys (not deprecated `anon`/`service_role` names). No private route may depend on `X-Demo-Namespace` or a client-selected owner.
 
 ## Commands
 
@@ -17,7 +17,7 @@ Provide the shared, testable identity and data-security seam required by all pri
 
 - `server/src/config/`: strict required/optional setting parsing and production validation.
 - `server/src/middleware/`: bearer authentication, principal attachment, rate-limit and security controls.
-- `server/src/services/supabase/`: user-scoped and privileged clients kept distinct.
+- `server/src/services/supabase/`: user-scoped and privileged clients kept distinct; production variables are `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`.
 - `supabase/migrations/`: schema/RLS for this module and follow-on feature modules.
 - `server/tests/`: config, auth middleware, error handling and cross-owner contract tests.
 - `.env.example`, `server/.env.example`, `docs/security-and-operations.md`: safe names/configuration and truthful operational guide only; never copy local values.

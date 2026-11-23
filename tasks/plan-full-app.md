@@ -24,9 +24,10 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 ### Phase 1: Shared platform security
 
 - [x] Task 1.0: `platform-security` module spec and focused task checklist
-- [ ] Task 1.1: Add strict service configuration and separate public/user/privileged Supabase clients
-- [ ] Task 1.2: Add identity middleware, safe HTTP defaults, and production demo-route gates
-- [ ] Task 1.3: Add initial database migration/RLS verification seam and tests
+- [x] Task 1.1: Add strict production configuration and safe env examples
+- [ ] Task 1.2: Add user-scoped and privileged Supabase client adapters
+- [ ] Task 1.3: Add verified identity middleware, safe HTTP defaults, and production demo-route gates
+- [ ] Task 1.4: Add initial database migration/RLS verification seam and tests
 - [ ] Checkpoint: Existing nutrition API contract and all required tests pass; unauthenticated private requests fail closed
 
 ### Phase 2: Identity and profile vertical slices
