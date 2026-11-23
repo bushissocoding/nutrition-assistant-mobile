@@ -33,7 +33,7 @@ Existing app shell/profile/API contracts
 ### Phase 1: Close interaction gaps
 
 - [x] Task 1: Validate password recovery recipient
-- [ ] Task 2: Gate provider chat on a matching booking preview
+- [x] Task 2: Gate provider chat on a matching booking preview
 - [ ] Task 3: Complete the synthetic lab-result preview/edit flow
 
 ### Checkpoint: Interaction gaps

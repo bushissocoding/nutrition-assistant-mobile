@@ -50,9 +50,41 @@ test('removes a local request preview without claiming that a real appointment w
 
 test('opens a clearly labeled doctor chat preview from the provider details', () => {
   const onOpenDoctorChat = jest.fn();
-  const screen = render(<AppointmentScreen onOpenDoctorChat={onOpenDoctorChat} />);
+  const bookingRequest = { doctor: 'PGS.TS. Trương Lê Quân', date: '2026-12-01', time: '10:00' };
+  const screen = render(<AppointmentScreen request={bookingRequest} onOpenDoctorChat={onOpenDoctorChat} />);
   fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết PGS\.TS\. Trương Lê Quân/ }));
   fireEvent.press(screen.getByText('Xem trước giao diện trò chuyện'));
 
   expect(onOpenDoctorChat).toHaveBeenCalledWith(expect.objectContaining({ id: 'tran' }));
+});
+
+test('does not expose doctor chat before a booking preview exists', () => {
+  const onOpenDoctorChat = jest.fn();
+  const screen = render(<AppointmentScreen onOpenDoctorChat={onOpenDoctorChat} />);
+  fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết PGS\.TS\. Trương Lê Quân/ }));
+
+  expect(screen.queryByText('Xem trước giao diện trò chuyện')).toBeNull();
+  expect(onOpenDoctorChat).not.toHaveBeenCalled();
+});
+
+test('does not expose a different provider chat for another provider booking', () => {
+  const bookingRequest = { doctor: 'PGS.TS. Nguyễn Tuấn Nghĩa', date: '2026-12-01', time: '10:00' };
+  const screen = render(<AppointmentScreen request={bookingRequest} />);
+
+  fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết PGS\.TS\. Trương Lê Quân/ }));
+
+  expect(screen.queryByText('Xem trước giao diện trò chuyện')).toBeNull();
+});
+
+test('removes provider chat access after cancelling its booking preview', () => {
+  const bookingRequest = { doctor: 'PGS.TS. Trương Lê Quân', date: '2026-12-01', time: '10:00' };
+  const screen = render(<AppointmentScreen initialView="appointments-list" request={bookingRequest} />);
+
+  fireEvent.press(screen.getByText('Xóa yêu cầu demo'));
+  fireEvent.press(screen.getByRole('radio', { name: 'Đổi lịch' }));
+  fireEvent.press(screen.getByText('Xóa yêu cầu xem trước'));
+  fireEvent.press(screen.getByText('Tìm bác sĩ (demo)'));
+  fireEvent.press(screen.getByRole('button', { name: /Xem chi tiết PGS\.TS\. Trương Lê Quân/ }));
+
+  expect(screen.queryByText('Xem trước giao diện trò chuyện')).toBeNull();
 });

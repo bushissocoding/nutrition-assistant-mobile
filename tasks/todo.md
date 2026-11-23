@@ -22,11 +22,11 @@
 **Description:** Show the provider-chat entry point only for the provider tied to the current in-memory booking preview and remove access when the request is cleared.
 
 **Acceptance criteria:**
-- [ ] Provider chat cannot open before a booking preview exists.
-- [ ] A preview for one provider does not unlock another provider's chat.
-- [ ] Clearing the booking removes the chat entry point.
+- [x] Provider chat cannot open before a booking preview exists.
+- [x] A preview for one provider does not unlock another provider's chat.
+- [x] Clearing the booking removes the chat entry point.
 
-**Verification:** Focused `AppointmentScreen.test.js`; then run its Jest path.
+**Verification:** [x] `npm run test:ui -- --runTestsByPath app/src/features/appointments/AppointmentScreen.test.js`.
 
 **Dependencies:** None.
 
