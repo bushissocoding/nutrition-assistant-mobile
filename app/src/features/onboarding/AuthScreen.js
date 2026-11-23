@@ -5,12 +5,24 @@ import { colors } from '../../theme/tokens';
 
 const BLUE = '#245CFF';
 
+function maskRecoveryRecipient(method, recipient) {
+  const value = recipient.trim();
+  if (method === 'email') {
+    const [local, domain] = value.split('@');
+    return `${local.slice(0, 1)}***@${domain}`;
+  }
+  const countryCode = value.match(/^\+(\d{1,3})/)?.[1];
+  const lastDigits = value.replace(/\D/g, '').slice(-2);
+  return `${countryCode ? `+${countryCode} ` : ''}••• ••• ${lastDigits}`;
+}
+
 export default function AuthScreen({ mode = 'login', onBack, onModeChange, onExploreDemo }) {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [recoveryMethod, setRecoveryMethod] = useState('email');
+  const [recoveryRecipient, setRecoveryRecipient] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [message, setMessage] = useState('');
@@ -19,7 +31,17 @@ export default function AuthScreen({ mode = 'login', onBack, onModeChange, onExp
 
   function submit() {
     setError('');
-    if (mode === 'forgot') { onModeChange?.('sent'); return; }
+    if (mode === 'forgot') {
+      const recipient = recoveryRecipient.trim();
+      const validEmail = recoveryMethod === 'email' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient);
+      const normalizedPhone = recipient.replace(/[\s().-]/g, '');
+      const phoneDigits = normalizedPhone.replace(/\D/g, '');
+      const validPhone = recoveryMethod === 'sms' && /^\+?\d+$/.test(normalizedPhone) && phoneDigits.length >= 7 && phoneDigits.length <= 15;
+      if (recoveryMethod === 'email' && !validEmail) { setError('Nhập địa chỉ email hợp lệ.'); return; }
+      if (recoveryMethod === 'sms' && !validPhone) { setError('Nhập số điện thoại hợp lệ.'); return; }
+      onModeChange?.('sent');
+      return;
+    }
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError('Nhập địa chỉ email hợp lệ.'); return; }
     if (password.length < 8) { setError('Mật khẩu demo cần có ít nhất 8 ký tự.'); return; }
     if (mode === 'register' && name.trim().length < 2) { setError('Nhập tên hiển thị có ít nhất 2 ký tự.'); return; }
@@ -44,13 +66,23 @@ export default function AuthScreen({ mode = 'login', onBack, onModeChange, onExp
           accessibilityState={{ selected: recoveryMethod === key, disabled: mode === 'sent' }}
           disabled={mode === 'sent'}
           style={[styles.recoveryCard, recoveryMethod === key && styles.recoverySelected]}
-          onPress={() => { setRecoveryMethod(key); setResendMessage(''); }}
+          onPress={() => { setRecoveryMethod(key); setRecoveryRecipient(''); setError(''); setResendMessage(''); }}
         >
           <View style={[styles.recoveryIconBox, recoveryMethod === key && styles.recoveryIconSelected]}><Text style={[styles.recoveryIcon, recoveryMethod === key && styles.link]}>{icon}</Text></View>
           <View style={styles.recoveryCopy}><Text style={styles.recoveryHeading}>{label}</Text><Text style={styles.recoveryHint}>{hint}</Text></View>
           <Text style={[styles.recoveryArrow, recoveryMethod === key && styles.link]}>›</Text>
         </TouchableOpacity>)}
-        <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={submit}><Text style={styles.primaryText}>Đặt lại mật khẩu　▣</Text></TouchableOpacity>
+        <Field
+          label={recoveryMethod === 'email' ? 'Địa chỉ email khôi phục' : 'Số điện thoại'}
+          icon={recoveryMethod === 'email' ? '✉' : '▣'}
+          value={recoveryRecipient}
+          onChangeText={value => { setRecoveryRecipient(value); setError(''); }}
+          placeholder={recoveryMethod === 'email' ? 'name@example.com' : '+84 900 000 000'}
+          keyboardType={recoveryMethod === 'email' ? 'email-address' : 'phone-pad'}
+          autoCapitalize="none"
+        />
+        {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+        <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: mode === 'sent' }} disabled={mode === 'sent'} style={styles.primary} onPress={submit}><Text style={styles.primaryText}>Đặt lại mật khẩu　▣</Text></TouchableOpacity>
         <Text style={styles.recoveryNote}>Bản demo · Không gửi email hoặc tin nhắn thật</Text>
       </View>
       {mode === 'sent' && <View style={styles.modalOverlay}>
@@ -60,7 +92,7 @@ export default function AuthScreen({ mode = 'login', onBack, onModeChange, onExp
           </View>
           <Text accessibilityRole="header" style={styles.confirmationTitle}>Đã gửi yêu cầu!</Text>
           <Text style={styles.confirmationCopy}>{recoveryMethod === 'email' ? 'Yêu cầu đặt lại mật khẩu đã được ghi nhận trong bản demo.' : 'Yêu cầu qua SMS đã được ghi nhận trong bản demo.'} Không có email hoặc tin nhắn nào được gửi.</Text>
-          <Text style={styles.maskedRecipient}>{recoveryMethod === 'email' ? 'n*****@demo.local' : '+84 ••• ••• 0000'}</Text>
+          <Text style={styles.maskedRecipient}>{maskRecoveryRecipient(recoveryMethod, recoveryRecipient)}</Text>
           <TouchableOpacity accessibilityRole="button" style={styles.confirmationButton} onPress={() => setResendMessage('Bản demo không gửi mã xác nhận.') }><Text style={styles.primaryText}>Gửi lại mã　›</Text></TouchableOpacity>
           {!!resendMessage && <Text accessibilityLiveRegion="polite" style={styles.resendMessage}>{resendMessage}</Text>}
         </View>

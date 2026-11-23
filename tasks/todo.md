@@ -5,11 +5,11 @@
 **Description:** Add a dynamic email/phone recipient field, validate it for the selected method, and show a masked destination on the local confirmation screen.
 
 **Acceptance criteria:**
-- [ ] Email and SMS paths require a valid matching recipient.
-- [ ] Confirmation shows only a masked recipient and states no message was sent.
-- [ ] Account passwords and recovery recipients are not persisted or sent.
+- [x] Email and SMS paths require a valid matching recipient.
+- [x] Confirmation shows only a masked recipient and states no message was sent.
+- [x] Account passwords and recovery recipients are not persisted or sent.
 
-**Verification:** Focused `AuthScreen.test.js`; then `npm run test:ui -- --runTestsByPath app/src/features/onboarding/AuthScreen.test.js`.
+**Verification:** [x] `npm run test:ui -- --runTestsByPath app/src/features/onboarding/AuthScreen.test.js`.
 
 **Dependencies:** None.
 
