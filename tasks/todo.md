@@ -121,12 +121,12 @@
 **Description:** Run all required repository checks and applicable CI checks, inspect the diff, and report exact outcomes.
 
 **Acceptance criteria:**
-- [ ] Unit, UI, and API commands pass.
-- [ ] Android export and high/critical audit results are reported.
-- [ ] Catalog validation remains deterministic.
-- [ ] Working tree and branch ancestry are reviewed; no generated bundle or real data is included.
+- [x] Unit, UI, and API commands pass.
+- [x] Android export and high/critical audit results are reported.
+- [x] Catalog validation remains deterministic.
+- [x] Working tree and branch ancestry are reviewed; no generated bundle or real data is included.
 
-**Verification:** `npm run test:unit`; `npm run test:ui`; `npm run test:api`; `npx expo export --platform android`; `npm run catalog:validate`; `npm audit --audit-level=high`; `git status --short --branch`; `git diff --check`.
+**Verification:** [x] `npm run test:unit` (108 pass); [x] `npm run test:ui` (21 suites, 79 pass); [x] `npm run test:api`; [x] Android export; [x] `npm run catalog:validate`; [x] `npm audit --audit-level=high` (exit 0, moderate findings only); [x] clean branch status, base ancestry, and `git diff --check`.
 
 **Dependencies:** Tasks 1–6.
 

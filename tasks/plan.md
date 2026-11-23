@@ -54,13 +54,13 @@ Existing app shell/profile/API contracts
 ### Phase 3: Documentation and acceptance
 
 - [x] Task 6: Update app architecture and README for PDF and synthetic lab behavior
-- [ ] Task 7: Run required tests, Android export, catalog validation, and CI audit; review branch diff/status
+- [x] Task 7: Run required tests, Android export, catalog validation, and CI audit; review branch diff/status
 
 ### Checkpoint: Complete
 
-- [ ] All applicable spec criteria are met.
-- [ ] Required checks pass or any exception is documented with its reason and scope.
-- [ ] Branch is reviewable and final handoff names changed files/check results.
+- [x] All applicable spec criteria are met.
+- [x] Required checks pass or any exception is documented with its reason and scope.
+- [x] Branch is reviewable and final handoff names changed files/check results.
 
 ## Risks and Mitigations
 
