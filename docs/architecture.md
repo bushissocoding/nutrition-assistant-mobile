@@ -15,23 +15,23 @@ app/
     ├── shared/components/          # Reusable presentation components
     └── features/
         ├── onboarding/             # Welcome, account preview, versioned consent and profile assessment
-        ├── home/                   # Home shortcuts and daily summary
+        ├── home/                   # Home shortcuts, selected-date diary, and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
         ├── grocery/                 # Plan-derived, checkable shopping list
-        ├── diary/                   # Food search, portion entry, nutrition logging
-        ├── dashboard/               # Meal schedule and nutrient progress
+        ├── diary/                   # Food search, portion entry, nutrition logging, and local-date history helper
+        ├── dashboard/               # Seven-day API totals and daily nutrient progress
         ├── profile/                 # Synthetic local profile and explicit security gaps
         ├── chat/                    # Local FAQ assistant and non-delivering provider conversation preview
-        ├── notifications/           # In-memory sample notices; no push service
+        ├── notifications/           # Synthetic notices with locally persisted read flags; no push service
         ├── settings/                # Device demo preferences, privacy text and help
         ├── medical-record/          # Local profile summary and on-device PDF export; no verified records
         ├── personalization/         # Session-only preferences and synthetic lab-result preview
         └── appointments/            # Synthetic provider, schedule and payment UI previews
 ```
 
-Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication. Consent receipts are versioned and timestamped in device SecureStore, are not account-linked, and do not provide authentication or authorization. The local profile is synthetic demo data only.
+Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication. The Home date strip queries another selected local day through the same API. The dashboard uses AppShell's current-day response and fetches the preceding six dates independently so partial failures do not turn into zero totals. Consent receipts are versioned and timestamped in device SecureStore, are not account-linked, and do not provide authentication or authorization. The local profile is synthetic demo data only. Notification sample content remains in code; SecureStore contains only the known sample IDs and unread booleans, not notification text or delivery records.
 
-Welcome and account screens are visual previews; login, registration and password recovery validate locally but are not connected to an identity service. Chat, notifications and personalization operate only in the current UI session. A provider conversation is a non-delivering screen preview and is available only after a matching appointment preview exists; it is not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. The medical-record screen summarizes the local demo profile and can create a PDF in the device cache and open the native share sheet; it does not upload the PDF or verify a medical record. The lab-scan screen has an empty state and an optional, editable synthetic sample that remains in session memory. There is no camera capture, image upload, OCR, or lab interpretation service.
+Welcome and account screens are visual previews; login, registration and password recovery validate locally but are not connected to an identity service. Chat and personalization operate only in the current UI session. Notifications use synthetic sample text; read flags persist locally, but there is no push or server notification service. A provider conversation is a non-delivering screen preview and is available only after a matching appointment preview exists; it is not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. The medical-record screen summarizes the local demo profile and can create a PDF in the device cache and open the native share sheet; it does not upload the PDF or verify a medical record. The lab-scan screen has an empty state and an optional, editable synthetic sample that remains in session memory. There is no camera capture, image upload, OCR, or lab interpretation service.
 
 ## API (`server/`)
 
@@ -72,12 +72,12 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `/api/v1/shopping-lists` — demo-only current grocery list created from a planner snapshot; item quantity/unit/purchased CRUD, idempotent create, and namespace purge. The caller-provided demo namespace is not authentication or account ownership.
 - `GET /health` — service health.
 
-The current client stores consent and a minimal profile locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+The current client stores consent, a minimal profile, and synthetic notification read flags locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 
 1. Replace demo JSON storage with production-grade persistence and authenticated ownership only after the team chooses a provider and documents a safe data lifecycle.
 2. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
 3. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
-4. Add weekly analytics from dated diary records, then reminders. Real doctor booking, payment, and telehealth require identity and provider/payment services; current mobile screens remain clearly labeled previews.
-5. Add end-to-end mobile tests and API integration tests; keep nutrient/source, allergy, infeasible-plan, and error-state tests as acceptance gates.
+4. Before replacing any preview with a production flow, select the services and operators, provide credentials through protected server configuration, and document ownership, consent, retention/deletion, and security review. See [`spec/SPEC-app-completion-v2.md`](../spec/SPEC-app-completion-v2.md) for the per-capability readiness list.
+5. Continue with independently reviewed mobile end-to-end and production API integration tests before a release; preserve nutrient/source, allergy, infeasible-plan, and error-state gates.

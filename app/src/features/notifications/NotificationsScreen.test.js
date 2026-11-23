@@ -26,3 +26,12 @@ test('keeps a read notification when the screen is reopened by its owner', () =>
   expect(reopenedScreen.getByRole('button', { name: /Lịch hẹn đã đặt.*Đã đọc/ })).toBeTruthy();
   expect(reopenedScreen.getByRole('button', { name: /Thay đổi lịch hẹn.*Chưa đọc/ })).toBeTruthy();
 });
+
+test('shows notification storage errors and offers a retry action', () => {
+  const onRetryPersistence = jest.fn();
+  const screen = render(<NotificationsScreen persistenceError="Không lưu được trạng thái." onRetryPersistence={onRetryPersistence} />);
+
+  expect(screen.getByRole('alert').props.children).toBe('Không lưu được trạng thái.');
+  fireEvent.press(screen.getByRole('button', { name: 'Thử lưu lại' }));
+  expect(onRetryPersistence).toHaveBeenCalledTimes(1);
+});

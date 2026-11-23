@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import ConsentScreen from '../features/onboarding/ConsentScreen';
 import ProfileSetupScreen from '../features/onboarding/ProfileSetupScreen';
 import DashboardScreen from '../features/dashboard/DashboardScreen';
@@ -23,8 +24,10 @@ import { colors } from '../theme/tokens';
 import { bottomTabs } from '../navigation/routes';
 import { hasUrgentRedFlags, validateProfile } from '../features/profile/profile-model.cjs';
 import { purgeBeforeLocalDelete } from './purge-before-local-delete.cjs';
+import { createNotificationStateStorage } from '../services/notification-state-storage.cjs';
 
 const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
+const notificationStateStorage = createNotificationStateStorage({ storage: SecureStore, initialItems: initialNotificationItems });
 
 function getCurrentLocalDay() {
   const now = new Date();
@@ -55,6 +58,9 @@ export default function AppShell() {
   const [diaryLoading, setDiaryLoading] = useState(false);
   const [diaryHydrationVersion, setDiaryHydrationVersion] = useState(0);
   const [storageError, setStorageError] = useState('');
+  const [notificationStorageError, setNotificationStorageError] = useState('');
+  const [notificationStateReady, setNotificationStateReady] = useState(false);
+  const [notificationSaveVersion, setNotificationSaveVersion] = useState(0);
   const [bookingRequest, setBookingRequest] = useState(null);
   const [medicalRecordReturn, setMedicalRecordReturn] = useState('profile');
   const [settingsReturn, setSettingsReturn] = useState('profile');
@@ -62,22 +68,42 @@ export default function AppShell() {
   const [appointmentReturn, setAppointmentReturn] = useState('home');
   const [chatContact, setChatContact] = useState(null);
   const [notifications, setNotifications] = useState(initialNotificationItems);
+  const notificationWriteQueue = useRef(Promise.resolve());
   const finishLaunch = useCallback(() => setLaunchComplete(true), []);
 
   useEffect(() => {
     let active = true;
-    Promise.all([loadConsent(), loadProfile()]).then(([accepted, savedProfile]) => {
+    const loadNotifications = notificationStateStorage.load().catch(() => ({
+      items: initialNotificationItems,
+      warning: 'Không đọc được trạng thái thông báo đã lưu. Trạng thái mẫu đang dùng trong phiên này.',
+    }));
+    Promise.all([loadConsent(), loadProfile(), loadNotifications]).then(([accepted, savedProfile, savedNotifications]) => {
       if (!active) return;
       setConsentRecord(accepted);
       setConsented(Boolean(accepted));
       setProfile(savedProfile);
+      setNotifications(savedNotifications.items);
+      setNotificationStorageError(savedNotifications.warning);
+      setNotificationStateReady(true);
       setScreen(savedProfile ? 'home' : accepted ? 'profile-setup' : 'welcome');
     }).catch(() => {
       if (!active) return;
       setStorageError('Không thể truy cập vùng lưu trữ an toàn. Chưa thể lưu hồ sơ trên thiết bị này.');
+      setNotifications(initialNotificationItems);
+      setNotificationStorageError('Không thể tải trạng thái thông báo; trạng thái mẫu đang dùng trong phiên này.');
+      setNotificationStateReady(true);
     }).finally(() => { if (active) setReady(true); });
     return () => { active = false; };
   }, []);
+
+  useEffect(() => {
+    if (!notificationStateReady) return;
+    const itemsToSave = notifications;
+    notificationWriteQueue.current = notificationWriteQueue.current.catch(() => undefined)
+      .then(() => notificationStateStorage.save(itemsToSave))
+      .then(() => setNotificationStorageError(''))
+      .catch(() => setNotificationStorageError('Không lưu được trạng thái đã đọc trên thiết bị. Bạn có thể thử lưu lại.'));
+  }, [notificationStateReady, notifications, notificationSaveVersion]);
 
   useEffect(() => {
     if (!ready || !consented || !profile) return undefined;
@@ -204,11 +230,11 @@ export default function AppShell() {
   else if (screen === 'planner') content = <MealPlanScreen profile={profile} onOpenProfile={() => openProfileSetup('planner')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
   else if (screen === 'grocery') content = <GroceryScreen sourceItems={groceryItems || []} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
-  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} plan={plan} />;
+  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'profile') content = <ProfileScreen profile={profile} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={() => setScreen('welcome')} />;
   else if (screen === 'chat') content = <ChatScreen onNavigate={navigate} />;
   else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;
-  else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} />;
+  else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} persistenceError={notificationStorageError} onRetryPersistence={() => setNotificationSaveVersion(value => value + 1)} />;
   else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} />;
   else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods') content = <AppointmentScreen initialView={screen} request={bookingRequest} onRequestCreate={setBookingRequest} onRequestClear={() => setBookingRequest(null)} onOpenDoctorChat={doctor => { setChatContact(doctor); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
   else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;

@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { api } from '../../services/api';
 import { colors, radius, spacing } from '../../theme/tokens';
+import { getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
 
 const metrics = [
   { key: 'proteinG', label: 'Protein', unit: 'g', icon: '♧' },
@@ -14,25 +16,36 @@ function rounded(value) {
   return Math.round(Number(value) || 0);
 }
 
-function recentDays() {
-  const today = new Date();
-  return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() - (6 - index));
-    return {
-      key: `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`,
-      label: new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(date).replace('.', ''),
-      current: index === 6,
-    };
-  });
-}
-
-export default function DashboardScreen({ diaryTotals = {}, diary = [] }) {
+export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryError = '', diaryLoading = false, onRetryDiary }) {
   const [metricIndex, setMetricIndex] = useState(0);
+  const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [retryVersion, setRetryVersion] = useState(0);
   const activeMetric = metrics[metricIndex];
-  const chartMaximum = Math.max(Number(diaryTotals[activeMetric.key]) || 0, activeMetric.key === 'energyKcal' ? 1800 : 100);
-  const todayValue = Number(diaryTotals[activeMetric.key]) || 0;
-  const week = recentDays();
+  const week = useMemo(() => getRecentLocalDays(new Date(), 7), []);
+  const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
+
+  useEffect(() => {
+    let active = true;
+    const dates = week.slice(0, -1).map(day => day.date);
+    setHistoryLoading(true);
+    loadDiaryHistory(api, dates, timeZone).then(result => {
+      if (active) setHistory(result);
+    }).finally(() => {
+      if (active) setHistoryLoading(false);
+    });
+    return () => { active = false; };
+  }, [week, timeZone, retryVersion]);
+
+  const chartValues = week.map(day => {
+    if (day.current) return diaryLoading || diaryError ? null : Number(diaryTotals[activeMetric.key]) || 0;
+    if (history.errorsByDate[day.date]) return null;
+    if (history.byDate[day.date]) return Number(history.byDate[day.date].totals[activeMetric.key]) || 0;
+    return historyLoading ? null : 0;
+  });
+  const chartMaximum = Math.max(...chartValues.filter(value => value !== null), activeMetric.key === 'energyKcal' ? 1800 : 100);
+  const failedDateCount = Object.keys(history.errorsByDate).length + (diaryError ? 1 : 0);
+  const hasEntries = diary.length > 0 || week.slice(0, -1).some(day => (history.byDate[day.date]?.items.length || 0) > 0);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
@@ -63,23 +76,32 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [] }) {
       <View style={styles.chartGrid}>
         {[0, 1, 2, 3].map(line => <View key={line} style={styles.chartLine} />)}
         <View style={styles.chartColumns}>
-          {week.map(day => {
-            const height = day.current && todayValue > 0 ? Math.max(8, todayValue / chartMaximum * 170) : 0;
-            return <View key={day.key} style={styles.chartColumn}>
+          {week.map((day, index) => {
+            const value = chartValues[index];
+            const dayFailed = day.current ? Boolean(diaryError) : Boolean(history.errorsByDate[day.date]);
+            const height = value !== null && value > 0 ? Math.max(8, value / chartMaximum * 170) : 0;
+            const dayDescription = `${activeMetric.label} ${day.date}: ${value === null ? dayFailed ? 'không tải được' : 'đang tải' : `${rounded(value)} ${activeMetric.unit}`}`;
+            return <View key={day.key} accessible accessibilityLabel={dayDescription} style={styles.chartColumn}>
               <View style={styles.chartTrack}>
-                {!!height && <View accessibilityLabel={`${activeMetric.label} hôm nay ${rounded(todayValue)} ${activeMetric.unit}`} style={[styles.chartBar, { height }]} />}
+                {value === null && dayFailed ? <Text testID="chart-unavailable" style={styles.chartMissing}>!</Text> : null}
+                {!!height && <View testID="chart-bar" style={[styles.chartBar, { height }]} />}
               </View>
-              <Text style={[styles.dayLabel, day.current && styles.dayLabelCurrent]}>{day.label}</Text>
+              <Text style={[styles.dayLabel, day.current && styles.dayLabelCurrent]}>{day.label} {day.dateObject.getDate()}</Text>
             </View>;
           })}
         </View>
       </View>
-      <Text style={styles.chartNotice}>Chỉ có số liệu hôm nay từ nhật ký hiện tại. Lịch sử các ngày trước chưa được tải.</Text>
+      {historyLoading || diaryLoading ? <Text accessibilityLiveRegion="polite" style={styles.chartNotice}>Đang tải nhật ký 7 ngày gần nhất…</Text> : null}
+      {!historyLoading && !diaryLoading && failedDateCount > 0 ? <View>
+        <Text accessibilityRole="alert" style={styles.chartNotice}>Không tải được dữ liệu của {failedDateCount} ngày. Các ngày đã tải vẫn được giữ lại.</Text>
+        <TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => { setRetryVersion(value => value + 1); if (diaryError) onRetryDiary?.(); }}><Text style={styles.retryText}>Tải lại lịch sử</Text></TouchableOpacity>
+      </View> : null}
+      {!historyLoading && !diaryLoading && failedDateCount === 0 && !hasEntries ? <Text style={styles.chartNotice}>Chưa có món ăn nào được ghi trong 7 ngày gần nhất.</Text> : null}
     </View>
 
     <View style={styles.noteCard}>
       <Text style={styles.noteIcon}>ⓘ</Text>
-      <Text style={styles.noteText}>Giá trị là ước tính từ thực phẩm đã ghi trong nhật ký. Biểu đồ chưa thay thế hồ sơ theo dõi sức khỏe hoặc tư vấn chuyên môn.</Text>
+      <Text style={styles.noteText}>Giá trị là ước tính từ thực phẩm đã ghi trong nhật ký và tổng theo ngày từ API demo. Biểu đồ không thay thế hồ sơ theo dõi sức khỏe hoặc tư vấn chuyên môn.</Text>
     </View>
     <View style={styles.loggedSummary}>
       <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>
@@ -115,9 +137,12 @@ const styles = StyleSheet.create({
   chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
   chartTrack: { height: 177, width: 28, justifyContent: 'flex-end', alignItems: 'center' },
   chartBar: { width: 28, borderRadius: 9, backgroundColor: '#56C1F5' },
+  chartMissing: { color: colors.warning, fontSize: 18, fontWeight: '900' },
   dayLabel: { color: colors.muted, fontSize: 13, marginTop: 7, textTransform: 'capitalize' },
   dayLabelCurrent: { color: colors.primaryDark, fontWeight: '800' },
   chartNotice: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 12 },
+  retryButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 8 },
+  retryText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
   noteCard: { flexDirection: 'row', gap: 9, padding: 13, marginTop: spacing.md, backgroundColor: '#F5F8FF', borderRadius: radius.sm },
   noteIcon: { color: colors.primary, fontSize: 18, fontWeight: '800' },
   noteText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 19 },

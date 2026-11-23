@@ -1,6 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
+import { formatLocalDateKey, getLocalWeek, loadDiaryHistory } from '../diary/diary-history.cjs';
 
 const shortcuts = [
   ['♙', 'Đặt khám', 'appointments'],
@@ -15,28 +17,45 @@ const shortcuts = [
 
 const mealLabels = { BREAKFAST: 'Bữa sáng', LUNCH: 'Bữa trưa', DINNER: 'Bữa tối', SNACK: 'Bữa phụ' };
 const mealTimes = { BREAKFAST: '8:30 AM', LUNCH: '12:00 PM', DINNER: '6:30 PM', SNACK: '3:30 PM' };
-const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-
 function formatNumber(value) {
   return Math.round(Number(value) || 0).toLocaleString('vi-VN');
 }
 
-function getWeek(date) {
-  const sunday = new Date(date);
-  sunday.setDate(sunday.getDate() - sunday.getDay());
-  return dayNames.map((name, index) => {
-    const day = new Date(sunday);
-    day.setDate(sunday.getDate() + index);
-    return { name, day, key: `${day.getFullYear()}-${day.getMonth()}-${day.getDate()}` };
-  });
-}
-
 export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, diaryError = '', diaryLoading = false, onRetryDiary, plan }) {
   const today = useMemo(() => new Date(), []);
-  const [selectedDay, setSelectedDay] = useState(today.getDate());
-  const week = useMemo(() => getWeek(today), [today]);
-  const showingToday = selectedDay === today.getDate();
-  const meals = showingToday ? diary : [];
+  const todayKey = formatLocalDateKey(today);
+  const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
+  const [selectedDate, setSelectedDate] = useState(todayKey);
+  const [selectedDateResult, setSelectedDateResult] = useState(null);
+  const [selectedDateError, setSelectedDateError] = useState('');
+  const [selectedDateLoading, setSelectedDateLoading] = useState(false);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const week = useMemo(() => getLocalWeek(today), [today]);
+  const showingToday = selectedDate === todayKey;
+  const meals = showingToday ? diary : selectedDateResult?.items || [];
+
+  useEffect(() => {
+    if (showingToday) {
+      setSelectedDateResult(null);
+      setSelectedDateError('');
+      setSelectedDateLoading(false);
+      return undefined;
+    }
+
+    let active = true;
+    setSelectedDateResult(null);
+    setSelectedDateError('');
+    setSelectedDateLoading(true);
+    loadDiaryHistory(api, [selectedDate], timeZone).then(result => {
+      if (!active) return;
+      setSelectedDateResult(result.byDate[selectedDate] || null);
+      setSelectedDateError(result.errorsByDate[selectedDate] || '');
+    }).finally(() => {
+      if (active) setSelectedDateLoading(false);
+    });
+    return () => { active = false; };
+  }, [selectedDate, showingToday, timeZone, retryVersion]);
+
   const events = useMemo(() => {
     const slots = ['BREAKFAST', 'LUNCH', 'DINNER'];
     const mealEvents = slots.flatMap(type => {
@@ -96,15 +115,15 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
     </View>
     <View accessibilityRole="tablist" accessibilityLabel="Các ngày trong tuần" style={styles.dateStrip}>
       {week.map(item => {
-        const selected = item.day.getDate() === selectedDay;
+        const selected = selectedDate === item.date;
         return <TouchableOpacity
           key={item.key}
           accessibilityRole="tab"
-          accessibilityLabel={`${item.name} ${item.day.getDate()}`}
-          accessibilityState={{ selected }}
-          style={[styles.dayCard, selected && styles.dayCardSelected]}
-          onPress={() => setSelectedDay(item.day.getDate())}
-        ><Text style={[styles.dayName, selected && styles.dayTextSelected]}>{item.name}</Text><Text style={[styles.dayNumber, selected && styles.dayTextSelected]}>{item.day.getDate()}</Text></TouchableOpacity>;
+          accessibilityLabel={`${item.label} ${item.dateObject.getDate()}`}
+          accessibilityState={{ selected: selectedDate === item.date }}
+          style={[styles.dayCard, selectedDate === item.date && styles.dayCardSelected]}
+          onPress={() => setSelectedDate(item.date)}
+        ><Text style={[styles.dayName, selectedDate === item.date && styles.dayTextSelected]}>{item.label}</Text><Text style={[styles.dayNumber, selectedDate === item.date && styles.dayTextSelected]}>{item.dateObject.getDate()}</Text></TouchableOpacity>;
       })}
     </View>
 
@@ -119,13 +138,16 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
           <View style={[styles.mealIcon, type === 'BREAKFAST' ? styles.breakfastIcon : type === 'LUNCH' ? styles.lunchIcon : styles.otherMealIcon]}><Text style={styles.mealGlyph}>{type === 'BREAKFAST' ? '♨' : '⚒'}</Text></View>
           <View style={styles.mealCopy}>
             <Text style={styles.mealName}>{entry?.foodName || mealLabels[type]}</Text>
-            <Text style={styles.mealDetails}>{entry ? `${formatNumber(entry.nutrients?.energyKcal)} kcal` : (diaryLoading && showingToday ? 'Đang tải nhật ký…' : showingToday ? 'Chưa ghi món ăn' : 'Chưa có dữ liệu cho ngày này')}</Text>
+            <Text style={styles.mealDetails}>{entry ? `${formatNumber(entry.nutrients?.energyKcal)} kcal` : (showingToday ? diaryLoading ? 'Đang tải nhật ký…' : 'Chưa ghi món ăn' : selectedDateLoading ? 'Đang tải nhật ký…' : selectedDateError ? 'Không tải được nhật ký' : 'Chưa ghi món ăn')}</Text>
           </View>
         </TouchableOpacity>
       </View>)}
     </View>
 
-    {!!diaryError && <View style={styles.errorNotice}><Text style={styles.errorText}>{diaryError}</Text><TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={onRetryDiary}><Text style={styles.retryText}>Thử lại</Text></TouchableOpacity></View>}
+    {(showingToday ? diaryError : selectedDateError) ? <View style={styles.errorNotice}>
+      <Text accessibilityRole="alert" style={styles.errorText}>{showingToday ? diaryError : `Không tải được nhật ký ngày ${selectedDate}: ${selectedDateError}`}</Text>
+      <TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => showingToday ? onRetryDiary?.() : setRetryVersion(value => value + 1)}><Text style={styles.retryText}>Thử lại</Text></TouchableOpacity>
+    </View> : null}
     <Text style={styles.disclaimer}>Thông tin dinh dưỡng là ước tính từ bản demo, không phải tư vấn y tế.</Text>
 
     {plan?.plan?.length ? <TouchableOpacity accessibilityRole="button" style={styles.planBanner} onPress={() => onNavigate('planner')}>

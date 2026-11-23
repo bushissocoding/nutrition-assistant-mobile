@@ -1,6 +1,17 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import HomeScreen from './HomeScreen';
+import { api } from '../../services/api';
+import { formatLocalDateKey, getLocalWeek } from '../diary/diary-history.cjs';
+
+jest.mock('../../services/api', () => ({ api: { getMealEntries: jest.fn() } }));
+
+const totals = { energyKcal: 195, proteinG: 9, carbohydrateG: 22, fatG: 4, fiberG: 3, sodiumMg: 100 };
+
+beforeEach(() => {
+  api.getMealEntries.mockReset();
+  api.getMealEntries.mockImplementation(async ({ date }) => ({ date, items: [], totals }));
+});
 
 test('shows the eight designed shortcuts and routes them to their matching features', () => {
   const onNavigate = jest.fn();
@@ -19,7 +30,7 @@ test('shows the eight designed shortcuts and routes them to their matching featu
   expect(onNavigate).toHaveBeenCalledWith('grocery');
 });
 
-test('shows diary data on today and a clear empty state when another day is selected', () => {
+test('loads the selected local calendar date and shows its API diary response', async () => {
   const screen = render(<HomeScreen onNavigate={jest.fn()} diary={[
     { id: 'meal-1', mealType: 'BREAKFAST', foodName: 'Cơm gạo lứt', nutrients: { energyKcal: 195 } },
   ]} />);
@@ -28,9 +39,50 @@ test('shows diary data on today and a clear empty state when another day is sele
   expect(screen.getByText('195 kcal')).toBeTruthy();
   expect(screen.getAllByText('Chưa ghi món ăn')).toHaveLength(2);
 
-  const anotherDay = new Date();
-  anotherDay.setDate(anotherDay.getDate() + 1);
-  const weekDay = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][anotherDay.getDay()];
-  fireEvent.press(screen.getByRole('tab', { name: `${weekDay} ${anotherDay.getDate()}` }));
-  expect(screen.getAllByText('Chưa có dữ liệu cho ngày này')).toHaveLength(3);
+  const now = new Date();
+  const target = getLocalWeek(now).find(day => day.date !== formatLocalDateKey(now));
+  api.getMealEntries.mockResolvedValueOnce({ date: target.date, items: [
+    { id: 'history-entry', mealType: 'LUNCH', foodName: 'Canh bí đỏ', nutrients: { energyKcal: 85 } },
+  ], totals });
+  fireEvent.press(screen.getByRole('tab', { name: `${target.label} ${target.dateObject.getDate()}` }));
+
+  await waitFor(() => expect(screen.getByText('Canh bí đỏ')).toBeTruthy());
+  expect(screen.getByText('85 kcal')).toBeTruthy();
+  expect(api.getMealEntries).toHaveBeenCalledWith({ date: target.date, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
+});
+
+test('shows an error instead of empty state and retries the selected historical date', async () => {
+  const screen = render(<HomeScreen onNavigate={jest.fn()} />);
+  const now = new Date();
+  const target = getLocalWeek(now).find(day => day.date !== formatLocalDateKey(now));
+  api.getMealEntries.mockRejectedValueOnce(new Error('API đang ngoại tuyến.'));
+  fireEvent.press(screen.getByRole('tab', { name: `${target.label} ${target.dateObject.getDate()}` }));
+
+  await waitFor(() => expect(screen.getByText(new RegExp(`Không tải được nhật ký ngày ${target.date}`))).toBeTruthy());
+  api.getMealEntries.mockResolvedValueOnce({ date: target.date, items: [
+    { id: 'retry-entry', mealType: 'DINNER', foodName: 'Đậu hũ sốt cà', nutrients: { energyKcal: 120 } },
+  ], totals });
+  fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
+  await waitFor(() => expect(screen.getByText('Đậu hũ sốt cà')).toBeTruthy());
+});
+
+test('ignores a late response after the user selects a different calendar day', async () => {
+  const now = new Date();
+  const targets = getLocalWeek(now).filter(day => day.date !== formatLocalDateKey(now)).slice(0, 2);
+  let resolveFirst;
+  api.getMealEntries.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+    .mockImplementationOnce(async ({ date }) => ({ date, items: [
+      { id: 'newest-entry', mealType: 'LUNCH', foodName: 'Ngày vừa chọn', nutrients: { energyKcal: 110 } },
+    ], totals }));
+  const screen = render(<HomeScreen onNavigate={jest.fn()} />);
+
+  fireEvent.press(screen.getByRole('tab', { name: `${targets[0].label} ${targets[0].dateObject.getDate()}` }));
+  fireEvent.press(screen.getByRole('tab', { name: `${targets[1].label} ${targets[1].dateObject.getDate()}` }));
+  await waitFor(() => expect(screen.getByText('Ngày vừa chọn')).toBeTruthy());
+
+  resolveFirst({ date: targets[0].date, items: [
+    { id: 'stale-entry', mealType: 'LUNCH', foodName: 'Ngày cũ', nutrients: { energyKcal: 90 } },
+  ], totals });
+  await waitFor(() => expect(screen.queryByText('Ngày cũ')).toBeNull());
+  expect(screen.getByText('Ngày vừa chọn')).toBeTruthy();
 });

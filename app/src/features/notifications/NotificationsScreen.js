@@ -11,7 +11,7 @@ export const initialNotificationItems = [
 
 const groups = [['today', 'Hôm nay'], ['yesterday', 'Hôm qua'], ['week', 'Tuần trước']];
 
-export default function NotificationsScreen({ onNavigate, items: controlledItems, onItemsChange }) {
+export default function NotificationsScreen({ onNavigate, items: controlledItems, onItemsChange, persistenceError = '', onRetryPersistence }) {
   const [localItems, setLocalItems] = useState(initialNotificationItems);
   const items = controlledItems ?? localItems;
   const [period, setPeriod] = useState('all');
@@ -50,6 +50,7 @@ export default function NotificationsScreen({ onNavigate, items: controlledItems
       </View>;
     })}
     {!visibleItems.length && <View style={styles.empty}><Text style={styles.emptyIcon}>✓</Text><Text style={styles.emptyTitle}>Không còn thông báo chưa đọc</Text><Text style={styles.body}>Các cập nhật mới sẽ xuất hiện tại đây.</Text></View>}
+    {!!persistenceError && <View style={styles.persistenceError}><Text accessibilityRole="alert" style={styles.persistenceErrorText}>{persistenceError}</Text><TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={onRetryPersistence}><Text style={styles.retryText}>Thử lưu lại</Text></TouchableOpacity></View>}
     <Text style={styles.note}>Nội dung minh họa trong bản demo, không phải thông báo giao dịch hoặc lịch khám đã xác nhận.</Text>
   </ScrollView>;
 }
@@ -60,4 +61,5 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 9, marginBottom: 6 }, sectionLabel: { color: colors.text, fontSize: 14, fontWeight: '700' }, markButton: { minHeight: 48, justifyContent: 'center', paddingHorizontal: 6 }, markAll: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' }, groupTitle: { alignSelf: 'flex-start', minHeight: 38, paddingHorizontal: 16, textAlignVertical: 'center', borderRadius: 18, overflow: 'hidden', backgroundColor: '#CED9FF', color: colors.primary, fontSize: 15, fontWeight: '700', marginTop: 6, marginBottom: 8 },
   card: { minHeight: 82, flexDirection: 'row', alignItems: 'center', gap: 9, padding: 10, borderRadius: 14, backgroundColor: 'white', marginBottom: 7 }, cardUnread: { backgroundColor: '#CED9FF' }, icon: { width: 46, height: 46, borderRadius: 23, backgroundColor: '#E8EDF9', alignItems: 'center', justifyContent: 'center' }, iconUnread: { backgroundColor: colors.primary }, iconText: { color: colors.primary, fontSize: 19, fontWeight: '800' }, iconTextUnread: { color: 'white' }, copy: { flex: 1, minWidth: 0 }, cardTitleRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }, cardTitle: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '800' }, body: { color: colors.text, fontSize: 13, lineHeight: 18, marginTop: 4 }, date: { color: colors.text, fontSize: 12, marginTop: 2 },
   empty: { minHeight: 190, alignItems: 'center', justifyContent: 'center' }, emptyIcon: { color: colors.success, fontSize: 30 }, emptyTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 8 }, note: { color: colors.muted, backgroundColor: '#FFF7E6', padding: 12, borderRadius: 10, fontSize: 13, lineHeight: 18, marginTop: 12 },
+  persistenceError: { marginTop: 12, padding: 12, borderRadius: 10, backgroundColor: '#FFF0F0' }, persistenceErrorText: { color: colors.danger, fontSize: 13, lineHeight: 19 }, retryButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 5 }, retryText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
 });
