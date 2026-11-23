@@ -66,15 +66,15 @@
 **Description:** Install Expo PDF/Sharing modules compatible with SDK 58 and add a small export boundary that escapes values, generates a local PDF, and reports share outcomes without logging health data.
 
 **Acceptance criteria:**
-- [ ] SDK-compatible versions are selected through `npx expo install`.
-- [ ] HTML escaping covers ampersands, angle brackets, quotes, and apostrophes.
-- [ ] Export/share failure and cancellation are distinguishable; no value is logged or uploaded.
+- [x] SDK-compatible versions are selected through `npx expo install`.
+- [x] HTML escaping covers ampersands, angle brackets, quotes, and apostrophes.
+- [x] Export/share failure and cancellation are distinguishable; no value is logged or uploaded.
 
-**Verification:** Focused export helper Jest tests; `npx expo export --platform android` after wiring.
+**Verification:** [x] `npm run test:ui -- --runTestsByPath app/src/features/medical-record/medical-record-export.test.js`; Android export succeeded.
 
 **Dependencies:** Task 3 is independent; run after Task 3 to keep the health-record boundary documented.
 
-**Files likely touched:** `package.json`, `package-lock.json`, `app/src/features/medical-record/medical-record-export.js`, `app/src/features/medical-record/medical-record-export.test.js`.
+**Files likely touched:** `package.json`, `package-lock.json`, `app.json`, `app/src/features/medical-record/medical-record-export.js`, `app/src/features/medical-record/medical-record-export.test.js`.
 
 **Estimated scope:** Medium.
 
@@ -83,11 +83,11 @@
 **Description:** Replace the preview-only export action with local PDF generation/share, retain a content preview, and expose progress, success, cancel, and retry states.
 
 **Acceptance criteria:**
-- [ ] The device share sheet receives a generated PDF from the current demo profile.
-- [ ] Cancel/error does not erase or upload profile data; retry is available after failure.
-- [ ] A separate action still lets the user preview PDF contents.
+- [x] The device share sheet receives a generated PDF from the current demo profile.
+- [x] Cancel/error does not erase or upload profile data; retry is available after failure.
+- [x] A separate action still lets the user preview PDF contents.
 
-**Verification:** `MedicalRecordScreen.test.js` covers success, unavailable share, and error states.
+**Verification:** [x] `npm run test:ui -- --runTestsByPath app/src/features/medical-record/MedicalRecordScreen.test.js`; helper tests cover generation/share errors.
 
 **Dependencies:** Task 4.
 
@@ -97,8 +97,8 @@
 
 ### Checkpoint after Tasks 4–5
 
-- [ ] Export helper and screen tests pass.
-- [ ] Android export succeeds with SDK-compatible native modules.
+- [x] Export helper and screen tests pass.
+- [x] Android export succeeds with SDK-compatible native modules.
 
 ## Task 6: Update architecture and README
 

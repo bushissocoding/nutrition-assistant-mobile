@@ -43,13 +43,13 @@ Existing app shell/profile/API contracts
 
 ### Phase 2: Export health record
 
-- [ ] Task 4: Add SDK-compatible local PDF generation/share helper and safe HTML tests
-- [ ] Task 5: Wire PDF export to the medical record screen and test UI outcomes
+- [x] Task 4: Add SDK-compatible local PDF generation/share helper and safe HTML tests
+- [x] Task 5: Wire PDF export to the medical record screen and test UI outcomes
 
 ### Checkpoint: PDF export
 
-- [ ] Export helper escapes user-entered content and handles share cancellation/errors.
-- [ ] Android bundle export resolves the new native modules.
+- [x] Export helper escapes user-entered content and handles share cancellation/errors.
+- [x] Android bundle export resolves the new native modules.
 
 ### Phase 3: Documentation and acceptance
 
