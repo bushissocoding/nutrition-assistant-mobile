@@ -140,6 +140,8 @@ test('records the required choices before moving from consent to profile setup',
   const choices = { local_profile_storage: true };
   const screen = render(<AppShell />);
 
+  await waitFor(() => expect(screen.getByText('Chào mừng bạn')).toBeTruthy());
+  await press(screen, 'Khám phá bản demo không cần tài khoản');
   await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
   await press(screen, 'Continue consent');
   await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
@@ -170,7 +172,7 @@ test('keeps consent when a withdrawal purge fails and clears it after a successf
   expect(screen.getByText('Delete profile')).toBeTruthy();
 
   await press(screen, 'Withdraw consent');
-  await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Chào mừng bạn')).toBeTruthy());
   expect(revokeConsentAndClear).toHaveBeenCalledTimes(1);
   expect(alertSpy).toHaveBeenCalledWith('Đã rút đồng ý và xóa dữ liệu demo', expect.any(String));
   alertSpy.mockRestore();

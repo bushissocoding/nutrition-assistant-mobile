@@ -14,12 +14,12 @@ const RED_FLAG_SYMPTOMS = [
 ];
 
 function createEmptyProfile() {
-  return { version: 1, mode: 'healthy', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
+  return { version: 1, mode: 'healthy', gender: 'unspecified', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
 }
 function normalizeProfile(profile = {}) {
   const empty = createEmptyProfile();
   const input = profile && typeof profile === 'object' ? profile : {};
-  return { ...empty, ...input, mode: input.mode === 'patient' ? 'patient' : 'healthy', redFlags: Array.isArray(input.redFlags) ? input.redFlags.filter(value => RED_FLAG_SYMPTOMS.some(item => item.key === value)) : [], allergies: Array.isArray(input.allergies) ? input.allergies.filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean) : [], hardLimits: input.hardLimits && typeof input.hardLimits === 'object' && !Array.isArray(input.hardLimits) ? input.hardLimits : {} };
+  return { ...empty, ...input, mode: input.mode === 'patient' ? 'patient' : 'healthy', gender: ['female', 'male', 'unspecified'].includes(input.gender) ? input.gender : 'unspecified', redFlags: Array.isArray(input.redFlags) ? input.redFlags.filter(value => RED_FLAG_SYMPTOMS.some(item => item.key === value)) : [], allergies: Array.isArray(input.allergies) ? input.allergies.filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean) : [], hardLimits: input.hardLimits && typeof input.hardLimits === 'object' && !Array.isArray(input.hardLimits) ? input.hardLimits : {} };
 }
 function validateProfile(profile, limitInputs = {}) {
   const errors = {};

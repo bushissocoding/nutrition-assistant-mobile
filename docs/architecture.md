@@ -14,17 +14,24 @@ app/
     ├── theme/tokens.js             # Shared colors, spacing and radii
     ├── shared/components/          # Reusable presentation components
     └── features/
-        ├── onboarding/             # Versioned device-local demo consent and profile setup
+        ├── onboarding/             # Welcome, account preview, versioned consent and profile assessment
         ├── home/                   # Home shortcuts and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
         ├── grocery/                 # Plan-derived, checkable shopping list
         ├── diary/                   # Food search, portion entry, nutrition logging
         ├── dashboard/               # Meal schedule and nutrient progress
         ├── profile/                 # Synthetic local profile and explicit security gaps
-        └── appointments/            # Planned: paid doctor consultation
+        ├── chat/                    # Local FAQ assistant and non-delivering provider conversation preview
+        ├── notifications/           # In-memory sample notices; no push service
+        ├── settings/                # Device demo preferences, privacy text and help
+        ├── medical-record/          # Local profile summary preview; no verified records
+        ├── personalization/         # Session-only preferences and scan-state preview
+        └── appointments/            # Synthetic provider, schedule and payment UI previews
 ```
 
 Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state and hydrates the current-day diary summary from the demo API; it does not provide authentication. Consent receipts are versioned and timestamped in device SecureStore, are not account-linked, and do not provide authentication or authorization. The local profile is synthetic demo data only.
+
+Welcome and account screens are visual previews; login, registration and password recovery are not connected. Chat, notifications and personalization operate only in the current UI session. A provider conversation is a non-delivering screen preview, not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. Medical-record and lab-scan screens show only user-entered demo profile values and explicit empty states; there is no verified medical record or image extraction service.
 
 ## API (`server/`)
 

@@ -4,10 +4,10 @@ export const colors = {
   canvas: '#F4F7FF',
   surface: '#FFFFFF',
   text: '#202A3B',
-  muted: '#7B879A',
+  muted: '#5F6B7A',
   border: '#E6EBF4',
   softBlue: '#EAF0FF',
-  success: '#168A5B',
+  success: '#13734D',
   warning: '#9A6700',
   danger: '#B42318',
 };

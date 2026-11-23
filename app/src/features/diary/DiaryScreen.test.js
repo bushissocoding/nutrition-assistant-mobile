@@ -89,6 +89,22 @@ test('ignores a late response for a day the user has already left', async () => 
   expect(screen.queryByText('Cơm trắng')).toBeNull();
 });
 
+test('loads the selected date from the visible week strip', async () => {
+  const today = new Date();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 12);
+  const pad = value => String(value).padStart(2, '0');
+  const targetDate = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+  const label = `Chọn ${new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(tomorrow)}`;
+  const screen = renderDiary();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText(label));
+    for (let index = 0; index < 3; index += 1) await Promise.resolve();
+  });
+
+  await waitFor(() => expect(api.getMealEntries).toHaveBeenLastCalledWith({ date: targetDate, timeZone: testTimeZone }));
+});
+
 test('shows catalog version, food source, units and serving limits in search results', async () => {
   api.getFoods.mockResolvedValue({
     catalog: { version: 'prototype-test-v1', status: 'prototype', notice: 'Demo source values are unreviewed.' },

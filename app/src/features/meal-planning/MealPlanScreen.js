@@ -29,7 +29,7 @@ function provenanceText(meal, catalogVersion) {
 
 function MealDetails({ meal, catalogVersion }) {
   return <View style={styles.card}>
-    <Text style={styles.heading}>{meal.name}</Text>
+    <Text accessibilityRole="header" style={styles.heading}>{meal.name}</Text>
     <Text style={styles.small}>{meal.slot} · {moneyText(meal.estimatedCostVnd)}</Text>
     {meal.portions.map(item => <Text key={item.foodId} style={styles.small}>• {item.food}: {item.grams} g{item.household ? ` (${item.household})` : ''}</Text>)}
     <View style={styles.nutrientGrid}>
@@ -37,7 +37,7 @@ function MealDetails({ meal, catalogVersion }) {
     </View>
     <Text style={styles.explanation}>Lý do chọn: {meal.explanation}</Text>
     {(meal.selectionReasons || []).map((reason, index) => <Text key={`selection-reason-${index}`} style={styles.provenance}>{reason.message}</Text>)}
-    <Text accessibilityRole="text" style={styles.provenance}>{provenanceText(meal, catalogVersion)}</Text>
+    <View style={styles.sourceBox}><Text style={styles.sourceHeading}>Nguồn dữ liệu</Text><Text accessibilityRole="text" style={styles.provenance}>{provenanceText(meal, catalogVersion)}</Text></View>
     {(meal.warnings || []).map((warning, index) => <Text key={`meal-warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
   </View>;
 }
@@ -45,17 +45,18 @@ function MealDetails({ meal, catalogVersion }) {
 function PlanResult({ result, onOpenGrocery }) {
   const plan = Array.isArray(result.plan) ? result.plan : [];
   return <View>
-    <Text style={styles.heading}>Lịch thực đơn</Text>
+    <Text accessibilityRole="header" style={styles.heading}>Lịch thực đơn</Text>
     {(result.warnings || []).map((warning, index) => <Text key={`warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.meals}>
       {plan.map((meal, index) => <View key={`${meal.slot}-${index}`} style={styles.mealCard}>
+        <View style={styles.mealIcon}><Text style={styles.mealGlyph}>{['◒', '◉', '◍', '◌'][index] || '◉'}</Text></View>
         <Text style={styles.mealSlot}>{meal.slot}</Text>
-        <Text style={styles.mealName}>{meal.name}</Text>
+        <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
         <Text style={styles.small}>{meal.nutrients?.energyKcal ?? '—'} kcal · {moneyText(meal.estimatedCostVnd)}</Text>
       </View>)}
     </ScrollView>
     <View style={styles.card}>
-      <Text style={styles.heading}>Tổng dinh dưỡng mỗi ngày</Text>
+      <Text accessibilityRole="header" style={styles.heading}>Tổng dinh dưỡng mỗi ngày</Text>
       {NUTRIENTS.map(nutrient => <Text key={nutrient.key} style={styles.small}>{nutrient.label}　{result.dailyTotals?.[nutrient.key] ?? '—'} {nutrient.unit}</Text>)}
       <Text style={styles.explanation}>Chi phí ước tính: {moneyText(result.estimatedCostVnd)}</Text>
       <Text style={styles.provenance}>Catalog {result.metadata?.catalogVersion || 'không rõ'} · thuật toán {result.metadata?.algorithmVersion || 'không rõ'}</Text>
@@ -119,13 +120,13 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.title}>Thực đơn của tôi</Text>
+    <Text accessibilityRole="header" style={styles.title}>Thực đơn của tôi</Text>
     <Text style={styles.disclaimer}>Gợi ý prototype từ dữ liệu demo có ghi nguồn; không thay thế chế độ ăn do bác sĩ chỉ định.</Text>
     <TouchableOpacity accessibilityRole="button" style={styles.savedListButton} onPress={() => onOpenGrocery?.()}>
       <Text style={styles.savedListText}>Mở danh sách đi chợ đã lưu</Text>
     </TouchableOpacity>
     <View style={styles.card}>
-      <Text style={styles.heading}>Tùy chỉnh thực đơn</Text>
+      <Text accessibilityRole="header" style={styles.heading}>Tùy chỉnh thực đơn</Text>
       <Text style={styles.label}>Món bạn yêu thích</Text>
       <TextInput accessibilityLabel="Món bạn yêu thích" value={preferences} onChangeText={setPreferences} placeholder="Ví dụ: món cá, canh bí..." style={styles.input} maxLength={200} />
       <Text style={styles.label}>Ngân sách mỗi ngày (VNĐ, tùy chọn)</Text>
@@ -137,7 +138,7 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
         <Text style={styles.profileHint}>Dữ liệu tổng hợp lưu trên thiết bị, chưa gắn với tài khoản.</Text>
         <Text style={styles.profileHint}>Dị ứng: {profile?.allergies?.length ? profile.allergies.join(', ') : 'chưa nhập'}</Text>
         {profile?.mode === 'patient' && <Text style={styles.profileHint}>Các hardLimits đã xác nhận được áp dụng bắt buộc.</Text>}
-        <TouchableOpacity accessibilityRole="button" onPress={onOpenProfile}><Text style={styles.editLink}>Chỉnh sửa hồ sơ ›</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" onPress={onOpenProfile} style={{ minWidth: 48, minHeight: 48, justifyContent: "center", alignItems: "center" }}><Text style={styles.editLink}>Chỉnh sửa hồ sơ ›</Text></TouchableOpacity>
       </View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={loading ? 'Đang tạo thực đơn' : 'Tạo thực đơn'} style={styles.button} disabled={loading} accessibilityState={{ disabled: loading }} onPress={generatePlan}>
         {loading ? <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tạo thực đơn" color="white" /><Text style={styles.buttonText}>Đang tạo thực đơn</Text></View> : <Text style={styles.buttonText}>Tạo thực đơn</Text>}
@@ -162,41 +163,45 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.canvas },
-  content: { padding: 18, paddingBottom: 110 },
-  title: { color: colors.primary, fontWeight: '800', fontSize: 24, marginBottom: 5 },
-  nutrientGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 },
-  nutrientCell: { width: '48%', color: colors.text, fontSize: 10, backgroundColor: '#F5F7FB', padding: 7, borderRadius: 7 },
-  profileSummary: { backgroundColor: '#F5F7FB', padding: 11, borderRadius: 10, marginTop: 6 },
-  profileValue: { color: colors.primaryDark, fontSize: 12, fontWeight: '800' },
-  profileHint: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 4 },
-  editLink: { color: colors.primary, fontSize: 11, fontWeight: '800', marginTop: 8 },
-  disclaimer: { color: colors.warning, fontSize: 12, lineHeight: 18, backgroundColor: '#FFF5DE', padding: 12, borderRadius: radius.sm, marginVertical: 9 },
-  savedListButton: { padding: 12, alignItems: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, marginBottom: 8 },
-  savedListText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  card: { padding: 16, borderRadius: radius.md, backgroundColor: 'white', marginVertical: 7, elevation: 2 },
-  heading: { fontSize: 16, color: colors.text, fontWeight: '800', marginBottom: 5 },
-  label: { fontSize: 12, color: colors.text, fontWeight: '700', marginTop: 13 },
-  input: { backgroundColor: '#F5F7FB', borderRadius: 11, padding: 12, marginTop: 6, color: colors.text },
-  helper: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 6 },
+  screen: { flex: 1, backgroundColor: colors.surface },
+  content: { padding: 16, paddingBottom: 124 },
+  title: { color: colors.primary, fontWeight: '800', fontSize: 26, marginBottom: 5 },
+  nutrientGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 7, marginTop: 10 },
+  nutrientCell: { width: '48%', color: colors.text, fontSize: 12, backgroundColor: '#F5F7FB', padding: 9, borderRadius: 9, lineHeight: 17 },
+  profileSummary: { backgroundColor: '#F5F7FB', padding: 12, borderRadius: 11, marginTop: 6 },
+  profileValue: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' },
+  profileHint: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
+  editLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: 8 },
+  disclaimer: { color: colors.warning, fontSize: 12, lineHeight: 17, backgroundColor: '#FFF7E6', padding: 11, borderRadius: radius.sm, marginVertical: 9 },
+  savedListButton: { minHeight: 48, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, marginBottom: 8 },
+  savedListText: { color: colors.primary, fontWeight: '800', fontSize: 13 },
+  card: { padding: 15, borderRadius: radius.md, backgroundColor: colors.surface, marginVertical: 7, borderWidth: 1, borderColor: colors.border },
+  heading: { fontSize: 17, color: colors.text, fontWeight: '800', marginBottom: 5 },
+  label: { fontSize: 13, color: colors.text, fontWeight: '700', marginTop: 13 },
+  input: { minHeight: 48, backgroundColor: '#F5F7FB', borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6, color: colors.text, fontSize: 14 },
+  helper: { color: colors.muted, fontSize: 12, lineHeight: 17, marginTop: 6 },
   button: { minHeight: 48, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   buttonText: { color: 'white', fontWeight: '800' },
   error: { color: colors.danger, marginTop: 10 },
-  retryButton: { alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 10, marginTop: 10 },
-  retryText: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  warning: { color: colors.warning, backgroundColor: '#FFF5DE', padding: 10, borderRadius: 9, marginTop: 7, fontSize: 12 },
+  retryButton: { minHeight: 48, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 10, marginTop: 10 },
+  retryText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
+  warning: { color: colors.warning, backgroundColor: '#FFF7E6', padding: 11, borderRadius: 9, marginTop: 7, fontSize: 13, lineHeight: 18 },
   meals: { gap: 12, paddingVertical: 12 },
-  mealCard: { width: 165, backgroundColor: 'white', padding: 13, borderRadius: radius.md, elevation: 2 },
-  mealSlot: { fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 8 },
-  mealName: { color: colors.text, fontSize: 12, textAlign: 'center', marginTop: 4 },
-  small: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 5 },
-  explanation: { color: colors.primaryDark, fontSize: 12, lineHeight: 18, marginTop: 12 },
-  provenance: { color: colors.muted, fontSize: 10, lineHeight: 15, marginTop: 10 },
-  secondary: { backgroundColor: colors.primary, borderRadius: radius.pill, padding: 15, alignItems: 'center', marginTop: 10 },
+  mealCard: { width: 164, minHeight: 175, alignItems: 'center', backgroundColor: colors.surface, padding: 13, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  mealIcon: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
+  mealGlyph: { color: colors.primary, fontSize: 31 },
+  mealSlot: { fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 8, fontSize: 14 },
+  mealName: { color: colors.text, fontSize: 13, textAlign: 'center', marginTop: 4, minHeight: 30 },
+  small: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
+  explanation: { color: colors.primaryDark, fontSize: 14, lineHeight: 20, marginTop: 12 },
+  provenance: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 5 },
+  sourceBox: { marginTop: 10, padding: 10, backgroundColor: '#F5F7FB', borderRadius: 9 },
+  sourceHeading: { color: colors.text, fontWeight: '800', fontSize: 12 },
+  secondary: { minHeight: 48, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   secondaryText: { color: 'white', fontWeight: '800' },
-  footnote: { color: colors.muted, fontSize: 11, lineHeight: 17, marginTop: 14 },
+  footnote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 14 },
   emptyState: { backgroundColor: 'white', borderWidth: 1, borderColor: colors.warning, borderRadius: radius.md, padding: 16, marginVertical: 8 },
-  emptyHeading: { fontSize: 16, color: colors.text, fontWeight: '800' },
-  emptyText: { fontSize: 13, color: colors.text, lineHeight: 20, marginTop: 8 }
+  emptyHeading: { fontSize: 18, color: colors.text, fontWeight: '800' },
+  emptyText: { fontSize: 15, color: colors.text, lineHeight: 22, marginTop: 8 }
 });
