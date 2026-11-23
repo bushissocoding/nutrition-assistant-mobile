@@ -1,10 +1,16 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors, radius } from '../../theme/tokens';
 import { calculateAdultBmi, normalizeProfile } from '../profile/profile-model.cjs';
 
 const dietaryStyles = ['Không', 'Trung bình', 'Phổ biến'];
 const preferences = ['Ăn chay', 'Ít đường', 'Ít muối', 'Không cay', 'Món Việt', 'Món dễ nấu'];
+const demoLabSample = { egfr: '90', glucose: '5.4', uricAcid: '320' };
+const labFields = [
+  { key: 'egfr', label: 'eGFR' },
+  { key: 'glucose', label: 'Glucose' },
+  { key: 'uricAcid', label: 'Acid uric' },
+];
 
 export default function PersonalizationScreen({ profile, onBack, onOpenMedicalRecord, onEditProfile }) {
   const [enabled, setEnabled] = useState({ avoidAllergy: true, monitorCondition: false, detectRisks: true });
@@ -13,6 +19,7 @@ export default function PersonalizationScreen({ profile, onBack, onOpenMedicalRe
   const [scanNotice, setScanNotice] = useState(false);
   const [saved, setSaved] = useState(false);
   const [style, setStyle] = useState('Trung bình');
+  const [labValues, setLabValues] = useState(null);
   const normalized = normalizeProfile(profile);
   const bmi = calculateAdultBmi(normalized);
   const conditionLabels = {
@@ -62,11 +69,20 @@ export default function PersonalizationScreen({ profile, onBack, onOpenMedicalRe
       <View style={styles.scanControls}><TouchableOpacity accessibilityRole="button" style={styles.scanSmall} onPress={() => setScanNotice(true)}><Text style={styles.scanGlyph}>▱</Text><Text style={styles.scanControlLabel}>Chọn ảnh</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" accessibilityLabel="Chụp ảnh demo" style={styles.capture} onPress={() => setScanNotice(true)}><Text style={styles.captureText}>⌾</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.scanSmall} onPress={onOpenMedicalRecord}><Text style={styles.scanGlyph}>▤</Text><Text style={styles.scanControlLabel}>Hồ sơ</Text></TouchableOpacity></View>
       <Text style={styles.scanHelp}>Camera và nhận diện ảnh chưa được kết nối. Chỉ dùng ảnh tổng hợp, không tải ảnh xét nghiệm thật.</Text>
       {scanNotice && <View accessibilityRole="alert" style={styles.notice}><Text style={styles.copy}>Bản demo chưa quét hoặc trích xuất kết quả. Không có dữ liệu nào được lưu.</Text></View>}
+      <View style={styles.sampleNotice}><Text style={styles.copy}>Bạn có thể mở bộ số liệu tổng hợp để thử màn hình chỉnh sửa. Đây không phải kết quả từ camera hoặc xét nghiệm.</Text></View>
+      <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => { setLabValues({ ...demoLabSample }); setScanNotice(false); setScreen('result'); }}><Text style={styles.link}>Xem kết quả mẫu tổng hợp</Text></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setScreen('result')}><Text style={styles.primaryText}>Xem trạng thái kết quả</Text></TouchableOpacity>
     </>}
     {screen === 'result' && <>
-      <View style={styles.resultCard}><Text style={styles.resultTitle}>Chưa có kết quả xét nghiệm demo</Text><Text style={styles.copy}>App chưa nhận ảnh hoặc trích xuất giá trị. Vì vậy không có chỉ số nào để hiển thị hay diễn giải.</Text></View>
-      {['eGFR', 'Glucose', 'Acid uric'].map(value => <View key={value} style={styles.resultRow}><View style={styles.resultIcon}><Text style={styles.link}>⌁</Text></View><View style={{ flex: 1 }}><Text style={styles.infoTitle}>{value}</Text><Text style={styles.copy}>Chưa có dữ liệu</Text></View><Text style={styles.resultEdit}>—</Text></View>)}
+      {labValues ? <>
+        <View style={styles.resultCard}><Text style={styles.resultTitle}>Kết quả tổng hợp · chỉ để thử giao diện</Text><Text style={styles.copy}>Số liệu giả lập do ứng dụng cung cấp; không lấy từ ảnh, không được xác minh hoặc diễn giải y tế.</Text></View>
+        {labFields.map(({ key, label }) => <View key={key} style={styles.resultRow}><View style={styles.resultIcon}><Text style={styles.link}>⌁</Text></View><View style={{ flex: 1 }}><Text style={styles.infoTitle}>{label}</Text><Text style={styles.copy}>Giá trị mô phỏng · chỉnh sửa trong phiên</Text></View><TextInput accessibilityLabel={`Giá trị ${label} demo`} value={labValues[key]} onChangeText={value => setLabValues(current => ({ ...current, [key]: value }))} keyboardType="decimal-pad" style={styles.resultInput} /></View>)}
+        <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setLabValues(null)}><Text style={styles.link}>Xóa kết quả mẫu</Text></TouchableOpacity>
+        <Text style={styles.scanHelp}>Các giá trị này không được lưu hoặc gửi tới API. Không nhập kết quả xét nghiệm thật.</Text>
+      </> : <>
+        <View style={styles.resultCard}><Text style={styles.resultTitle}>Chưa có kết quả xét nghiệm demo</Text><Text style={styles.copy}>App chưa nhận ảnh hoặc trích xuất giá trị. Vì vậy không có chỉ số nào để hiển thị hay diễn giải.</Text></View>
+        {labFields.map(({ key, label }) => <View key={key} style={styles.resultRow}><View style={styles.resultIcon}><Text style={styles.link}>⌁</Text></View><View style={{ flex: 1 }}><Text style={styles.infoTitle}>{label}</Text><Text style={styles.copy}>Chưa có dữ liệu</Text></View><Text style={styles.resultEdit}>—</Text></View>)}
+      </>}
       <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={onOpenMedicalRecord}><Text style={styles.primaryText}>Mở hồ sơ y tế demo</Text></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setScreen('scan')}><Text style={styles.link}>Quay lại màn hình quét</Text></TouchableOpacity>
     </>}
@@ -84,7 +100,8 @@ const styles = StyleSheet.create({
   infoCard: { padding: 15, marginTop: 12, borderRadius: 13, backgroundColor: '#EAF0FF' }, link: { color: colors.primary, fontSize: 14, fontWeight: '800', marginTop: 7 }, sectionTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 17, marginBottom: 8 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, preferenceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { minHeight: 50, paddingHorizontal: 14, borderRadius: 17, justifyContent: 'center', backgroundColor: '#E8EDFA' }, chipOn: { backgroundColor: colors.primary }, chipText: { color: colors.primaryDark, fontSize: 14, fontWeight: '700' }, chipTextOn: { color: 'white' },
   scanCard: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, marginTop: 15, backgroundColor: 'white', borderRadius: 13 }, scanIcon: { width: 43, height: 43, borderRadius: 12, backgroundColor: '#E9F4FF', alignItems: 'center', justifyContent: 'center' }, scanGlyph: { color: '#2FAACD', fontSize: 23 }, primary: { minHeight: 56, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, marginTop: 14 }, primaryText: { color: 'white', fontSize: 15, fontWeight: '800' }, secondary: { minHeight: 50, alignItems: 'center', justifyContent: 'center' }, disclaimer: { color: colors.muted, fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 10 },
   savedMessage: { color: colors.success, fontSize: 13, lineHeight: 19, marginTop: 7, textAlign: 'center' },
+  sampleNotice: { padding: 12, marginTop: 10, borderRadius: 10, backgroundColor: '#EEF3FF' },
   scanStage: { height: 360, backgroundColor: '#E5EBF5', borderRadius: 16, marginTop: 12, alignItems: 'center', justifyContent: 'center' }, scanFrame: { width: '82%', height: '79%', alignItems: 'center', justifyContent: 'center' }, paper: { width: '83%', height: '91%', backgroundColor: 'white', borderRadius: 5, padding: 17, elevation: 3, justifyContent: 'center' }, paperTitle: { color: '#8C97A9', fontSize: 11, textAlign: 'center', fontWeight: '800', marginBottom: 18 }, paperLine: { height: 4, borderRadius: 2, backgroundColor: '#E1E6EE', marginVertical: 7 }, paperLineShort: { width: '68%', height: 4, borderRadius: 2, backgroundColor: '#E1E6EE', marginVertical: 7 }, paperBlank: { color: '#AAB4C3', fontSize: 11, textAlign: 'center', marginTop: 17 }, cornerTL: { position: 'absolute', zIndex: 1, left: 0, top: 0, width: 35, height: 35, borderLeftWidth: 4, borderTopWidth: 4, borderColor: colors.primary }, cornerTR: { position: 'absolute', zIndex: 1, right: 0, top: 0, width: 35, height: 35, borderRightWidth: 4, borderTopWidth: 4, borderColor: colors.primary }, cornerBL: { position: 'absolute', zIndex: 1, left: 0, bottom: 0, width: 35, height: 35, borderLeftWidth: 4, borderBottomWidth: 4, borderColor: colors.primary }, cornerBR: { position: 'absolute', zIndex: 1, right: 0, bottom: 0, width: 35, height: 35, borderRightWidth: 4, borderBottomWidth: 4, borderColor: colors.primary },
   scanControls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', marginTop: 12 }, scanSmall: { minHeight: 54, alignItems: 'center', minWidth: 72 }, scanControlLabel: { color: colors.muted, fontSize: 12, marginTop: 3 }, capture: { width: 64, height: 64, borderRadius: 32, borderWidth: 4, borderColor: colors.primary, backgroundColor: 'white', alignItems: 'center', justifyContent: 'center' }, captureText: { color: colors.primary, fontSize: 32 }, scanHelp: { color: colors.muted, fontSize: 13, lineHeight: 19, textAlign: 'center', marginTop: 12 }, notice: { padding: 12, backgroundColor: '#FFF7E6', borderRadius: 10, marginTop: 10 },
-  resultCard: { padding: 15, marginTop: 10, backgroundColor: '#E7F2FF', borderRadius: 14 }, resultTitle: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' }, resultRow: { minHeight: 59, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', marginTop: 8, padding: 10, borderRadius: 12 }, resultIcon: { width: 31, height: 31, borderRadius: 10, backgroundColor: '#EDF3FF', alignItems: 'center', justifyContent: 'center' }, resultEdit: { color: colors.muted, fontSize: 16 },
+  resultCard: { padding: 15, marginTop: 10, backgroundColor: '#E7F2FF', borderRadius: 14 }, resultTitle: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' }, resultRow: { minHeight: 59, flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'white', marginTop: 8, padding: 10, borderRadius: 12 }, resultIcon: { width: 31, height: 31, borderRadius: 10, backgroundColor: '#EDF3FF', alignItems: 'center', justifyContent: 'center' }, resultEdit: { color: colors.muted, fontSize: 16 }, resultInput: { width: 68, minHeight: 46, borderWidth: 1, borderColor: colors.border, borderRadius: 9, paddingHorizontal: 8, color: colors.primaryDark, textAlign: 'center', fontWeight: '800' },
 });

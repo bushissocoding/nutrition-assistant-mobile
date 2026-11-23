@@ -23,3 +23,16 @@ test('keeps scan and result screens explicit that no lab image was processed', (
   expect(screen.getByText('Chưa có kết quả xét nghiệm demo')).toBeTruthy();
   expect(screen.getAllByText('Chưa có dữ liệu')).toHaveLength(3);
 });
+
+test('opens and edits clearly synthetic lab values in the current screen session', () => {
+  const screen = render(<PersonalizationScreen />);
+  fireEvent.press(screen.getByText('Thêm kết quả xét nghiệm'));
+  fireEvent.press(screen.getByRole('button', { name: 'Xem kết quả mẫu tổng hợp' }));
+
+  expect(screen.getByText('Kết quả tổng hợp · chỉ để thử giao diện')).toBeTruthy();
+  const egfr = screen.getByLabelText('Giá trị eGFR demo');
+  expect(egfr.props.value).toBe('90');
+  fireEvent.changeText(egfr, '91');
+  expect(screen.getByLabelText('Giá trị eGFR demo').props.value).toBe('91');
+  expect(screen.getByText(/không được lưu hoặc gửi tới API/i)).toBeTruthy();
+});

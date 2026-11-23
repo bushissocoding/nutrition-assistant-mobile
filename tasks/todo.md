@@ -39,11 +39,16 @@
 **Description:** Let the user select a clearly synthetic sample in the scan preview, view and edit its values in memory, and clear it when leaving the feature.
 
 **Acceptance criteria:**
-- [ ] No camera, upload, OCR, API write, or clinical interpretation is implied.
-- [ ] Sample values and edits are visibly labeled synthetic and are session-only.
-- [ ] Empty, sample, edit, and return states are testable.
+- [x] No camera, upload, OCR, API write, or clinical interpretation is implied.
+- [x] Sample values and edits are visibly labeled synthetic and are session-only.
+- [x] Empty, sample, edit, and return states are testable.
 
-**Verification:** Focused `PersonalizationScreen.test.js`; then run its Jest path.
+**Verification:** [x] `npm run test:ui -- --runTestsByPath app/src/features/personalization/PersonalizationScreen.test.js`.
+
+### Checkpoint after Tasks 1–3
+
+- [x] Focused UI tests pass for each task.
+- [x] Existing authentication, cancellation, and non-clinical boundaries remain intact.
 
 **Dependencies:** None.
 

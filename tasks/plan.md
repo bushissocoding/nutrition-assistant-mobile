@@ -34,12 +34,12 @@ Existing app shell/profile/API contracts
 
 - [x] Task 1: Validate password recovery recipient
 - [x] Task 2: Gate provider chat on a matching booking preview
-- [ ] Task 3: Complete the synthetic lab-result preview/edit flow
+- [x] Task 3: Complete the synthetic lab-result preview/edit flow
 
 ### Checkpoint: Interaction gaps
 
-- [ ] Focused onboarding, appointment, and personalization UI tests pass.
-- [ ] Recovery shows only a masked destination; provider chat cannot open before booking or after cancellation; synthetic lab values remain in session.
+- [x] Focused onboarding, appointment, and personalization UI tests pass.
+- [x] Recovery shows only a masked destination; provider chat cannot open before booking or after cancellation; synthetic lab values remain in session.
 
 ### Phase 2: Export health record
 
