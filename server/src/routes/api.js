@@ -3,8 +3,9 @@ const { calculateFood, calculateTotals } = require('../services/nutrition');
 const { generatePlan, validateMealPlanRequest } = require('../services/meal-planner');
 const { createMealEntryRouter } = require('./meal-entries');
 const { createShoppingListRouter } = require('./shopping-lists');
+const { createCurrentUserRouter } = require('./current-user');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -16,6 +17,7 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
     req.demoContext = demoContext;
     return next();
   });
+  if (authMiddleware) router.use('/me', createCurrentUserRouter(authMiddleware));
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
     const category = String(req.query.category || '').trim().toLocaleLowerCase('vi');

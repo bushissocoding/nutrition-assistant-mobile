@@ -23,7 +23,7 @@ Each implementation task is to be expanded into a module-specific spec and focus
   - Acceptance: User requests carry their verified token through the publishable client; privileged key construction is distinct and only internal code can access it.
   - Verify: Client composition tests and `npm run test:unit`.
   - Files: `server/src/services/supabase/`, `server/tests/`, dependency manifest.
-- [ ] Task 1.3: Add verified identity middleware and safe HTTP defaults.
+- [x] Task 1.3: Add verified identity middleware and safe HTTP defaults.
   - Acceptance: Private routes require a verified principal; unsafe CORS, excess payloads and rate abuse are rejected; logs exclude sensitive payloads.
   - Verify: API tests for 401/403, expired token, CORS, limits, rate behavior and safe logs; `npm run test:api`.
   - Files: `server/server.js`, `server/src/middleware/`, `server/src/routes/`, `server/server.test.js`.

@@ -41,6 +41,11 @@ server/
 ├── scripts/import-food-catalog.js  # Reproducible JSON catalog import/validation CLI
 ├── src/
 │   ├── config/server-config.js     # Parse and validate startup environment once
+│   ├── middleware/
+│   │   ├── cors.js                  # Exact origin/method/header allowlist
+│   │   ├── rate-limit.js            # Bounded per-process request limiter
+│   │   ├── security-headers.js      # API security response headers
+│   │   └── supabase-auth.js         # Provider-verified principal and user DB client
 │   ├── routes/api.js                # API composition and existing route mapping
 │   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
@@ -48,21 +53,21 @@ server/
 │   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
 │   ├── repositories/shopping-list-repository.js # Current grocery list and idempotency ledger
 │   └── services/
+│       ├── supabase/
+│       │   ├── user-client.js       # Request-scoped publishable client with caller JWT
+│       │   └── privileged-client.js # Separate server-secret client for internal operations
 │       ├── nutrition.js             # Deterministic nutrient calculations
 │       ├── food-catalog.js          # Catalog schema, source-rights checks and diff report
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
 │       ├── meal-planner.js          # Deterministic demo planner
 │       └── server-shutdown.js       # Bounded SIGINT/SIGTERM shutdown
-│   ├── services/supabase/
-│   │   ├── user-client.js           # Request-scoped publishable client with caller JWT
-│   │   └── privileged-client.js     # Separate server-secret client for internal operations
 ├── data/                            # Versioned demonstration catalogs, source registry and synthetic fixture
 ├── tests/                            # Unit tests for domain, config and lifecycle rules
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
 
-Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. The current SDK constructors and strict production configuration are scaffolding only: no API route has identity middleware or account-owned database persistence yet. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
+Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. Strict production configuration, provider-verified identity middleware and request-scoped SDK constructors now exist; no private feature route or account-owned database persistence is wired yet. Rate limiting is per process with bounded in-memory state; production deployments with multiple instances need a shared store. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
 
 Startup configuration is read and validated before opening the listener. `npm run api` optionally loads `server/.env`; runtime environment values take precedence. The root `.env` is for Expo `EXPO_PUBLIC_*` settings only. Signal handling belongs in the server lifecycle service, not feature routes.
 
@@ -73,6 +78,7 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `POST /api/v1/meal-plans/generate` — versioned deterministic meal result with per-food source/version provenance. Responses distinguish feasible, infeasible and unavailable results; allergies and `hardLimits` stay strict, while missed `targets` produce warnings. A supplied budget is evaluated only when recipe prices have registered source/version metadata; otherwise the response is unavailable and contains no plan.
 - `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.
 - `/api/v1/shopping-lists` — demo-only current grocery list created from a planner snapshot; item quantity/unit/purchased CRUD, idempotent create, and namespace purge. The caller-provided demo namespace is not authentication or account ownership.
+- `GET /api/v1/me` — requires a Supabase Auth bearer token and returns only that verified account's ID; it does not load or persist a profile.
 - `GET /health` — service health.
 
 The current client stores consent, a minimal profile, and synthetic notification read flags locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no verified server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.

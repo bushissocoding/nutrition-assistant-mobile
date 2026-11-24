@@ -4,8 +4,13 @@ const { createDemoContext } = require('./src/demo-context');
 const { createApiRouter } = require('./src/routes/api');
 const { readServerConfig } = require('./src/config/server-config');
 const { registerGracefulShutdown } = require('./src/services/server-shutdown');
+const { createCorsMiddleware } = require('./src/middleware/cors');
+const { createSecurityHeadersMiddleware } = require('./src/middleware/security-headers');
+const { createRateLimitMiddleware } = require('./src/middleware/rate-limit');
+const { createSupabaseAuthMiddleware } = require('./src/middleware/supabase-auth');
 
 const app = express();
+app.disable('x-powered-by');
 let config;
 try { config = readServerConfig(process.env); }
 catch (error) { console.error(error.message); process.exit(1); }
@@ -14,19 +19,16 @@ let catalog;
 try { catalog = loadCatalog(); }
 catch (error) { console.error(error.message); process.exit(1); }
 
+app.use(createSecurityHeadersMiddleware({ environment: config.environment }));
+app.use(createCorsMiddleware(config));
+app.use(createRateLimitMiddleware());
 app.use(express.json({ limit: '32kb' }));
-app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', config.corsOrigin);
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Demo-Namespace, Idempotency-Key');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,PATCH,DELETE,OPTIONS');
-  if (req.method === 'OPTIONS') return res.sendStatus(204);
-  return next();
-});
 app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'nutrition-assistant-api' }));
 const demoContext = createDemoContext({
   env: { ...process.env, DEMO_DATA_ENABLED: String(config.demoDataEnabled) },
 });
-app.use('/api/v1', createApiRouter(catalog, demoContext));
+const authMiddleware = createSupabaseAuthMiddleware({ settings: config.supabase });
+app.use('/api/v1', createApiRouter(catalog, demoContext, { authMiddleware }));
 app.use((err, req, res, _next) => {
   const isMealEntryRequest = req.path.startsWith('/api/v1/meal-entries');
   const isShoppingListRequest = req.path.startsWith('/api/v1/shopping-lists');
