@@ -161,6 +161,9 @@ function createApiMethods(apiClient) {
     generateMealPlan: payload => request('/api/v1/meal-plans/generate', { method: 'POST', body: JSON.stringify(payload) }),
     calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
     getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+    searchSourcedFoods: (query, { page = 1, signal } = {}) => request(`/api/v1/foods/search?q=${encodeURIComponent(query)}&page=${page}`, { signal }),
+    getSourcedFood: (fdcId, signal) => request(`/api/v1/foods/fdc/${encodeURIComponent(String(fdcId).replace(/^fdc:/, ''))}`, { signal }),
+    calculateSourcedNutrition: (items, signal) => request('/api/v1/nutrition/calculate-sourced', { method: 'POST', signal, body: JSON.stringify({ items }) }),
     createMealEntry: (payload, idempotencyKey) => request('/api/v1/meal-entries', {
       demo: true,
       method: 'POST',
@@ -202,6 +205,13 @@ function createApiMethods(apiClient) {
     deleteMyProfile: () => request('/api/v1/me/profile', { method: 'DELETE', authenticated: true }),
     getMyAccountExport: () => request('/api/v1/me/export', { authenticated: true }),
     deleteMyAccount: () => request('/api/v1/me', { method: 'DELETE', authenticated: true }),
+    getMyMealPlans: ({ limit = 20, offset = 0 } = {}) => request(`/api/v1/me/meal-plans?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    createMyMealPlan: (payload, idempotencyKey) => request('/api/v1/me/meal-plans', {
+      method: 'POST',
+      authenticated: true,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
   };
 }
 

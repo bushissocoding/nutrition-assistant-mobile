@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
@@ -6,6 +6,10 @@ import { colors, radius } from '../../theme/tokens';
 
 function warningText(warning) {
   return typeof warning === 'string' ? warning : warning?.message || '';
+}
+
+function createPlanIntentKey() {
+  return `plan-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 function moneyText(value) {
@@ -72,12 +76,76 @@ function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
 
 export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, onPlanGenerated }) {
   const [preferences, setPreferences] = useState('');
-  const [budget, setBudget] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [retryable, setRetryable] = useState(false);
   const [selectedMeal, setSelectedMeal] = useState(null);
+  const [foodQuery, setFoodQuery] = useState('');
+  const [foodResults, setFoodResults] = useState([]);
+  const [selectedFoods, setSelectedFoods] = useState([]);
+  const [foodSearchLoading, setFoodSearchLoading] = useState(false);
+  const [foodSearchError, setFoodSearchError] = useState('');
+  const [nutritionResult, setNutritionResult] = useState(null);
+  const [nutritionLoading, setNutritionLoading] = useState(false);
+  const [nutritionError, setNutritionError] = useState('');
+  const [savedPlans, setSavedPlans] = useState([]);
+  const [savedPlansVisible, setSavedPlansVisible] = useState(false);
+  const [savedPlansLoading, setSavedPlansLoading] = useState(false);
+  const [savedPlansError, setSavedPlansError] = useState('');
+  const searchRequest = useRef(0);
+  const planIntent = useRef(null);
+
+  useEffect(() => {
+    const query = foodQuery.trim();
+    const requestId = ++searchRequest.current;
+    if (query.length < 2) {
+      setFoodResults([]); setFoodSearchError(''); setFoodSearchLoading(false);
+      return undefined;
+    }
+    setFoodResults([]); setFoodSearchLoading(false); setFoodSearchError('');
+    const controller = new AbortController();
+    const timer = setTimeout(async () => {
+      setFoodSearchLoading(true); setFoodSearchError('');
+      try {
+        const data = await api.searchSourcedFoods(query, { signal: controller.signal });
+        if (searchRequest.current === requestId) setFoodResults(Array.isArray(data?.items) ? data.items : []);
+      } catch (requestError) {
+        if (requestError?.code !== 'API_REQUEST_ABORTED' && searchRequest.current === requestId) {
+          setFoodResults([]); setFoodSearchError(requestError?.message || 'Không tìm được thực phẩm từ nguồn USDA.');
+        }
+      } finally {
+        if (searchRequest.current === requestId) setFoodSearchLoading(false);
+      }
+    }, 350);
+    return () => {
+      clearTimeout(timer); controller.abort();
+      if (searchRequest.current === requestId) searchRequest.current += 1;
+    };
+  }, [foodQuery]);
+
+  function addSourcedFood(food) {
+    setSelectedFoods(current => current.some(item => item.food.id === food.id)
+      ? current
+      : [...current, { food, grams: '100' }]);
+    setNutritionResult(null); setNutritionError('');
+  }
+
+  function updateSourcedFood(foodId, updates) {
+    setSelectedFoods(current => current.map(item => item.food.id === foodId ? { ...item, ...updates } : item));
+    setNutritionResult(null);
+  }
+
+  async function calculateSourcedSelection() {
+    const items = selectedFoods.map(item => ({ foodId: item.food.id, grams: Number(item.grams) }));
+    if (!items.length || items.some(item => !Number.isFinite(item.grams) || item.grams <= 0 || item.grams > 5000)) {
+      setNutritionError('Nhập khối lượng mỗi thực phẩm từ trên 0 đến 5.000 g.'); return;
+    }
+    setNutritionLoading(true); setNutritionError(''); setNutritionResult(null);
+    try { setNutritionResult(await api.calculateSourcedNutrition(items)); }
+    catch (requestError) { setNutritionError(requestError?.message || 'Không thể tính dinh dưỡng từ nguồn dữ liệu.'); }
+    finally { setNutritionLoading(false); }
+  }
 
   async function generatePlan() {
     if (profile?.mode === 'healthy' && profile.redFlags?.length) {
@@ -88,26 +156,20 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
       setResult(null); setRetryable(false); setError('Hồ sơ cần có ít nhất một giới hạn dinh dưỡng đã đối chiếu với bác sĩ. Hãy cập nhật hồ sơ trước.');
       return;
     }
-    const budgetText = budget.trim();
-    const parsedBudget = budgetText ? Number(budgetText) : undefined;
-    if (budgetText && (!Number.isSafeInteger(parsedBudget) || parsedBudget < 0 || parsedBudget > 10000000)) {
-      setResult(null); setRetryable(false); setError('Nhập ngân sách là số nguyên từ 0 đến 10.000.000 VNĐ.');
-      return;
-    }
-
     const request = {
       contractVersion: 1,
-      ...(parsedBudget === undefined ? {} : { budgetVnd: parsedBudget }),
       preferences,
-      allergies: profile?.allergies || [],
-      excludedFoodIds: [],
-      hardLimits: profile?.mode === 'patient' ? profile.hardLimits : {}
     };
+    const signature = `${JSON.stringify(request)}:${profile?.updatedAt || ''}`;
+    if (planIntent.current?.signature !== signature) planIntent.current = { signature, key: createPlanIntentKey() };
     setLoading(true); setError(''); setRetryable(false); setResult(null);
     try {
-      const data = await api.generateMealPlan(request);
+      const data = await api.createMyMealPlan(request, planIntent.current.key);
       setResult(data);
-      if (data?.status === 'feasible' && data.planFeasible && Array.isArray(data.plan) && data.plan.length > 0) onPlanGenerated?.(data);
+      if (data?.status === 'feasible' && data.planFeasible && data.savedPlan?.id && Array.isArray(data.plan) && data.plan.length > 0) {
+        onPlanGenerated?.(data);
+        setSavedPlans(current => [data.savedPlan ? { ...data.savedPlan, plan: data } : null, ...current.filter(item => item?.id !== data.savedPlan.id)].filter(Boolean));
+      }
       else if (!['infeasible', 'unavailable'].includes(data?.status)) {
         setResult(null);
         setError('API trả về trạng thái thực đơn không hợp lệ. Hãy thử lại.');
@@ -121,25 +183,77 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
     }
   }
 
+  async function loadSavedPlans() {
+    setSavedPlansLoading(true); setSavedPlansError(''); setSavedPlansVisible(true);
+    try {
+      const data = await api.getMyMealPlans({ limit: 20, offset: 0 });
+      setSavedPlans(Array.isArray(data?.items) ? data.items : []);
+    } catch (requestError) { setSavedPlansError(requestError?.message || 'Không tải được kế hoạch đã lưu.'); }
+    finally { setSavedPlansLoading(false); }
+  }
+
+  function showSavedPlan(saved) {
+    if (!saved?.plan) return;
+    setResult({ ...saved.plan, savedPlan: { id: saved.id, createdAt: saved.createdAt, catalogVersion: saved.catalogVersion, profileUpdatedAt: saved.profileUpdatedAt } });
+    setSavedPlansVisible(false);
+  }
+
   if (selectedMeal) return <RecipeView meal={selectedMeal} onBack={() => setSelectedMeal(null)} />;
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text accessibilityRole="header" style={styles.title}>Lịch ăn hằng ngày</Text>
-    <Text style={styles.disclaimer}>Gợi ý prototype từ dữ liệu demo có ghi nguồn; không thay thế chế độ ăn do bác sĩ chỉ định.</Text>
-    <TouchableOpacity accessibilityRole="button" style={styles.savedListButton} onPress={() => onOpenGrocery?.()}>
-      <Text style={styles.savedListText}>Mở danh sách đi chợ đã lưu</Text>
+    <Text style={styles.disclaimer}>Dữ liệu dưỡng chất lấy từ USDA khi nguồn được cấu hình. Mẫu bữa do dự án biên soạn, chưa được chuyên gia dinh dưỡng thẩm định và không phải chế độ điều trị.</Text>
+    <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.heading}>Tra cứu USDA FoodData Central</Text>
+      <Text style={styles.helper}>Tìm bản ghi nguồn và tính lại theo khối lượng. USDA không xác nhận nhiễm chéo hoặc khả năng phù hợp cho điều trị.</Text>
+      <TextInput accessibilityLabel="Tìm thực phẩm USDA" value={foodQuery} onChangeText={setFoodQuery} placeholder="Nhập tên thực phẩm (ít nhất 2 ký tự)" style={styles.input} maxLength={100} />
+      {foodSearchLoading && <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tìm thực phẩm" /><Text style={styles.helper}>Đang tìm trong nguồn USDA…</Text></View>}
+      {!!foodSearchError && <Text accessibilityRole="alert" style={styles.error}>{foodSearchError}</Text>}
+      {!foodSearchLoading && !foodSearchError && foodQuery.trim().length >= 2 && !foodResults.length && <Text style={styles.helper}>Không có kết quả phù hợp từ USDA FoodData Central.</Text>}
+      {foodResults.map(food => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Thêm ${food.name}`} key={food.id} style={styles.searchResult} onPress={() => addSourcedFood(food)}>
+        <Text style={styles.heading}>{food.name}</Text>
+        <Text style={styles.provenance}>{food.dataType} · USDA FDC #{food.source?.recordId} · {food.source?.edition}</Text>
+      </TouchableOpacity>)}
+      <Text style={styles.label}>Thực phẩm đã chọn</Text>
+      {!selectedFoods.length && <Text style={styles.helper}>Chọn một kết quả để bắt đầu tính dinh dưỡng theo khẩu phần.</Text>}
+      {selectedFoods.map(({ food, grams }) => <View key={food.id} style={styles.selectedFood}>
+        <View style={styles.selectedFoodCopy}><Text style={styles.profileValue}>{food.name}</Text><Text style={styles.provenance}>USDA FDC #{food.source?.recordId} · {food.dataType}</Text></View>
+        <TextInput accessibilityLabel={`Khối lượng ${food.name} (g)`} value={grams} onChangeText={value => updateSourcedFood(food.id, { grams: value })} keyboardType="decimal-pad" maxLength={7} style={styles.gramsInput} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Bỏ ${food.name}`} onPress={() => { setSelectedFoods(current => current.filter(item => item.food.id !== food.id)); setNutritionResult(null); }}><Text style={styles.editLink}>Bỏ</Text></TouchableOpacity>
+      </View>)}
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: nutritionLoading || !selectedFoods.length }} disabled={nutritionLoading || !selectedFoods.length} style={styles.secondary} onPress={calculateSourcedSelection}>
+        {nutritionLoading ? <ActivityIndicator color="white" /> : <Text style={styles.secondaryText}>Tính dinh dưỡng theo USDA</Text>}
+      </TouchableOpacity>
+      {!!nutritionError && <Text accessibilityRole="alert" style={styles.error}>{nutritionError}</Text>}
+      {nutritionResult && <View accessibilityLiveRegion="polite" style={styles.sourceBox}>
+        <Text accessibilityRole="header" style={styles.sourceHeading}>Kết quả theo khẩu phần</Text>
+        {NUTRIENTS.map(nutrient => <Text key={nutrient.key} style={styles.small}>{nutrient.label}: {nutritionResult.totals?.[nutrient.key] ?? 'Chưa có dữ liệu'} {nutrient.unit}</Text>)}
+        <Text style={styles.provenance}>Nguồn: {nutritionResult.sources?.map(source => `${source.label} #${source.recordId} (${source.edition})`).join('; ') || 'không rõ'} · {nutritionResult.items?.[0]?.catalogVersion}</Text>
+        <Text style={styles.footnote}>{nutritionResult.disclaimer}</Text>
+      </View>}
+    </View>
+    <TouchableOpacity accessibilityRole="button" style={styles.savedListButton} onPress={loadSavedPlans}>
+      <Text style={styles.savedListText}>Xem kế hoạch đã lưu</Text>
     </TouchableOpacity>
+    {savedPlansVisible && <View style={styles.card}>
+      <Text accessibilityRole="header" style={styles.heading}>Kế hoạch tài khoản</Text>
+      {savedPlansLoading && <ActivityIndicator accessibilityLabel="Đang tải kế hoạch" />}
+      {!!savedPlansError && <Text accessibilityRole="alert" style={styles.error}>{savedPlansError}</Text>}
+      {!savedPlansLoading && !savedPlansError && !savedPlans.length && <Text style={styles.helper}>Chưa có kế hoạch nào được lưu.</Text>}
+      {savedPlans.map(saved => <TouchableOpacity accessibilityRole="button" key={saved.id} style={styles.searchResult} onPress={() => showSavedPlan(saved)}>
+        <Text style={styles.profileValue}>{saved.plan?.plan?.[0]?.name || 'Kế hoạch dinh dưỡng'}</Text>
+        <Text style={styles.provenance}>{saved.createdAt || ''} · {saved.catalogVersion || saved.plan?.metadata?.catalogVersion}</Text>
+      </TouchableOpacity>)}
+    </View>}
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.heading}>Tùy chỉnh thực đơn</Text>
       <Text style={styles.label}>Món bạn yêu thích</Text>
       <TextInput accessibilityLabel="Món bạn yêu thích" value={preferences} onChangeText={setPreferences} placeholder="Ví dụ: món cá, canh bí..." style={styles.input} maxLength={200} />
-      <Text style={styles.label}>Ngân sách mỗi ngày (VNĐ, tùy chọn)</Text>
-      <TextInput accessibilityLabel="Ngân sách mỗi ngày (VNĐ)" value={budget} onChangeText={setBudget} keyboardType="numeric" style={styles.input} maxLength={8} />
-      <Text style={styles.helper}>Giá hiện chưa có nguồn xác minh. Để trống để xem gợi ý không xét ngân sách.</Text>
-      <Text style={styles.label}>Chế độ hồ sơ demo</Text>
+      <Text style={styles.helper}>Giá thực phẩm chưa có nguồn xác minh; kế hoạch hiện không đánh giá chi phí.</Text>
+      <Text style={styles.label}>Hồ sơ tài khoản</Text>
       <View style={styles.profileSummary}>
         <Text style={styles.profileValue}>{profile?.mode === 'patient' ? 'Có chỉ tiêu được xác nhận' : 'Tham khảo cơ bản'}</Text>
-        <Text style={styles.profileHint}>Dữ liệu tổng hợp lưu trên thiết bị, chưa gắn với tài khoản.</Text>
+        <Text style={styles.profileHint}>Dị ứng và giới hạn được API lấy trực tiếp từ hồ sơ đã lưu; app không gửi lại các ràng buộc này khi tạo kế hoạch.</Text>
         <Text style={styles.profileHint}>Dị ứng: {profile?.allergies?.length ? profile.allergies.join(', ') : 'chưa nhập'}</Text>
         {profile?.mode === 'patient' && <Text style={styles.profileHint}>Các hardLimits đã xác nhận được áp dụng bắt buộc.</Text>}
         <TouchableOpacity accessibilityRole="button" onPress={onOpenProfile} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.editLink}>Chỉnh sửa hồ sơ ›</Text></TouchableOpacity>
@@ -176,8 +290,10 @@ function RecipeView({ meal, onBack }) {
     <View style={styles.recipeFacts}><Text style={styles.recipeFact}>Ước tính dinh dưỡng</Text><Text style={styles.recipeFact}>{portions.length} thành phần</Text></View>
     <Text style={styles.recipeSectionTitle}>Nguyên liệu</Text>
     <View style={styles.recipeIngredients}>{portions.length ? portions.map((portion, index) => <View key={`${portion.foodId}-${index}`} style={styles.recipeIngredient}><View style={styles.ingredientIcon}><Text style={styles.ingredientGlyph}>{['◉', '◌', '⌁'][index % 3]}</Text></View><Text style={styles.ingredientName}>{portion.food}</Text><Text style={styles.ingredientAmount}>{portion.grams} g</Text></View>) : <Text style={styles.helper}>Chưa có thành phần trong dữ liệu bữa ăn.</Text>}</View>
+    <Text style={styles.recipeSectionTitle}>Cách chế biến tham khảo</Text>
+    <View style={styles.recipeDescription}>{Array.isArray(meal.instructions) && meal.instructions.length ? meal.instructions.map((step, index) => <Text key={`recipe-step-${index}`} style={styles.recipeDescriptionText}>{index + 1}. {step}</Text>) : <Text style={styles.recipeDescriptionText}>Chưa có hướng dẫn chế biến cho món ăn này.</Text>}</View>
     <Text style={styles.recipeSectionTitle}>Thông tin món ăn</Text>
-    <View style={styles.recipeDescription}><Text style={styles.recipeDescriptionText}>{meal.explanation || 'Chưa có mô tả cho món ăn này.'}</Text><Text style={styles.recipeDisclaimer}>Hướng dẫn chế biến chi tiết chưa có trong dữ liệu thực đơn. Gợi ý chỉ mang tính tham khảo, không phải chỉ định dinh dưỡng.</Text></View>
+    <View style={styles.recipeDescription}><Text style={styles.recipeDescriptionText}>{meal.explanation || 'Chưa có mô tả cho món ăn này.'}</Text><Text style={styles.recipeDisclaimer}>Nội dung mẫu, chưa được chuyên gia dinh dưỡng thẩm định; không phải chỉ định điều trị.</Text></View>
     <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onBack}><Text style={styles.secondaryText}>Quay lại thực đơn</Text></TouchableOpacity>
   </ScrollView>;
 }
@@ -217,7 +333,7 @@ const styles = StyleSheet.create({
   small: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
   explanation: { color: colors.primaryDark, fontSize: 14, lineHeight: 20, marginTop: 12 },
   provenance: { color: colors.muted, fontSize: 13, lineHeight: 16, marginTop: 5 },
-  sourceBox: { marginTop: 10, padding: 10, backgroundColor: '#F5F7FB', borderRadius: 9 },
+  sourceBox: { marginTop: 10, padding: 10, backgroundColor: '#F5F7FB', borderRadius: 9 }, searchResult: { paddingVertical: 11, borderBottomWidth: 1, borderColor: colors.border }, selectedFood: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 62, borderBottomWidth: 1, borderColor: colors.border }, selectedFoodCopy: { flex: 1 }, gramsInput: { width: 70, minHeight: 46, textAlign: 'center', borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: '#F5F7FB', color: colors.text },
   sourceHeading: { color: colors.text, fontWeight: '800', fontSize: 14 },
   secondary: { minHeight: 54, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
   secondaryText: { color: 'white', fontWeight: '800' },

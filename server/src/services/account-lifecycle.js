@@ -29,12 +29,19 @@ async function exportAccount({ db, user }) {
     .order('accepted_at', { ascending: false })
     .order('id', { ascending: false });
   if (error) throw error;
+  const { data: plans, error: planError } = await db.from('meal_plans')
+    .select('id,plan,profile_updated_at,catalog_version,created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false });
+  if (planError) throw planError;
   return {
     exportVersion: 1,
     exportedAt: new Date().toISOString(),
     identity: { id: user.id, email: user.email },
     profile: toProfileDto(profile),
     consentRecords: (consents || []).map(record => ({ version: record.version, choices: record.choices, acceptedAt: record.accepted_at })),
+    mealPlans: (plans || []).map(record => ({ id: record.id, plan: record.plan, profileUpdatedAt: record.profile_updated_at, catalogVersion: record.catalog_version, createdAt: record.created_at })),
   };
 }
 

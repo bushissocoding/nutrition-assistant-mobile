@@ -47,16 +47,21 @@ server/
 │   │   ├── security-headers.js      # API security response headers
 │   │   └── supabase-auth.js         # Provider-verified principal and user DB client
 │   ├── routes/api.js                # API composition and existing route mapping
+│   ├── routes/sourced-foods.js      # USDA search/detail and server nutrient calculation
+│   ├── routes/meal-plans.js        # Consent-gated, account-owned plan snapshots
 │   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
 │   ├── repositories/catalog.js      # Validate/load catalog and its source registry
 │   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
 │   ├── repositories/shopping-list-repository.js # Current grocery list and idempotency ledger
+│   ├── repositories/meal-plan-repository.js # Account-scoped plan snapshots and idempotency
 │   └── services/
 │       ├── supabase/
 │       │   ├── user-client.js       # Request-scoped publishable client with caller JWT
 │       │   └── privileged-client.js # Separate server-secret client for internal operations
 │       ├── nutrition.js             # Deterministic nutrient calculations
+│       ├── fdc-food-source.js       # Server-only FoodData Central adapter and normalization
+│       ├── sourced-meal-plans.js    # Exact FDC ingredient mapping and profile constraints
 │       ├── food-catalog.js          # Catalog schema, source-rights checks and diff report
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
@@ -74,6 +79,7 @@ Startup configuration is read and validated before opening the listener. `npm ru
 ## Current mobile-to-API contract
 
 - `GET /api/v1/foods?q=...` — search the demonstration food catalog; response includes additive catalog version, source, unit and limitation metadata. The existing `/api/v1` food and nutrition fields remain available.
+- `GET /api/v1/foods/search?q=...&page=1`, `GET /api/v1/foods/fdc/:fdcId`, `POST /api/v1/nutrition/calculate-sourced` — server-side FDC search/detail and nutrient calculation with source record/version and missing-value metadata. They return unavailable when the provider key/data is unavailable; they do not fall back to the demo catalog.
 - `POST /api/v1/nutrition/calculate` — deterministic nutrients for `{ items: [{ foodId, grams }] }`.
 - `POST /api/v1/meal-plans/generate` — versioned deterministic meal result with per-food source/version provenance. Responses distinguish feasible, infeasible and unavailable results; allergies and `hardLimits` stay strict, while missed `targets` produce warnings. A supplied budget is evaluated only when recipe prices have registered source/version metadata; otherwise the response is unavailable and contains no plan.
 - `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.
@@ -82,9 +88,10 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `GET/PUT /api/v1/me/consent` — reads the latest account receipt or appends explicit choices with a database timestamp.
 - `GET/PUT/DELETE /api/v1/me/profile` — reads, validates, saves or deletes the caller's own health profile after current required consent.
 - `GET /api/v1/me/export` and `DELETE /api/v1/me` — export current identity/profile/consent records and stage account deletion through registered module cleanup handlers before privileged Auth deletion.
+- `POST/GET /api/v1/me/meal-plans` — create feasible snapshots from exact live FDC records and list owner-scoped history; allergies/hard limits come from the consented account profile. The migration enables owner RLS and per-account idempotency.
 - `GET /health` — service health.
 
-Auth sessions use a chunked, failure-safe SecureStore adapter. Sign-up, login, email/SMS recovery, password changes, verified-phone linking and profile screens use Supabase Auth when configured. Consent and health profile API routes use verified bearer identity and owner-scoped Supabase RLS; export/delete APIs cover identity, profile and consent plus registered module handlers. Only the Auth SDK session remains local. Account-private routes do not yet cover diary/grocery, plans, appointments, chat, records or other feature workflows. Local RLS integration has not run because Docker/Supabase CLI are unavailable. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+Auth sessions use a chunked, failure-safe SecureStore adapter. Sign-up, login, email/SMS recovery, password changes, verified-phone linking and profile screens use Supabase Auth when configured. Consent and health profile API routes use verified bearer identity and owner-scoped Supabase RLS; export covers identity, profile, consent and saved meal plans, while account deletion triggers Auth cascades and registered module cleanup handlers. Sourced FDC food lookup/calculation and consent-gated, profile-derived saved meal plans are implemented; they require a server-only `FDC_API_KEY` and exact source matches. Only the Auth SDK session remains local. Account-private routes do not yet cover diary/grocery, appointments, chat, records or other feature workflows. Local RLS integration has not run because Docker/Supabase CLI are unavailable. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 

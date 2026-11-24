@@ -55,6 +55,7 @@ test('meal planner returns complete portions, daily totals and traceable source 
     assert.ok(meal.portions.every(portion => portion.provenance.foodVersion && portion.provenance.sourceId && portion.provenance.edition));
     assert.equal(meal.estimatedCostVnd, null);
     assert.ok(meal.explanation.length > 0);
+    assert.ok(meal.instructions.length > 0);
     assert.equal(meal.nutrientUnits.energyKcal, 'kcal');
   }
 

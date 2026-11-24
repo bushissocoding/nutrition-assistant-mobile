@@ -7,8 +7,10 @@ const { createCurrentUserRouter } = require('./current-user');
 const { createProfileRouter } = require('./profiles');
 const { createConsentRouter } = require('./consent');
 const { createAccountRouter } = require('./account');
+const { createSourcedFoodRouter } = require('./sourced-foods');
+const { createMealPlanRouter } = require('./meal-plans');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount } = {}) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -22,10 +24,12 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
   });
   if (authMiddleware) {
     router.use('/me', createCurrentUserRouter(authMiddleware));
-    router.use('/me', authMiddleware, createAccountRouter({ deleteAccount }));
+    router.use('/me', createAccountRouter({ authMiddleware, deleteAccount }));
     router.use('/me/consent', authMiddleware, createConsentRouter());
     router.use('/me/profile', authMiddleware, createProfileRouter());
+    router.use('/me/meal-plans', authMiddleware, createMealPlanRouter({ foods, mealTemplates, catalog, foodSource }));
   }
+  router.use(createSourcedFoodRouter({ foodSource }));
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
     const category = String(req.query.category || '').trim().toLocaleLowerCase('vi');

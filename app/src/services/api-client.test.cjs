@@ -28,6 +28,9 @@ test('exposes the existing API methods with their original v1 paths and payloads
   });
   const plan = { servings: 2, allergies: ['peanut'] };
   const foods = await api.getFoods('rau muống');
+  await api.searchSourcedFoods('beans', { page: 2 });
+  await api.getSourcedFood('fdc:12345');
+  await api.calculateSourcedNutrition([{ foodId: 'fdc:12345', grams: 100 }]);
   await api.calculateNutrition([{ foodId: 'food-1', grams: 150 }]);
   await api.generateMealPlan(plan);
   await api.getCurrentUser();
@@ -38,10 +41,15 @@ test('exposes the existing API methods with their original v1 paths and payloads
   await api.deleteMyProfile();
   await api.getMyAccountExport();
   await api.deleteMyAccount();
+  await api.getMyMealPlans({ limit: 10, offset: 20 });
+  await api.createMyMealPlan({ contractVersion: 1, preferences: 'rice' }, 'plan-intent-0001');
 
   assert.deepEqual(foods, { ok: true });
   assert.deepEqual(calls, [
     { path: '/api/v1/foods?q=rau%20mu%E1%BB%91ng', options: undefined },
+    { path: '/api/v1/foods/search?q=beans&page=2', options: { signal: undefined } },
+    { path: '/api/v1/foods/fdc/12345', options: { signal: undefined } },
+    { path: '/api/v1/nutrition/calculate-sourced', options: { method: 'POST', signal: undefined, body: JSON.stringify({ items: [{ foodId: 'fdc:12345', grams: 100 }] }) } },
     { path: '/api/v1/nutrition/calculate', options: { method: 'POST', body: '{"items":[{"foodId":"food-1","grams":150}]}' } },
     { path: '/api/v1/meal-plans/generate', options: { method: 'POST', body: JSON.stringify(plan) } },
     { path: '/api/v1/me', options: { authenticated: true } },
@@ -52,6 +60,8 @@ test('exposes the existing API methods with their original v1 paths and payloads
     { path: '/api/v1/me/profile', options: { method: 'DELETE', authenticated: true } },
     { path: '/api/v1/me/export', options: { authenticated: true } },
     { path: '/api/v1/me', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/meal-plans?limit=10&offset=20', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-plans', options: { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': 'plan-intent-0001' }, body: JSON.stringify({ contractVersion: 1, preferences: 'rice' }) } },
   ]);
 });
 

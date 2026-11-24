@@ -81,6 +81,15 @@ function readSupabaseConfig(env, environment) {
   return values;
 }
 
+function readFdcApiKey(value) {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string') throw invalidConfig('FDC_API_KEY', 'must be a valid server-side API key.');
+  const key = value.trim();
+  if (!key) return null;
+  if (key.length > 200 || /[\r\n\0]/.test(key)) throw invalidConfig('FDC_API_KEY', 'must be a valid server-side API key.');
+  return key;
+}
+
 function readServerConfig(env = process.env) {
   const environment = readEnvironment(env.NODE_ENV);
   const demoDataEnabled = readDemoDataEnabled(env.DEMO_DATA_ENABLED);
@@ -93,6 +102,7 @@ function readServerConfig(env = process.env) {
     demoDataEnabled,
     environment,
     supabase: readSupabaseConfig(env, environment),
+    fdcApiKey: readFdcApiKey(env.FDC_API_KEY),
   };
 }
 

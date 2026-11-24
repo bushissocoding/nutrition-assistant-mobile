@@ -17,15 +17,17 @@ USDA FoodData Central (FDC) is the first live catalog adapter because its offici
 5. Plan creation uses deterministic code and known ingredients with source attribution. Allergies are a hard exclusion. If any declared allergy cannot be checked, or a hard-limit nutrient/source is missing, return an unavailable/infeasible result with no partial plan. Soft targets may warn. No price/budget result exists unless each price has an approved source, currency, unit and version.
 6. `POST /api/v1/me/meal-plans` persists each result under the verified user and returns the server row ID/version. `GET /api/v1/me/meal-plans` is owner-scoped, paginated and ordered by server creation time. Existing public `/api/v1/meal-plans/generate`, `/api/v1/foods` and `/api/v1/nutrition/calculate` keep their response contract and prototype disclaimers.
 7. The report aggregates server-owned diary entries for the user's requested local day and period; the report clearly distinguishes no entry from unknown nutrient values and includes source/date/time-zone metadata. A nutrition report route is completed with the diary module after the owned diary table exists.
-8. A generated plan remains a snapshot; later catalog updates do not rewrite an older plan's values or source/version record. Repeating a plan request with the same idempotency key and same normalized intent returns the original row; reusing a key for different intent returns 409.
+8. A generated plan remains a snapshot; later catalog updates do not rewrite an older plan's values or source/version record. Repeating a plan request with the same idempotency key and same normalized intent returns the original row before contacting USDA; reusing a key for different intent returns 409.
 
 ## Data and API Contract
 
-- External adapter: `https://api.nal.usda.gov/fdc/v1/foods/search` and `/food/{fdcId}`, server-side `FDC_API_KEY`, 5–25 search results, bounded timeout/response body, no key or full provider request URL in logs.
+- External adapter: `https://api.nal.usda.gov/fdc/v1/foods/search` and `/food/{fdcId}`, server-side `FDC_API_KEY`, 5–25 search results, bounded timeout and streamed response body, no key or full provider request URL in logs.
 - Normalized food DTO: stable `id` (`fdc:<FDC ID>`), `name`, `dataType`, `basis` (`100 g` when supported), nutrient values/units/missingness, `source: { id: 'USDA-FDC', label, recordId, release/date }`, `catalogVersion`, `limitations`, and URL.
 - New routes: `GET /api/v1/foods/search?q=&page=`, `GET /api/v1/foods/fdc/:fdcId`, `POST /api/v1/nutrition/calculate-sourced`, `POST /api/v1/me/meal-plans`, `GET /api/v1/me/meal-plans`. Saved-plan routes require verified identity and current required consent. Existing routes remain unchanged.
-- Add `meal_plans(id, user_id references auth.users, request_key, intent_hash, plan, profile_updated_at, catalog_version, created_at)`, owner RLS select/insert only, unique `(user_id, request_key)` and DB-created timestamp. No arbitrary owner field is accepted.
+- Add `meal_plans(id, user_id references auth.users, request_key, intent_hash, plan, profile_updated_at, catalog_version, created_at)`, owner RLS select/insert/delete, unique `(user_id, request_key)` and DB-created timestamp. No arbitrary owner field is accepted.
 - User-scoped PostgREST client uses the JWT and RLS. Body size, query and serving bounds are checked at the route boundary. FDC errors map to stable `FOOD_SOURCE_UNAVAILABLE`/`FOOD_SOURCE_RATE_LIMITED` errors without provider details.
+
+For the current project-authored meal templates, each comparator description is searched in FDC and must resolve to exactly one normalized exact description before nutrient calculation. An ambiguous/no match returns unavailable; it never chooses the first approximate search hit. Any non-empty profile allergy list returns unavailable because FDC composition records do not verify ingredient contamination or complete allergen coverage. Recipe instructions are project-authored sample steps and remain explicitly unreviewed; source-backed nutrient rows do not make the recipe clinically validated.
 
 ## Tech Stack
 
@@ -35,7 +37,7 @@ USDA FoodData Central (FDC) is the first live catalog adapter because its offici
 
 ## Commands
 
-- Focused: `node --test server/tests/fdc-food-source.test.js server/tests/nutrition-plan-routes.test.js server/tests/core.test.js` (exact files when added).
+- Focused: `node --test server/tests/fdc-food-source.test.js server/tests/sourced-food-routes.test.js server/tests/sourced-meal-plans.test.js server/tests/meal-plan-routes.test.js server/tests/meal-plan-repository.test.js server/tests/core.test.js`.
 - Required: `npm run test:unit`, `npm run test:ui`, `npm run test:api`.
 - Source check when live credentials exist: run a bounded smoke search with the operator's FDC key, never print it; no vendor integration claim without this step.
 - Database: `npx supabase db reset` and two-account RLS integration tests if Docker/Supabase CLI are installed.
@@ -44,7 +46,7 @@ USDA FoodData Central (FDC) is the first live catalog adapter because its offici
 
 - `server/src/services/fdc-food-source.js`: FDC request, timeout, schema validation and normalization.
 - `server/src/services/nutrition.js`, `meal-planner.js`: pure deterministic calculations and constraints.
-- `server/src/routes/foods.js`, `nutrition.js`, `meal-plans.js`: public compatibility plus authenticated account routes.
+- `server/src/routes/sourced-foods.js`, `server/src/routes/meal-plans.js`: public sourced lookup/calculation plus authenticated account routes.
 - `server/src/repositories/meal-plan-repository.js`: user-owned snapshots/idempotency.
 - `app/src/features/meal-planning/MealPlanScreen.js`, `app/src/features/diary/DiaryScreen.js`, `app/src/features/dashboard/DashboardScreen.js`: sourced result and account routes.
 - `supabase/migrations/`: owner RLS and idempotent saved plans.
@@ -55,7 +57,7 @@ Normalize provider payload at one boundary. Keep provider requests out of route 
 
 ## Testing Strategy
 
-- Unit: nutrient ID/unit normalization, missingness, duplicate nutrients, malformed and oversized payloads, FDC error/status/timeout mapping, allergen coverage, hard-limit failure and deterministic totals.
+- Unit: nutrient ID/unit normalization, missingness, duplicate nutrients, malformed and streamed oversized payloads, FDC error/status/timeout mapping, allergen coverage, hard-limit failure and deterministic totals.
 - API: query validation, public `/api/v1` response compatibility, client owner/constraints tampering, missing consent/profile, owner-scoped saved plan, idempotent replay and conflict.
 - UI: source/provenance and missing-value display, no fallback false success, saved plans survive session reload, allergy/hard-limit result states.
 - Integration: synthetic users A/B prove RLS plan isolation; run against Supabase local when available.

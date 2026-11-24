@@ -1,9 +1,9 @@
 const express = require('express');
 const { exportAccount } = require('../services/account-lifecycle');
 
-function createAccountRouter({ deleteAccount } = {}) {
+function createAccountRouter({ authMiddleware = (_req, _res, next) => next(), deleteAccount } = {}) {
   const router = express.Router();
-  router.get('/export', async (req, res) => {
+  router.get('/export', authMiddleware, async (req, res) => {
     try {
       const data = await exportAccount({ db: req.userDatabase, user: req.auth.user });
       return res.json(data);
@@ -11,7 +11,7 @@ function createAccountRouter({ deleteAccount } = {}) {
       return res.status(503).json({ error: 'Không thể tạo bản xuất dữ liệu lúc này.', code: 'ACCOUNT_EXPORT_UNAVAILABLE' });
     }
   });
-  router.delete('/', async (req, res) => {
+  router.delete('/', authMiddleware, async (req, res) => {
     if (typeof deleteAccount !== 'function') {
       return res.status(503).json({ error: 'Yêu cầu xóa tài khoản chưa được cấu hình.', code: 'ACCOUNT_DELETE_UNAVAILABLE' });
     }

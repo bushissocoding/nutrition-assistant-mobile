@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createAccountDeletionService, exportAccount } = require('../src/services/account-lifecycle');
 
-function accountDatabase({ profile = null, consents = [] } = {}) {
+function accountDatabase({ profile = null, consents = [], plans = [] } = {}) {
   return {
     from(table) {
       if (table === 'profiles') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: null }) }) }) };
@@ -13,6 +13,7 @@ function accountDatabase({ profile = null, consents = [] } = {}) {
           }),
         }),
       };
+      if (table === 'meal_plans') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: plans, error: null }) }) }) }) };
       throw new Error('Unexpected test table.');
     },
   };
@@ -20,13 +21,17 @@ function accountDatabase({ profile = null, consents = [] } = {}) {
 
 test('account export contains only the authenticated identity, owned profile and consent receipts', async () => {
   const data = await exportAccount({
-    db: accountDatabase({ consents: [{ version: 'v1', choices: { profile_processing: true }, accepted_at: '2026-01-01T00:00:00.000Z' }] }),
+    db: accountDatabase({
+      consents: [{ version: 'v1', choices: { profile_processing: true }, accepted_at: '2026-01-01T00:00:00.000Z' }],
+      plans: [{ id: 'plan-1', plan: { status: 'feasible' }, profile_updated_at: null, catalog_version: 'USDA-FDC-live-v1', created_at: '2026-01-02T00:00:00.000Z', user_id: 'not-exported' }],
+    }),
     user: { id: 'synthetic-user', email: 'person@example.test' },
   });
   assert.equal(data.exportVersion, 1);
   assert.deepEqual(data.identity, { id: 'synthetic-user', email: 'person@example.test' });
   assert.equal(data.profile, null);
   assert.deepEqual(data.consentRecords, [{ version: 'v1', choices: { profile_processing: true }, acceptedAt: '2026-01-01T00:00:00.000Z' }]);
+  assert.deepEqual(data.mealPlans, [{ id: 'plan-1', plan: { status: 'feasible' }, profileUpdatedAt: null, catalogVersion: 'USDA-FDC-live-v1', createdAt: '2026-01-02T00:00:00.000Z' }]);
   assert.equal(JSON.stringify(data).includes('password'), false);
 });
 

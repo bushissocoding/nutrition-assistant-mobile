@@ -18,6 +18,7 @@ test('server config keeps local defaults and disables demo persistence', () => {
     environment: 'development',
     corsOrigins: ['*'],
     supabase: null,
+    fdcApiKey: null,
   });
 });
 
@@ -29,6 +30,7 @@ test('server config accepts an explicit port, CORS value, and demo setting', () 
     environment: 'development',
     corsOrigins: ['http://localhost'],
     supabase: null,
+    fdcApiKey: null,
   });
 });
 
@@ -44,6 +46,7 @@ test('production requires current Supabase credentials and an explicit HTTPS ori
       publishableKey: 'sb_publishable_test_key',
       secretKey: 'sb_secret_test_key',
     },
+    fdcApiKey: null,
   });
 });
 
@@ -104,4 +107,11 @@ test('server config rejects unknown demo flag values', () => {
         && (!value.trim() || !error.message.includes(value)),
     );
   }
+});
+
+test('FDC API key is optional, trimmed, and rejected when malformed without echoing it', () => {
+  assert.equal(readServerConfig({ FDC_API_KEY: ' synthetic-food-key ' }).fdcApiKey, 'synthetic-food-key');
+  const secret = `bad\nfood-key`;
+  assert.throws(() => readServerConfig({ FDC_API_KEY: secret }), error => error.code === 'INVALID_SERVER_CONFIG' && !error.message.includes(secret));
+  assert.throws(() => readServerConfig({ FDC_API_KEY: 'x'.repeat(201) }), error => error.code === 'INVALID_SERVER_CONFIG');
 });

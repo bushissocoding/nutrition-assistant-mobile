@@ -307,6 +307,7 @@ function makeMeal(template, scale, foodById, sources, catalog) {
       id: template.id,
       slot: template.slot,
       name: template.name,
+      instructions: Array.isArray(template.instructions) ? template.instructions : [],
       portions: portions.map(({ aliases, allergens, ...portion }) => portion),
       nutrients: totalsForPortions(portions, foodById),
       nutrientUnits,

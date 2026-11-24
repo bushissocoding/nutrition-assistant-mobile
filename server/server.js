@@ -10,6 +10,7 @@ const { createRateLimitMiddleware } = require('./src/middleware/rate-limit');
 const { createSupabaseAuthMiddleware } = require('./src/middleware/supabase-auth');
 const { createPrivilegedSupabaseClient } = require('./src/services/supabase/privileged-client');
 const { createAccountDeletionService } = require('./src/services/account-lifecycle');
+const { createFdcFoodSource } = require('./src/services/fdc-food-source');
 
 const app = express();
 app.disable('x-powered-by');
@@ -30,12 +31,13 @@ const demoContext = createDemoContext({
   env: { ...process.env, DEMO_DATA_ENABLED: String(config.demoDataEnabled) },
 });
 const authMiddleware = createSupabaseAuthMiddleware({ settings: config.supabase });
+const foodSource = createFdcFoodSource({ apiKey: config.fdcApiKey });
 let deleteAccount;
 if (config.supabase) {
   const privilegedClient = createPrivilegedSupabaseClient({ settings: config.supabase });
   deleteAccount = createAccountDeletionService({ adminClient: privilegedClient });
 }
-app.use('/api/v1', createApiRouter(catalog, demoContext, { authMiddleware, deleteAccount }));
+app.use('/api/v1', createApiRouter(catalog, demoContext, { authMiddleware, deleteAccount, foodSource }));
 app.use((err, req, res, _next) => {
   const isMealEntryRequest = req.path.startsWith('/api/v1/meal-entries');
   const isShoppingListRequest = req.path.startsWith('/api/v1/shopping-lists');
