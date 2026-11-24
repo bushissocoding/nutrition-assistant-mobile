@@ -78,6 +78,15 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 6.2: Run all available repository suites, bundle/catalog checks and final code review; document that migration/RLS execution needs unavailable Supabase CLI and Docker
 - [x] Checkpoint: All in-repository acceptance is met; unresolved external release gates and their required owners/inputs are documented and are not misrepresented as done
 
+### Phase 7: Supabase migration and RLS CI verification
+
+Delta spec: [`SPEC-delta-supabase-ci-rls-v1.md`](../spec/SPEC-delta-supabase-ci-rls-v1.md); focused tasks: [`supabase-ci-integration.md`](supabase-ci-integration.md).
+
+- [x] Task 7.1: Extend pgTAP to enforce the private-table RLS inventory, anonymous access restrictions, private health-record bucket policies, and two-account profile isolation; local execution is unavailable here.
+- [x] Task 7.2: Add a separate GitHub Actions Supabase job to start the local stack, reset checked-in migrations and run pgTAP on pull requests.
+- [x] Task 7.3: Update capability/release docs and run all repository checks; report local and hosted-runtime verification separately.
+- [x] Checkpoint: Workflow contract and repository checks pass locally; migration/RLS runtime behavior remains pending the first hosted Supabase job result.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

@@ -48,7 +48,8 @@ Make a deployment operator able to configure, release, observe, recover, and sup
 - `npm run catalog:validate`
 - `npm run catalog:fixture`
 - `git diff --check`
-- Local Supabase migration/RLS integration and physical-device/provider sandbox checks when the required tools, credentials and accounts are available.
+- CI Supabase migration/pgTAP job; local execution also uses `supabase start`, `supabase db reset`, and `supabase test db` when Docker and the Supabase CLI are available.
+- Physical-device/provider sandbox checks when the required tools, credentials and accounts are available.
 
 ## Related documents
 

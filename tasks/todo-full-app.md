@@ -39,3 +39,9 @@ Current execution status is tracked in [`plan-full-app.md`](plan-full-app.md); m
 - [x] Before every later module implementation, write and self-review that module's own spec and focused checklist in capability dependency order.
 - [x] Release operations: run full required suites, complete final code review, and record external release blockers in [`SPEC-release-operations-v1.md`](../spec/SPEC-release-operations-v1.md).
 - [ ] Do not mark external credentials, provider accounts, data rights, reviews, or deployment checks complete from code alone.
+
+## Phase 7 — Supabase migration and RLS CI
+
+See [`supabase-ci-integration.md`](supabase-ci-integration.md) and [`SPEC-delta-supabase-ci-rls-v1.md`](../spec/SPEC-delta-supabase-ci-rls-v1.md).
+
+- [ ] Run the migration and pgTAP suite against Supabase local from GitHub Actions; local Docker/Supabase CLI are unavailable in the current environment.

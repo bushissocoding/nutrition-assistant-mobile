@@ -14,7 +14,7 @@ Before changing dependencies, run `npm audit --json`, inspect installed paths, c
 
 ## Data and trust boundaries
 
-- Supabase Auth verifies identity when configured. The app stores its Auth SDK session in SecureStore. Private APIs use a request-scoped client and explicit owner/role filters; SQL migrations add RLS and narrow privileged RPCs. Static migration contract tests do not prove behavior against a running Postgres/Supabase project.
+- Supabase Auth verifies identity when configured. The app stores its Auth SDK session in SecureStore. Private APIs use a request-scoped client and explicit owner/role filters; SQL migrations add RLS and narrow privileged RPCs. A dedicated CI job now applies local migrations and runs pgTAP checks, but this branch has no hosted result yet; static tests alone do not prove behavior against a running Postgres/Supabase project.
 - Account APIs cover profile/consent, meal plans, diary/report, pantry/shopping, care/payment, chats, health records, notifications and personalization. The old caller-selected `X-Demo-Namespace` routes exist only for synthetic local compatibility and are disabled by default and in production.
 - Account export is versioned and includes registered user-owned records. Account deletion runs registered cleanup steps and removes private health-record objects before deleting the Auth identity. This is not a tested legal retention/deletion guarantee; external replicas, provider records and backups need separately approved policies.
 - Health-record images stay on device during OCR candidate review. Upload is explicit and consent-gated; OCR candidates are not confirmed results until the person saves them. The app does not interpret lab values or diagnose.
@@ -32,7 +32,7 @@ The API's `/health` route reports process liveness only; it does not probe Supab
 
 ## Storage, deletion, retention and recovery
 
-Private data is stored in Supabase tables with RLS; source images use a private Storage bucket. The local demo JSON store is not account storage and has no production durability, encryption, backup, retention or multi-instance guarantees. No Supabase project is configured in this checkout, so migrations, two-account RLS behavior, object policies and live account deletion have not been executed here.
+Private data is stored in Supabase tables with RLS; source images use a private Storage bucket. The local demo JSON store is not account storage and has no production durability, encryption, backup, retention or multi-instance guarantees. No Supabase project is configured in this checkout, so migrations, two-account RLS behavior, object policies and live account deletion have not been executed here. CI is configured to test local migrations and pgTAP on a hosted runner; wait for a passing run before treating local-runtime RLS as verified.
 
 The deployment operator must configure database/object backups, retention, encryption and access; run a restore drill; choose deletion/retention rules for backups and external providers; and record evidence, date and owner. The repository has no configured backup job or restore target and therefore makes no recoverability or deletion SLA claim. Apply schema migrations before compatible application code. Prefer additive changes; when new code has written data, use a corrective forward migration unless rollback compatibility has been demonstrated.
 

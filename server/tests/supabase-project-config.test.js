@@ -21,7 +21,20 @@ test('checks in a secret-free local Supabase CLI config and ordered migrations',
   const versions = migrationNames.map(name => name.slice(0, 12));
   assert.equal(new Set(versions).size, versions.length);
   const ownerTest = fs.readFileSync(path.join(repositoryRoot, 'supabase/tests/account_owner_isolation.test.sql'), 'utf8');
-  assert.match(ownerTest, /select plan\(5\)/);
+  assert.match(ownerTest, /select plan\(9\)/);
+  assert.match(ownerTest, /RLS enabled on all private application tables/);
+  assert.match(ownerTest, /anonymous users cannot read private application tables/);
+  assert.match(ownerTest, /health record bucket is private/);
   assert.match(ownerTest, /account one cannot update account two profile/);
   assert.match(ownerTest, /account two reads only its own profile/);
+});
+
+test('runs local Supabase migrations and pgTAP in a dedicated CI job', () => {
+  const workflow = fs.readFileSync(path.join(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
+  assert.match(workflow, /^  supabase-integration:$/m);
+  assert.match(workflow, /uses: supabase\/setup-cli@v3/);
+  assert.match(workflow, /version: 2\.84\.2/);
+  assert.match(workflow, /^\s+run: supabase start$/m);
+  assert.match(workflow, /^\s+run: supabase db reset$/m);
+  assert.match(workflow, /^\s+run: supabase test db$/m);
 });
