@@ -12,6 +12,7 @@ const {
   normalizeProviderCredentials,
   normalizeProviderProfile,
 } = require('../services/care-bookings');
+const { normalizePayosWebhook } = require('../services/payments');
 
 const UTC_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
 
@@ -75,7 +76,20 @@ function parseAppointmentPage(query) {
   return { limit, offset };
 }
 
-function createCareBookingRouter({ repository = createCareBookingRepository(), requireCurrentConsent = createCurrentConsentMiddleware(), now = () => new Date() } = {}) {
+async function cancelHostedPaymentLink({ paymentRepository, payosGateway, appointmentId }) {
+  if (!paymentRepository || typeof paymentRepository.getCancelledPaymentLink !== 'function') return 'not_required';
+  let link;
+  try { link = await paymentRepository.getCancelledPaymentLink({ appointmentId }); }
+  catch { return 'needs_reconciliation'; }
+  if (!link) return 'not_required';
+  if (typeof payosGateway?.cancelPaymentLink !== 'function') return 'needs_reconciliation';
+  try {
+    await payosGateway.cancelPaymentLink({ orderCode: link.orderCode });
+    return 'cancelled';
+  } catch { return 'needs_reconciliation'; }
+}
+
+function createCareBookingRouter({ repository = createCareBookingRepository(), paymentRepository, payosGateway, requireCurrentConsent = createCurrentConsentMiddleware(), now = () => new Date() } = {}) {
   const router = express.Router();
   router.use(requireCurrentConsent);
 
@@ -138,6 +152,44 @@ function createCareBookingRouter({ repository = createCareBookingRepository(), r
     return res.status(result.replayed ? 200 : 201).json(result);
   }));
 
+  router.post('/appointments/:appointmentId/payment', asyncRoute(async (req, res) => {
+    if (!UUID.test(req.params.appointmentId)) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
+    parseObjectBody(req.body || {}, [], 'Yêu cầu thanh toán');
+    const requestKey = req.get('Idempotency-Key');
+    if (!validIdempotencyKey(requestKey)) throw new CareBookingValidationError('Cần Idempotency-Key dài 8–128 ký tự ASCII.', 'INVALID_IDEMPOTENCY_KEY');
+    if (!paymentRepository || !payosGateway?.configured) return res.status(503).json({ error: 'Thanh toán chưa được cấu hình.', code: 'PAYMENT_UNAVAILABLE' });
+    const intent = await paymentRepository.createIntent({ db: req.userDatabase, appointmentId: req.params.appointmentId.toLowerCase(), idempotencyKey: requestKey });
+    if (intent.payment.status === 'pending' || intent.payment.status === 'paid') {
+      const current = await paymentRepository.getOwnPayment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId: intent.payment.appointmentId });
+      return res.json({ ...current, replayed: intent.replayed });
+    }
+    if (intent.payment.status === 'reconciliation_required') return res.status(503).json({ error: 'Liên kết thanh toán cần được đối soát trước khi tiếp tục.', code: 'PAYMENT_RECONCILIATION_REQUIRED' });
+    if (intent.replayed) return res.status(202).json({ payment: intent.payment, appointmentStatus: 'awaiting_payment', replayed: true });
+    try {
+      const link = await payosGateway.createPaymentLink({ orderCode: intent.payment.orderCode, amount: intent.payment.amount.value, expiresAt: intent.payment.holdExpiresAt });
+      await paymentRepository.finishLink({ paymentId: intent.payment.id, link });
+    } catch {
+      try { await paymentRepository.markReconciliationRequired({ paymentId: intent.payment.id }); } catch { /* The payment remains unpaid if reconciliation persistence is unavailable. */ }
+      return res.status(503).json({ error: 'Chưa thể xác nhận liên kết thanh toán. Lịch vẫn chưa được thanh toán; hãy liên hệ hỗ trợ trước khi đặt lại.', code: 'PAYMENT_RECONCILIATION_REQUIRED' });
+    }
+    const current = await paymentRepository.getOwnPayment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId: intent.payment.appointmentId });
+    if (!current?.payment?.checkoutUrl) return res.status(503).json({ error: 'Chưa thể tải liên kết thanh toán đã tạo.', code: 'PAYMENT_UNAVAILABLE' });
+    return res.status(201).json({ ...current, replayed: false });
+  }));
+
+  router.get('/appointments/:appointmentId/payment', asyncRoute(async (req, res) => {
+    if (!UUID.test(req.params.appointmentId)) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
+    if (!paymentRepository) return res.status(503).json({ error: 'Trạng thái thanh toán chưa được cấu hình.', code: 'PAYMENT_UNAVAILABLE' });
+    const appointmentId = req.params.appointmentId.toLowerCase();
+    const result = await paymentRepository.getOwnPayment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId });
+    if (!result) {
+      const appointment = await repository.getPatientAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId });
+      if (!appointment) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
+      return res.json({ payment: null, appointmentStatus: appointment.status });
+    }
+    return res.json(result);
+  }));
+
   router.get('/appointments/:appointmentId', asyncRoute(async (req, res) => {
     if (!UUID.test(req.params.appointmentId)) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
     const appointment = await repository.getPatientAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId: req.params.appointmentId.toLowerCase() });
@@ -148,8 +200,10 @@ function createCareBookingRouter({ repository = createCareBookingRepository(), r
   router.post('/appointments/:appointmentId/cancel', asyncRoute(async (req, res) => {
     if (!UUID.test(req.params.appointmentId)) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
     const cancellation = normalizeCancelInput(req.body);
-    const result = await repository.cancelAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId: req.params.appointmentId.toLowerCase(), cancellation, actor: 'patient' });
-    return res.json(result);
+    const appointmentId = req.params.appointmentId.toLowerCase();
+    const result = await repository.cancelAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId, cancellation, actor: 'patient' });
+    const paymentLinkCancellation = await cancelHostedPaymentLink({ paymentRepository, payosGateway, appointmentId });
+    return res.json({ ...result, paymentLinkCancellation });
   }));
 
   router.get('/provider/appointments', asyncRoute(async (req, res) => {
@@ -167,12 +221,33 @@ function createCareBookingRouter({ repository = createCareBookingRepository(), r
   router.post('/provider/appointments/:appointmentId/cancel', asyncRoute(async (req, res) => {
     if (!UUID.test(req.params.appointmentId)) return res.status(404).json({ error: 'Không tìm thấy lịch hẹn.', code: 'APPOINTMENT_NOT_FOUND' });
     const cancellation = normalizeCancelInput(req.body);
-    const result = await repository.cancelAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId: req.params.appointmentId.toLowerCase(), cancellation, actor: 'provider' });
+    const appointmentId = req.params.appointmentId.toLowerCase();
+    const result = await repository.cancelAppointment({ db: req.userDatabase, userId: req.auth.user.id, appointmentId, cancellation, actor: 'provider' });
     if (result.actor !== 'provider') return res.status(403).json({ error: 'Không có quyền quản lý lịch hẹn này.', code: 'CARE_FORBIDDEN' });
-    return res.json(result);
+    const paymentLinkCancellation = await cancelHostedPaymentLink({ paymentRepository, payosGateway, appointmentId });
+    return res.json({ ...result, paymentLinkCancellation });
   }));
 
   return router;
 }
 
-module.exports = { UTC_ISO, createCareBookingRouter, parseAppointmentPage, parseDateRange, parseProviderQuery };
+function createPayosWebhookRouter({ paymentRepository, checksumKey } = {}) {
+  const router = express.Router();
+  router.post('/', asyncRoute(async (req, res) => {
+    if (typeof checksumKey !== 'string' || !checksumKey || !paymentRepository) {
+      return res.status(503).json({ error: 'Nhận thanh toán chưa được cấu hình.', code: 'PAYMENT_UNAVAILABLE' });
+    }
+    let event;
+    try { event = normalizePayosWebhook(req.body, checksumKey); }
+    catch (error) {
+      if (error?.code === 'INVALID_PAYMENT_SIGNATURE') return res.status(400).json({ error: 'Chữ ký webhook thanh toán không hợp lệ.', code: error.code });
+      if (error?.code === 'PAYMENT_UNAVAILABLE') return res.status(503).json({ error: 'Xác minh thanh toán chưa được cấu hình.', code: error.code });
+      return res.status(400).json({ error: 'Webhook thanh toán không đúng định dạng.', code: 'INVALID_PAYMENT_EVENT' });
+    }
+    const outcome = await paymentRepository.processVerifiedEvent(event);
+    return res.status(200).json({ code: '00', desc: 'success', data: { outcome } });
+  }));
+  return router;
+}
+
+module.exports = { UTC_ISO, cancelHostedPaymentLink, createCareBookingRouter, createPayosWebhookRouter, parseAppointmentPage, parseDateRange, parseProviderQuery };

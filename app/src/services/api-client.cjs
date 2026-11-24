@@ -251,6 +251,8 @@ function createApiMethods(apiClient) {
     createMyAppointment: (payload, idempotencyKey) => request('/api/v1/me/care/appointments', { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) }),
     getMyAppointment: id => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}`, { authenticated: true }),
     cancelMyAppointment: (id, payload) => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    createMyAppointmentPayment: (id, idempotencyKey) => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/payment`, { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': idempotencyKey }, body: '{}' }),
+    getMyAppointmentPayment: id => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/payment`, { authenticated: true }),
     getMyProviderAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/provider/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
     completeMyProviderAppointment: id => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/complete`, { method: 'POST', authenticated: true, body: '{}' }),
     cancelMyProviderAppointment: (id, payload) => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),

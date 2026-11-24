@@ -334,6 +334,24 @@ test('care booking and provider workspace methods use authenticated account rout
   assert.equal(calls[8].options.headers['Idempotency-Key'], 'appointment-intent-1');
 });
 
+test('appointment payment methods are authenticated and carry a stable idempotency key', async () => {
+  const requests = [];
+  const api = createApiMethods(createApiClient({
+    baseUrl: 'https://api.example.test',
+    getAccessToken: async () => 'synthetic-user-token',
+    fetchImpl: async (url, options) => { requests.push({ url, options }); return createResponse(200, JSON.stringify({ payment: { status: 'pending' } })); },
+  }));
+  await api.createMyAppointmentPayment('appointment-id', 'appointment-payment-appointment-id');
+  await api.getMyAppointmentPayment('appointment-id');
+  assert.deepEqual(requests.map(request => request.url), [
+    'https://api.example.test/api/v1/me/care/appointments/appointment-id/payment',
+    'https://api.example.test/api/v1/me/care/appointments/appointment-id/payment',
+  ]);
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer synthetic-user-token');
+  assert.equal(requests[0].options.headers['Idempotency-Key'], 'appointment-payment-appointment-id');
+  assert.equal(requests[1].options.headers.Authorization, 'Bearer synthetic-user-token');
+});
+
 test('caller abort settles even when fetch ignores abort', async () => {
   const client = createClient(() => new Promise(() => {}));
   const controller = new AbortController();

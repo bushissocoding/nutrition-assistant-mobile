@@ -90,6 +90,34 @@ function readFdcApiKey(value) {
   return key;
 }
 
+function readPayosConfig(env) {
+  const names = ['PAYOS_CLIENT_ID', 'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY', 'PAYOS_RETURN_URL', 'PAYOS_CANCEL_URL', 'PAYOS_WEBHOOK_URL'];
+  const present = names.filter(name => typeof env[name] === 'string' && env[name].trim()).length;
+  if (present === 0) return null;
+  if (present !== names.length) throw invalidConfig(names.join(', '), 'must be configured together.');
+  const secret = name => {
+    const value = env[name].trim();
+    if (value.length > 500 || /[\r\n\0]/.test(value)) throw invalidConfig(name, 'must be valid server-only configuration.');
+    return value;
+  };
+  const httpsUrl = name => {
+    const value = secret(name);
+    let parsed;
+    try { parsed = new URL(value); }
+    catch { throw invalidConfig(name, 'must be a valid HTTPS URL.'); }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.hash) throw invalidConfig(name, 'must be a valid HTTPS URL without credentials or fragment.');
+    return value;
+  };
+  return {
+    clientId: secret('PAYOS_CLIENT_ID'),
+    apiKey: secret('PAYOS_API_KEY'),
+    checksumKey: secret('PAYOS_CHECKSUM_KEY'),
+    returnUrl: httpsUrl('PAYOS_RETURN_URL'),
+    cancelUrl: httpsUrl('PAYOS_CANCEL_URL'),
+    webhookUrl: httpsUrl('PAYOS_WEBHOOK_URL'),
+  };
+}
+
 function readServerConfig(env = process.env) {
   const environment = readEnvironment(env.NODE_ENV);
   const demoDataEnabled = readDemoDataEnabled(env.DEMO_DATA_ENABLED);
@@ -103,6 +131,7 @@ function readServerConfig(env = process.env) {
     environment,
     supabase: readSupabaseConfig(env, environment),
     fdcApiKey: readFdcApiKey(env.FDC_API_KEY),
+    payos: readPayosConfig(env),
   };
 }
 

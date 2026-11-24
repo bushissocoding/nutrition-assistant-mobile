@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert } from 'react-native';
+import { Alert, Linking } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import AppointmentScreen from './AppointmentScreen';
 import { api } from '../../services/api';
@@ -16,6 +16,8 @@ jest.mock('../../services/api', () => ({
     getMyAppointments: jest.fn(),
     createMyAppointment: jest.fn(),
     cancelMyAppointment: jest.fn(),
+    createMyAppointmentPayment: jest.fn(),
+    getMyAppointmentPayment: jest.fn(),
     getMyProviderAppointments: jest.fn(),
     completeMyProviderAppointment: jest.fn(),
     cancelMyProviderAppointment: jest.fn(),
@@ -33,6 +35,7 @@ beforeEach(() => {
   api.getMyProviderAvailabilitySlots.mockResolvedValue({ provider, items: [] });
   api.getMyProviderAppointments.mockResolvedValue({ items: [], total: 0, limit: 25, offset: 0 });
   api.getMyAppointments.mockResolvedValue({ items: [], total: 0, limit: 25, offset: 0 });
+  api.getMyAppointmentPayment.mockResolvedValue({ payment: null, appointmentStatus: 'awaiting_payment' });
 });
 
 async function press(screen, label) {
@@ -123,6 +126,29 @@ test('cancels an owned unpaid appointment only after the patient confirms', asyn
   await waitFor(() => expect(api.cancelMyAppointment).toHaveBeenCalledWith('appointment-1', { reason: 'schedule-change', note: '' }));
   expect(screen.getByText(/Đã hủy/)).toBeTruthy();
   alertSpy.mockRestore();
+});
+
+test('opens hosted PayOS checkout and shows success only after the API confirms the webhook', async () => {
+  api.getMyAppointments.mockResolvedValue({ items: [patientAppointment], total: 1, limit: 25, offset: 0 });
+  api.createMyAppointmentPayment.mockResolvedValue({
+    payment: { id: 'payment-1', orderCode: 1800000001, amount: { value: 200000, currency: 'VND' }, status: 'pending', checkoutUrl: 'https://pay.payos.vn/web/synthetic-link' },
+    appointmentStatus: 'awaiting_payment',
+  });
+  api.getMyAppointmentPayment.mockResolvedValueOnce({ payment: null, appointmentStatus: 'awaiting_payment' })
+    .mockResolvedValueOnce({ payment: { status: 'paid', orderCode: 1800000001, providerReference: 'synthetic-ref' }, appointmentStatus: 'confirmed' });
+  const openUrl = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  const screen = render(<AppointmentScreen initialView="appointments-list" />);
+  await waitFor(() => expect(screen.getByText('Nguyễn An')).toBeTruthy());
+  await press(screen, 'Tiếp tục thanh toán');
+  await waitFor(() => expect(screen.getByText('Thanh toán an toàn qua PayOS')).toBeTruthy());
+  await press(screen, 'Tạo liên kết thanh toán');
+  await waitFor(() => expect(openUrl).toHaveBeenCalledWith('https://pay.payos.vn/web/synthetic-link'));
+  expect(api.createMyAppointmentPayment).toHaveBeenCalledWith('appointment-1', 'appointment-payment-appointment-1');
+  expect(screen.queryByText('Thanh toán thành công')).toBeNull();
+  await press(screen, 'Kiểm tra giao dịch đã xác nhận');
+  await waitFor(() => expect(screen.getByText('Thanh toán thành công')).toBeTruthy());
+  expect(screen.getByText(/Mã giao dịch: synthetic-ref/)).toBeTruthy();
+  openUrl.mockRestore();
 });
 
 test('provider workspace saves a real 30-minute availability slot and never exposes booking controls while pending', async () => {

@@ -122,6 +122,7 @@ test('identity routes require auth, require current consent for profile, and ign
   assert.equal((await request('/me/profile')).status, 403);
   assert.equal((await request('/me/care/providers', { token: null })).status, 401);
   assert.equal((await request('/me/care/providers')).status, 403);
+  assert.equal((await request('/webhooks/payos', { token: null, method: 'POST', body: {} })).status, 503);
 
   const consentResponse = await request('/me/consent', { method: 'PUT', body: { choices: consentInput } });
   assert.equal(consentResponse.status, 201);

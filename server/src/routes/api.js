@@ -12,9 +12,9 @@ const { createMealPlanRouter } = require('./meal-plans');
 const { createAccountMealEntryRouter } = require('./account-meal-entries');
 const { createNutritionReportRouter } = require('./nutrition-report');
 const { createAccountGroceryRouter } = require('./account-grocery');
-const { createCareBookingRouter } = require('./care-bookings');
+const { createCareBookingRouter, createPayosWebhookRouter } = require('./care-bookings');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, requireCurrentConsent } = {}) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, paymentRepository, payosGateway, payosConfig, requireCurrentConsent } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -35,8 +35,9 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
     router.use('/me/meal-entries', authMiddleware, createAccountMealEntryRouter({ foodSource }));
     router.use('/me/nutrition-report', authMiddleware, createNutritionReportRouter());
     router.use('/me/grocery', authMiddleware, createAccountGroceryRouter({ foodSource }));
-    router.use('/me/care', authMiddleware, createCareBookingRouter({ repository: careBookingRepository, requireCurrentConsent }));
+    router.use('/me/care', authMiddleware, createCareBookingRouter({ repository: careBookingRepository, paymentRepository, payosGateway, requireCurrentConsent }));
   }
+  router.use('/webhooks/payos', createPayosWebhookRouter({ paymentRepository, checksumKey: payosConfig?.checksumKey }));
   router.use(createSourcedFoodRouter({ foodSource }));
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');

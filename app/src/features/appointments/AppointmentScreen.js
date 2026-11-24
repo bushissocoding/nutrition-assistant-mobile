@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Linking, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
 
@@ -103,6 +103,10 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
   const [bookingError, setBookingError] = useState('');
   const [bookingBusy, setBookingBusy] = useState(false);
   const [bookingAppointment, setBookingAppointment] = useState(null);
+  const [payment, setPayment] = useState(null);
+  const [paymentAppointmentStatus, setPaymentAppointmentStatus] = useState('awaiting_payment');
+  const [paymentBusy, setPaymentBusy] = useState(false);
+  const [paymentError, setPaymentError] = useState('');
   const bookingIntent = useRef(null);
   const [appointments, setAppointments] = useState([]);
   const [appointmentsLoading, setAppointmentsLoading] = useState(false);
@@ -198,6 +202,24 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
     return () => { active = false; };
   }, [page, dataVersion]);
 
+  useEffect(() => {
+    if (page !== 'checkout' || !bookingAppointment?.id) return undefined;
+    let active = true;
+    const refresh = async () => {
+      try {
+        const result = await api.getMyAppointmentPayment(bookingAppointment.id);
+        if (!active) return;
+        setPayment(result?.payment || null);
+        setPaymentAppointmentStatus(result?.appointmentStatus || 'awaiting_payment');
+        if (result?.appointmentStatus) setBookingAppointment(current => current?.id === bookingAppointment.id ? { ...current, status: result.appointmentStatus } : current);
+        setPaymentError('');
+      } catch (error) { if (active) setPaymentError(error?.message || 'Không tải được trạng thái thanh toán.'); }
+    };
+    void refresh();
+    const subscription = AppState.addEventListener('change', state => { if (state === 'active') void refresh(); });
+    return () => { active = false; subscription.remove(); };
+  }, [page, bookingAppointment?.id, dataVersion]);
+
   async function saveProviderApplication() {
     setProfileSaving(true); setProviderError(''); setProfileSaved('');
     try {
@@ -254,6 +276,7 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
       if (!updated?.id) throw new Error('Máy chủ chưa xác nhận thay đổi lịch hẹn.');
       if (actor === 'provider') setProviderAppointments(current => current.map(row => row.id === updated.id ? updated : row));
       else setAppointments(current => current.map(row => row.id === updated.id ? updated : row));
+      if (result.paymentLinkCancellation === 'needs_reconciliation') setActionError('Lịch đã hủy, nhưng liên kết thanh toán cần nhà vận hành đối soát. Không thanh toán lại liên kết cũ.');
     } catch (error) { setActionError(error?.message || 'Không cập nhật được lịch hẹn.'); }
     finally { setActionBusyId(''); }
   }
@@ -280,6 +303,33 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
       setProfileSaved('Đã mở khung giờ 30 phút.');
     } catch (error) { setSlotError(error?.message || 'Không mở được khung giờ.'); }
     finally { setSlotBusy(false); }
+  }
+
+  async function startAppointmentPayment() {
+    if (!bookingAppointment?.id) return;
+    setPaymentBusy(true); setPaymentError('');
+    try {
+      const key = `appointment-payment-${bookingAppointment.id}`;
+      const result = await api.createMyAppointmentPayment(bookingAppointment.id, key);
+      setPayment(result?.payment || null);
+      setPaymentAppointmentStatus(result?.appointmentStatus || 'awaiting_payment');
+      if (result?.payment?.checkoutUrl) await Linking.openURL(result.payment.checkoutUrl);
+      else if (result?.payment?.status === 'creating_link') setPaymentError('Cổng thanh toán đang tạo liên kết. Hãy tải lại trạng thái sau ít phút.');
+      else if (result?.payment?.status === 'reconciliation_required') setPaymentError('Yêu cầu thanh toán cần được đối soát; chưa ghi nhận giao dịch thành công.');
+    } catch (error) { setPaymentError(error?.message || 'Không tạo được liên kết thanh toán.'); }
+    finally { setPaymentBusy(false); }
+  }
+
+  async function refreshAppointmentPayment() {
+    if (!bookingAppointment?.id) return;
+    setPaymentBusy(true); setPaymentError('');
+    try {
+      const result = await api.getMyAppointmentPayment(bookingAppointment.id);
+      setPayment(result?.payment || null);
+      setPaymentAppointmentStatus(result?.appointmentStatus || 'awaiting_payment');
+      if (result?.appointmentStatus) setBookingAppointment(current => current?.id === bookingAppointment.id ? { ...current, status: result.appointmentStatus } : current);
+    } catch (error) { setPaymentError(error?.message || 'Không tải được trạng thái thanh toán.'); }
+    finally { setPaymentBusy(false); }
   }
 
   function confirmCancelAppointment(appointment, actor = 'patient') {
@@ -435,7 +485,18 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
   }
 
   function renderCheckout() {
-    return <><ScreenHeader title="Thanh toán lịch hẹn" onBack={() => setPage('booking-pending')} /><EmptyState title="Đang chuẩn bị thanh toán an toàn" detail="Thanh toán sẽ mở trang do nhà cung cấp xử lý. Không nhập hoặc lưu số thẻ trong ứng dụng." /><PrimaryButton title="Quay lại giữ chỗ" onPress={() => setPage('booking-pending')} secondary /></>;
+    const paid = payment?.status === 'paid' && paymentAppointmentStatus === 'confirmed';
+    const linkAvailable = payment?.status === 'pending' && Boolean(payment.checkoutUrl);
+    return <>
+      <ScreenHeader title="Thanh toán lịch hẹn" onBack={() => setPage('booking-pending')} />
+      {bookingAppointment && <AppointmentCard appointment={{ ...bookingAppointment, status: paymentAppointmentStatus }} />}
+      {paid ? <View style={styles.statusHero}><Text style={styles.successTitle}>Thanh toán thành công</Text><Text style={styles.body}>Máy chủ đã xác nhận giao dịch từ PayOS. Lịch hẹn đã được xác nhận.</Text><Text style={styles.body}>Mã đơn: {payment.orderCode} · Mã giao dịch: {payment.providerReference || 'Đã ghi nhận'}</Text></View>
+        : <View style={styles.statusHero}><Text style={styles.statusTitle}>{payment?.status === 'pending' ? 'Đang chờ thanh toán' : payment?.status === 'creating_link' ? 'Đang chuẩn bị liên kết' : payment?.status === 'reconciliation_required' ? 'Cần đối soát thanh toán' : payment?.status === 'cancelled' ? 'Thanh toán đã hủy' : payment?.status === 'expired' ? 'Giữ chỗ đã hết hạn' : payment?.status === 'failed' ? 'Thanh toán không thành công' : 'Thanh toán an toàn qua PayOS'}</Text><Text style={styles.body}>Số tiền lấy từ lịch hẹn đã giữ chỗ. Thẻ và thông tin ngân hàng chỉ được nhập trên trang của PayOS.</Text>{!!payment?.holdExpiresAt && <Text style={styles.body}>Giữ chỗ đến: {formatDate(payment.holdExpiresAt)} · {formatTime(payment.holdExpiresAt)}</Text>}</View>}
+      {!!paymentError && <InlineMessage error={paymentError} />}
+      {!paid && payment?.status !== 'reconciliation_required' && paymentAppointmentStatus === 'awaiting_payment' && <PrimaryButton title={linkAvailable ? 'Mở lại thanh toán PayOS' : payment?.status === 'creating_link' ? 'Đang tạo liên kết…' : 'Tạo liên kết thanh toán'} onPress={linkAvailable ? () => Linking.openURL(payment.checkoutUrl).catch(() => setPaymentError('Không mở được trang PayOS trên thiết bị.')) : startAppointmentPayment} loading={paymentBusy} disabled={payment?.status === 'creating_link'} />}
+      {!paid && <PrimaryButton title="Kiểm tra giao dịch đã xác nhận" onPress={refreshAppointmentPayment} loading={paymentBusy} secondary />}
+      {paid ? <PrimaryButton title="Xem lịch hẹn" onPress={() => setPage('appointments')} /> : <PrimaryButton title="Quay lại giữ chỗ" onPress={() => setPage('booking-pending')} secondary />}
+    </>;
   }
 
   let content;

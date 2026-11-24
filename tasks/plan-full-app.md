@@ -54,9 +54,9 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 4.1: Provider profile/directory, verification status and schedule operations
 - [x] Task 4.2: Availability query and idempotent appointment lifecycle
 - [x] Task 4.3: Specify, plan, and task `payments` before implementation
-- [ ] Task 4.4: PayOS checkout and signed webhook state machine
-- [ ] Task 4.5: Patient and provider appointment screens, cancellation and receipts
-- [ ] Checkpoint: End-to-end booking shows paid only after a verified provider event
+- [x] Task 4.4: PayOS checkout and signed webhook state machine
+- [x] Task 4.5: Patient and provider appointment screens, cancellation and receipts
+- [ ] Checkpoint: End-to-end booking shows paid only after a verified provider event (implementation and fake-provider tests pass; live merchant/database verification requires credentials and a Supabase runtime)
 
 ### Phase 5: Chat, records and event notifications
 

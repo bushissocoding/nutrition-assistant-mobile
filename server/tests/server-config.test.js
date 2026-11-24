@@ -19,6 +19,7 @@ test('server config keeps local defaults and disables demo persistence', () => {
     corsOrigins: ['*'],
     supabase: null,
     fdcApiKey: null,
+    payos: null,
   });
 });
 
@@ -31,6 +32,7 @@ test('server config accepts an explicit port, CORS value, and demo setting', () 
     corsOrigins: ['http://localhost'],
     supabase: null,
     fdcApiKey: null,
+    payos: null,
   });
 });
 
@@ -47,6 +49,7 @@ test('production requires current Supabase credentials and an explicit HTTPS ori
       secretKey: 'sb_secret_test_key',
     },
     fdcApiKey: null,
+    payos: null,
   });
 });
 
@@ -114,4 +117,23 @@ test('FDC API key is optional, trimmed, and rejected when malformed without echo
   const secret = `bad\nfood-key`;
   assert.throws(() => readServerConfig({ FDC_API_KEY: secret }), error => error.code === 'INVALID_SERVER_CONFIG' && !error.message.includes(secret));
   assert.throws(() => readServerConfig({ FDC_API_KEY: 'x'.repeat(201) }), error => error.code === 'INVALID_SERVER_CONFIG');
+});
+
+test('PayOS config stays optional until all server credentials and HTTPS callback URLs are provided', () => {
+  assert.deepEqual(readServerConfig({}).payos, null);
+  const env = {
+    PAYOS_CLIENT_ID: 'client-test', PAYOS_API_KEY: 'api-test', PAYOS_CHECKSUM_KEY: 'checksum-test',
+    PAYOS_RETURN_URL: 'https://app.example.test/payment-return', PAYOS_CANCEL_URL: 'https://app.example.test/payment-cancel',
+    PAYOS_WEBHOOK_URL: 'https://api.example.test/api/v1/webhooks/payos',
+  };
+  assert.deepEqual(readServerConfig(env).payos, {
+    clientId: 'client-test', apiKey: 'api-test', checksumKey: 'checksum-test',
+    returnUrl: 'https://app.example.test/payment-return', cancelUrl: 'https://app.example.test/payment-cancel',
+    webhookUrl: 'https://api.example.test/api/v1/webhooks/payos',
+  });
+  for (const invalid of [
+    { ...env, PAYOS_CHECKSUM_KEY: undefined },
+    { ...env, PAYOS_RETURN_URL: 'http://app.example.test/payment-return' },
+    { ...env, PAYOS_WEBHOOK_URL: 'https://user:pass@api.example.test/webhook' },
+  ]) assert.throws(() => readServerConfig(invalid), error => error.code === 'INVALID_SERVER_CONFIG');
 });

@@ -38,7 +38,7 @@ function normalizeProviderProfile(input) {
   const specialty = text(input, 'specialty', { min: 2, max: 100, label: 'Chuyên khoa' });
   const bio = text(input, 'bio', { max: 2000, label: 'Giới thiệu' });
   if (!Number.isSafeInteger(input.experienceYears) || input.experienceYears < 0 || input.experienceYears > 60) throw new CareBookingValidationError('Số năm kinh nghiệm phải từ 0 đến 60.');
-  if (!Number.isSafeInteger(input.feeVnd) || input.feeVnd < 0 || input.feeVnd > 50_000_000) throw new CareBookingValidationError('Phí dịch vụ phải từ 0 đến 50.000.000 VND.');
+  if (!Number.isSafeInteger(input.feeVnd) || input.feeVnd < 1 || input.feeVnd > 50_000_000) throw new CareBookingValidationError('Phí dịch vụ phải lớn hơn 0 và không quá 50.000.000 VND.');
   return { displayName, specialty, bio, experienceYears: input.experienceYears, feeVnd: input.feeVnd };
 }
 

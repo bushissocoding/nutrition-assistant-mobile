@@ -71,6 +71,12 @@ async function exportAccount({ db, user }) {
     .order('starts_at', { ascending: true })
     .order('id', { ascending: true });
   if (appointmentError) throw appointmentError;
+  const { data: payments, error: paymentError } = await db.from('appointment_payments')
+    .select('id,appointment_id,order_code,amount_vnd,currency,status,payment_link_id,provider_reference,provider_transaction_at,link_created_at,paid_at,created_at,updated_at')
+    .eq('patient_user_id', user.id)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (paymentError) throw paymentError;
   const { data: providerProfile, error: providerError } = await db.from('care_providers')
     .select('id,display_name,specialty,bio,experience_years,fee_vnd,verification_status,verified_at,created_at,updated_at')
     .eq('user_id', user.id).maybeSingle();
@@ -92,7 +98,7 @@ async function exportAccount({ db, user }) {
     providerAvailability = slots || [];
   }
   return {
-    exportVersion: 2,
+    exportVersion: 3,
     exportedAt: new Date().toISOString(),
     identity: { id: user.id, email: user.email },
     profile: toProfileDto(profile),
@@ -158,6 +164,20 @@ async function exportAccount({ db, user }) {
       providerSharing: { version: item.provider_sharing_version, acceptedAt: item.provider_sharing_accepted_at },
       holdExpiresAt: item.hold_expires_at,
       cancellation: item.cancellation_reason ? { reason: item.cancellation_reason, note: item.cancellation_note } : null,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    })),
+    appointmentPayments: (payments || []).map(item => ({
+      id: item.id,
+      appointmentId: item.appointment_id,
+      orderCode: Number(item.order_code),
+      amount: { value: Number(item.amount_vnd), currency: item.currency },
+      status: item.status,
+      paymentLinkId: item.payment_link_id,
+      providerReference: item.provider_reference,
+      providerTransactionAt: item.provider_transaction_at,
+      linkCreatedAt: item.link_created_at,
+      paidAt: item.paid_at,
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     })),

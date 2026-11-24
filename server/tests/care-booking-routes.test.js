@@ -1,8 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const express = require('express');
-const { createCareBookingRouter } = require('../src/routes/care-bookings');
+const { createCareBookingRouter, createPayosWebhookRouter } = require('../src/routes/care-bookings');
 const { appointmentRequestHash, normalizeBookingInput } = require('../src/services/care-bookings');
+const { signPayosData } = require('../src/services/payments');
 
 const user = { id: '7f35a680-01cf-4db5-b92c-ea734130c17c' };
 const providerId = '82b4fefe-81fd-44f1-8be0-905e33f10b16';
@@ -97,4 +98,73 @@ test('patient and provider appointment lists use authenticated owners and reject
     ['patient', { db: { scoped: true }, userId: user.id, limit: 5, offset: 0 }],
     ['cancel', { db: { scoped: true }, userId: user.id, appointmentId, cancellation: { reason: 'illness', note: '' }, actor: 'patient' }],
   ]);
+});
+
+test('payment intent creates one hosted link from server-owned amount and returns only after persistence', async () => {
+  const calls = [];
+  const payment = { id: 'payment-1', appointmentId, orderCode: 1800000001, amount: { value: 250000, currency: 'VND' }, status: 'creating_link', holdExpiresAt: '2026-11-24T00:20:00.000Z' };
+  const repository = {
+    async createIntent(input) { calls.push(['intent', input]); return { payment, replayed: false }; },
+    async finishLink(input) { calls.push(['finish', input]); },
+    async getOwnPayment(input) { calls.push(['read', input]); return { payment: { ...payment, status: 'pending', checkoutUrl: 'https://pay.payos.vn/web/synthetic-link' }, appointmentStatus: 'awaiting_payment' }; },
+    async markReconciliationRequired() { assert.fail('successful provider response must not be reconciled'); },
+  };
+  const gateway = { configured: true, async createPaymentLink(input) { calls.push(['provider', input]); return { paymentLinkId: 'synthetic-link', checkoutUrl: 'https://pay.payos.vn/web/synthetic-link', qrCode: null }; } };
+  await withServer(createCareBookingRouter({ repository, paymentRepository: repository, payosGateway: gateway, requireCurrentConsent: consent }), async base => {
+    const response = await fetch(`${base}/appointments/${appointmentId}/payment`, { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': `appointment-payment-${appointmentId}` }, body: '{}' });
+    assert.equal(response.status, 201);
+    assert.equal((await response.json()).payment.status, 'pending');
+  });
+  assert.deepEqual(calls.map(([name]) => name), ['intent', 'provider', 'finish', 'read']);
+  assert.deepEqual(calls[0][1], { db: { scoped: true }, appointmentId, idempotencyKey: `appointment-payment-${appointmentId}` });
+  assert.equal(calls[1][1].amount, 250000);
+  assert.equal(calls[1][1].orderCode, 1800000001);
+});
+
+test('payment link replay never calls PayOS twice and returns a pending retry response', async () => {
+  let providerCalls = 0;
+  const repository = {
+    async createIntent() { return { replayed: true, payment: { id: 'payment-1', appointmentId, status: 'creating_link' } }; },
+  };
+  const gateway = { configured: true, async createPaymentLink() { providerCalls += 1; throw new Error('must not create twice'); } };
+  await withServer(createCareBookingRouter({ repository, paymentRepository: repository, payosGateway: gateway, requireCurrentConsent: consent }), async base => {
+    const response = await fetch(`${base}/appointments/${appointmentId}/payment`, { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': `appointment-payment-${appointmentId}` }, body: '{}' });
+    assert.equal(response.status, 202);
+    assert.equal((await response.json()).payment.status, 'creating_link');
+  });
+  assert.equal(providerCalls, 0);
+});
+
+test('appointment cancellation also cancels an existing unpaid hosted link and reports unresolved provider state', async () => {
+  const calls = [];
+  const repository = { async cancelAppointment() { return { appointment: { id: appointmentId, status: 'cancelled' }, actor: 'patient' }; } };
+  const paymentRepository = { async getCancelledPaymentLink(input) { calls.push(['lookup', input]); return { orderCode: 1800000001, paymentLinkId: 'synthetic-link' }; } };
+  const payosGateway = { async cancelPaymentLink(input) { calls.push(['cancel', input]); throw new Error('provider unavailable'); } };
+  await withServer(createCareBookingRouter({ repository, paymentRepository, payosGateway, requireCurrentConsent: consent }), async base => {
+    const response = await fetch(`${base}/appointments/${appointmentId}/cancel`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'schedule-change', note: '' }) });
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).paymentLinkCancellation, 'needs_reconciliation');
+  });
+  assert.deepEqual(calls, [
+    ['lookup', { appointmentId }],
+    ['cancel', { orderCode: 1800000001 }],
+  ]);
+});
+
+test('PayOS webhook rejects a bad signature and hands only normalized signed events to processing', async () => {
+  const checksumKey = 'synthetic-checksum-key';
+  const calls = [];
+  const repository = { async processVerifiedEvent(event) { calls.push(event); return 'paid'; } };
+  const data = { orderCode: 1800000001, amount: 250000, currency: 'VND', paymentLinkId: 'synthetic-link', reference: 'synthetic-ref', code: '00', transactionDateTime: '2026-11-24 10:00:00' };
+  const payload = { code: '00', desc: 'success', success: true, data, signature: signPayosData(data, checksumKey) };
+  await withServer(createPayosWebhookRouter({ paymentRepository: repository, checksumKey }), async base => {
+    const invalid = await fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...payload, signature: '0'.repeat(64) }) });
+    assert.equal(invalid.status, 400);
+    const valid = await fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+    assert.equal(valid.status, 200);
+    assert.deepEqual(await valid.json(), { code: '00', desc: 'success', data: { outcome: 'paid' } });
+  });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].orderCode, data.orderCode);
+  assert.equal(calls[0].paymentLinkId, data.paymentLinkId);
 });
