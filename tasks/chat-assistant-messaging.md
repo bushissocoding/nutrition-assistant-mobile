@@ -2,7 +2,7 @@
 
 Spec: `spec/SPEC-chat-assistant-messaging-v2.md`.
 
-- [ ] 1. Add owner-scoped assistant threads/turns and appointment message schema, RLS, authorization/idempotency RPCs, and migration contract tests.
+- [x] 1. Add owner-scoped assistant threads/turns and appointment message schema, RLS, authorization/idempotency RPCs, and migration contract tests.
   - Acceptance: patient/provider can access only eligible appointment threads; assistant turns are owner-only; retries do not duplicate turns.
   - Verify: focused migration/repository tests and full unit suite.
 - [ ] 2. Implement chat repository/routes for doctor inbox, history, send, assistant consent and turn state.
