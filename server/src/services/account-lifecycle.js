@@ -5,13 +5,25 @@ function createAccountDeletionService({ adminClient, deletionSteps = [] } = {}) 
   if (!Array.isArray(deletionSteps) || deletionSteps.some(step => typeof step !== 'function')) {
     throw new TypeError('Account deletion steps must be functions.');
   }
+  const healthRecordStorageCleanup = adminClient?.storage?.from ? async ({ userId, db }) => {
+    const { data: records, error } = await db.from('health_records').select('file_path').eq('user_id', userId);
+    if (error) throw error;
+    const paths = (records || []).map(record => record.file_path).filter(path => typeof path === 'string' && path.length > 0);
+    if (!paths.length) return;
+    const { error: storageError } = await adminClient.storage.from('health-record-images').remove(paths);
+    if (storageError) {
+      const failure = new Error('Private health record files could not be deleted.');
+      failure.code = 'ACCOUNT_DELETE_UNAVAILABLE';
+      throw failure;
+    }
+  } : null;
   return async function deleteAccount({ userId, db }) {
     if (!adminClient?.auth?.admin?.deleteUser) {
       const error = new Error('Account deletion is not configured.');
       error.code = 'ACCOUNT_DELETE_UNAVAILABLE';
       throw error;
     }
-    for (const deleteOwnedData of deletionSteps) await deleteOwnedData({ userId, db });
+    for (const deleteOwnedData of [...deletionSteps, ...(healthRecordStorageCleanup ? [healthRecordStorageCleanup] : [])]) await deleteOwnedData({ userId, db });
     const { error } = await adminClient.auth.admin.deleteUser(userId);
     if (error && !['user_not_found', 'USER_NOT_FOUND'].includes(error.code)) {
       const failure = new Error('Account deletion provider failed.');
@@ -29,6 +41,52 @@ async function exportAccount({ db, user }) {
     .order('accepted_at', { ascending: false })
     .order('id', { ascending: false });
   if (error) throw error;
+  const { data: healthRecords, error: healthRecordError } = await db.from('health_records')
+    .select('id,title,source_date,note,file_mime_type,file_size,created_at,updated_at')
+    .eq('user_id', user.id)
+    .order('source_date', { ascending: true, nullsFirst: false })
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (healthRecordError) throw healthRecordError;
+  const healthRecordIds = (healthRecords || []).map(record => record.id);
+  let healthRecordResults = [];
+  if (healthRecordIds.length) {
+    const { data, error } = await db.from('health_record_results')
+      .select('id,record_id,name,value,unit,reference_range,created_at')
+      .eq('user_id', user.id).in('record_id', healthRecordIds)
+      .order('created_at', { ascending: true }).order('id', { ascending: true });
+    if (error) throw error;
+    healthRecordResults = data || [];
+  }
+  const { data: assistantConsents, error: assistantConsentError } = await db.from('assistant_ai_consents')
+    .select('version,choice,recorded_at')
+    .eq('user_id', user.id)
+    .order('recorded_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (assistantConsentError) throw assistantConsentError;
+  const { data: assistantTurns, error: assistantTurnError } = await db.from('assistant_turns')
+    .select('id,request_key,user_message,assistant_message,status,created_at,updated_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (assistantTurnError) throw assistantTurnError;
+  const { data: appointmentMessages, error: appointmentMessageError } = await db.from('appointment_messages')
+    .select('id,appointment_id,sender_user_id,client_message_id,body,created_at')
+    .order('created_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (appointmentMessageError) throw appointmentMessageError;
+  const { data: notificationPreferences, error: notificationPreferenceError } = await db.from('notification_preferences')
+    .select('in_app_appointments,in_app_payments,in_app_messages,push_enabled,push_appointments,push_payments,push_messages,updated_at')
+    .eq('user_id', user.id).maybeSingle();
+  if (notificationPreferenceError) throw notificationPreferenceError;
+  const { data: nutritionPreferences, error: nutritionPreferenceError } = await db.from('nutrition_preferences')
+    .select('dietary_variety,food_preferences,allergy_reminder,track_confirmed_targets,updated_at')
+    .eq('user_id', user.id).maybeSingle();
+  if (nutritionPreferenceError) throw nutritionPreferenceError;
+  const { data: notifications, error: notificationError } = await db.from('notifications')
+    .select('id,kind,reference_id,title,body,read_at,created_at')
+    .eq('user_id', user.id).order('created_at', { ascending: true }).order('id', { ascending: true });
+  if (notificationError) throw notificationError;
   const { data: plans, error: planError } = await db.from('meal_plans')
     .select('id,plan,profile_updated_at,catalog_version,created_at')
     .eq('user_id', user.id)
@@ -98,11 +156,33 @@ async function exportAccount({ db, user }) {
     providerAvailability = slots || [];
   }
   return {
-    exportVersion: 3,
+    exportVersion: 6,
     exportedAt: new Date().toISOString(),
     identity: { id: user.id, email: user.email },
     profile: toProfileDto(profile),
     consentRecords: (consents || []).map(record => ({ version: record.version, choices: record.choices, acceptedAt: record.accepted_at })),
+    assistantAiConsentRecords: (assistantConsents || []).map(record => ({ version: record.version, accepted: record.choice === 'accepted', recordedAt: record.recorded_at })),
+    assistantTurns: (assistantTurns || []).map(turn => ({ id: turn.id, clientMessageId: turn.request_key, userMessage: turn.user_message, assistantMessage: turn.assistant_message, status: turn.status, createdAt: turn.created_at, updatedAt: turn.updated_at })),
+    appointmentMessages: (appointmentMessages || []).map(message => ({ id: message.id, appointmentId: message.appointment_id, senderUserId: message.sender_user_id, clientMessageId: message.client_message_id, body: message.body, createdAt: message.created_at })),
+    notificationPreferences: notificationPreferences ? {
+      inAppAppointments: notificationPreferences.in_app_appointments,
+      inAppPayments: notificationPreferences.in_app_payments,
+      inAppMessages: notificationPreferences.in_app_messages,
+      pushEnabled: notificationPreferences.push_enabled,
+      pushAppointments: notificationPreferences.push_appointments,
+      pushPayments: notificationPreferences.push_payments,
+      pushMessages: notificationPreferences.push_messages,
+      updatedAt: notificationPreferences.updated_at,
+    } : null,
+    nutritionPreferences: nutritionPreferences ? {
+      dietaryVariety: nutritionPreferences.dietary_variety,
+      foodPreferences: nutritionPreferences.food_preferences,
+      allergyReminder: nutritionPreferences.allergy_reminder,
+      trackConfirmedTargets: nutritionPreferences.track_confirmed_targets,
+      updatedAt: nutritionPreferences.updated_at,
+    } : null,
+    notifications: (notifications || []).map(item => ({ id: item.id, kind: item.kind, referenceId: item.reference_id, title: item.title, body: item.body, readAt: item.read_at, createdAt: item.created_at })),
+    healthRecords: (healthRecords || []).map(record => ({ id: record.id, title: record.title, sourceDate: record.source_date, note: record.note, source: record.file_mime_type ? { mimeType: record.file_mime_type, size: Number(record.file_size) } : null, results: healthRecordResults.filter(result => result.record_id === record.id).map(result => ({ id: result.id, name: result.name, value: result.value, unit: result.unit, referenceRange: result.reference_range, createdAt: result.created_at })), createdAt: record.created_at, updatedAt: record.updated_at })),
     mealPlans: (plans || []).map(record => ({ id: record.id, plan: record.plan, profileUpdatedAt: record.profile_updated_at, catalogVersion: record.catalog_version, createdAt: record.created_at })),
     mealEntries: (mealEntries || []).map(record => ({
       id: record.id,

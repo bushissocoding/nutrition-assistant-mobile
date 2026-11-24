@@ -13,6 +13,12 @@ jest.mock('../services/auth-client', () => ({ isAuthConfigured: true, authClient
   register: jest.fn(), login: jest.fn(), requestEmailRecovery: jest.fn(), requestSmsRecovery: jest.fn(),
   verifySmsRecovery: jest.fn(), updateRecoveredPassword: jest.fn(), logout: jest.fn(),
 } }));
+jest.mock('../services/push-notifications', () => ({ unregisterPushDevice: jest.fn() }));
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove() {} })),
+  getLastNotificationResponseAsync: jest.fn(() => Promise.resolve(null)),
+}));
 jest.mock('expo-linking', () => ({ addEventListener: jest.fn(() => ({ remove() {} })), getInitialURL: jest.fn(() => Promise.resolve(null)) }));
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(() => Promise.resolve(null)), setItemAsync: jest.fn(() => Promise.resolve()), deleteItemAsync: jest.fn(() => Promise.resolve()) }));
 jest.mock('../features/onboarding/LaunchScreen', () => {
@@ -40,7 +46,7 @@ jest.mock('../features/profile/ProfileScreen', () => {
   return function MockProfile({ account, onExitDemo }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/chat/ChatScreen', () => () => null);
-jest.mock('../features/notifications/NotificationsScreen', () => ({ __esModule: true, initialNotificationItems: [], default: () => null }));
+jest.mock('../features/notifications/NotificationsScreen', () => ({ __esModule: true, default: () => null }));
 jest.mock('../features/settings/SettingsScreen', () => () => null);
 jest.mock('../features/appointments/AppointmentScreen', () => () => null);
 jest.mock('../features/medical-record/MedicalRecordScreen', () => () => null);

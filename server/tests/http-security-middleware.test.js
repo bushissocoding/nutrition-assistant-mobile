@@ -29,6 +29,7 @@ test('CORS reflects only the configured origin and does not enable cookie creden
   middleware(req, res, () => { nextCalls += 1; });
 
   assert.equal(res.headers['access-control-allow-origin'], 'https://app.example.test');
+  assert.equal(res.headers['access-control-expose-headers'], 'X-Request-Id');
   assert.equal(res.headers.vary, 'Origin');
   assert.equal(res.headers['access-control-allow-credentials'], undefined);
   assert.equal(nextCalls, 1);
@@ -58,7 +59,7 @@ test('allowed preflight exposes the bearer header and demo namespace only for lo
   const req = createRequest({
     origin: 'http://localhost',
     'access-control-request-method': 'POST',
-    'access-control-request-headers': 'content-type, authorization, x-demo-namespace, idempotency-key',
+    'access-control-request-headers': 'content-type, authorization, x-demo-namespace, idempotency-key, x-record-content-type',
   });
   req.method = 'OPTIONS';
   const res = createResponse();
@@ -67,7 +68,7 @@ test('allowed preflight exposes the bearer header and demo namespace only for lo
 
   assert.equal(res.statusCode, 204);
   const headers = res.headers['access-control-allow-headers'].toLowerCase().split(',').map(value => value.trim());
-  for (const header of ['content-type', 'authorization', 'idempotency-key', 'x-demo-namespace']) assert.ok(headers.includes(header));
+  for (const header of ['content-type', 'authorization', 'idempotency-key', 'x-demo-namespace', 'x-record-content-type']) assert.ok(headers.includes(header));
   assert.equal(nextCalls, 0);
 });
 

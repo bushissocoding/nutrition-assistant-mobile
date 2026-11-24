@@ -6,10 +6,12 @@ const { createSourcedMealPlan } = require('../services/sourced-meal-plans');
 
 function parsePlanInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
-  if (Object.keys(input).some(key => !['contractVersion', 'preferences'].includes(key))) return null;
+  if (Object.keys(input).some(key => !['contractVersion', 'preferences', 'dietaryVariety'].includes(key))) return null;
   if (input.contractVersion !== undefined && input.contractVersion !== 1) return null;
   if (input.preferences !== undefined && (typeof input.preferences !== 'string' || input.preferences.length > 200)) return null;
-  return { contractVersion: 1, preferences: typeof input.preferences === 'string' ? input.preferences.trim() : '' };
+  const dietaryVariety = input.dietaryVariety === undefined ? 'balanced' : input.dietaryVariety;
+  if (!['simple', 'balanced', 'varied'].includes(dietaryVariety)) return null;
+  return { contractVersion: 1, preferences: typeof input.preferences === 'string' ? input.preferences.trim() : '', dietaryVariety };
 }
 
 function pageValue(value, fallback, maximum) {

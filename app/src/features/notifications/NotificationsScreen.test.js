@@ -1,37 +1,65 @@
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react-native';
-import NotificationsScreen, { initialNotificationItems } from './NotificationsScreen';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import * as Notifications from 'expo-notifications';
+import { api } from '../../services/api';
+import NotificationsScreen, { notificationGroup } from './NotificationsScreen';
 
-test('filters unread notices and marks a selected notice as read before navigating', () => {
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  addNotificationReceivedListener: jest.fn(() => ({ remove: jest.fn() })),
+}));
+jest.mock('../../services/api', () => ({ api: {
+  getMyNotifications: jest.fn(), markMyNotificationRead: jest.fn(), markAllMyNotificationsRead: jest.fn(),
+} }));
+
+const items = [
+  { id: 'notice-1', kind: 'appointment', title: 'Lịch hẹn có cập nhật', body: 'Mở ứng dụng để xem thông tin mới nhất.', readAt: null, createdAt: new Date().toISOString() },
+  { id: 'notice-2', kind: 'payment', title: 'Thanh toán có cập nhật', body: 'Mở ứng dụng để xem thông tin mới nhất.', readAt: '2026-11-23T01:00:00Z', createdAt: '2026-11-23T01:00:00Z' },
+];
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  api.getMyNotifications.mockResolvedValue({ items, pagination: { hasMore: false } });
+  api.markMyNotificationRead.mockResolvedValue({ updated: true });
+  api.markAllMyNotificationsRead.mockResolvedValue({ updated: true });
+});
+
+test('loads persisted account notifications, filters unread state, marks one read, then navigates', async () => {
   const onNavigate = jest.fn();
-  const screen = render(<NotificationsScreen onNavigate={onNavigate} />);
+  const screen = render(<NotificationsScreen accountId="account-1" onNavigate={onNavigate} />);
+  expect(await screen.findByText('Lịch hẹn có cập nhật')).toBeTruthy();
+  expect(api.getMyNotifications).toHaveBeenCalledWith({ limit: 50, offset: 0, unread: false });
   fireEvent.press(screen.getByRole('checkbox', { name: 'Chỉ xem tin mới' }));
-  expect(screen.getByText('Lịch hẹn đã đặt')).toBeTruthy();
-  expect(screen.queryByText('Ghi chú bữa ăn')).toBeNull();
-  fireEvent.press(screen.getByRole('button', { name: /Lịch hẹn đã đặt/ }));
-  expect(onNavigate).toHaveBeenCalledWith('appointments-list');
-  expect(screen.getAllByRole('button', { name: /Chưa đọc/ })).toHaveLength(1);
+  expect(screen.getByText('Lịch hẹn có cập nhật')).toBeTruthy();
+  expect(screen.queryByText('Thanh toán có cập nhật')).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: /Lịch hẹn có cập nhật/ }));
+  await waitFor(() => expect(api.markMyNotificationRead).toHaveBeenCalledWith('notice-1'));
+  await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('appointments-list'));
+  expect(screen.getByText('Không còn thông báo chưa đọc')).toBeTruthy();
+  expect(Notifications.addNotificationReceivedListener).toHaveBeenCalledTimes(1);
 });
 
-test('keeps a read notification when the screen is reopened by its owner', () => {
-  let items = initialNotificationItems;
-  const onItemsChange = update => { items = update(items); };
-  const firstScreen = render(<NotificationsScreen items={items} onItemsChange={onItemsChange} />);
-
-  fireEvent.press(firstScreen.getByRole('button', { name: /Lịch hẹn đã đặt/ }));
-  expect(items.find(item => item.id === 'visit').unread).toBe(false);
-  firstScreen.unmount();
-
-  const reopenedScreen = render(<NotificationsScreen items={items} onItemsChange={onItemsChange} />);
-  expect(reopenedScreen.getByRole('button', { name: /Lịch hẹn đã đặt.*Đã đọc/ })).toBeTruthy();
-  expect(reopenedScreen.getByRole('button', { name: /Thay đổi lịch hẹn.*Chưa đọc/ })).toBeTruthy();
+test('marks every notice read through the account API', async () => {
+  const screen = render(<NotificationsScreen accountId="account-1" />);
+  expect(await screen.findByText('Lịch hẹn có cập nhật')).toBeTruthy();
+  fireEvent.press(screen.getByRole('checkbox', { name: 'Chỉ xem tin mới' }));
+  fireEvent.press(screen.getByText('Đánh dấu đã đọc'));
+  await waitFor(() => expect(api.markAllMyNotificationsRead).toHaveBeenCalledTimes(1));
+  expect(screen.getByText('Không còn thông báo chưa đọc')).toBeTruthy();
 });
 
-test('shows notification storage errors and offers a retry action', () => {
-  const onRetryPersistence = jest.fn();
-  const screen = render(<NotificationsScreen persistenceError="Không lưu được trạng thái." onRetryPersistence={onRetryPersistence} />);
+test('shows a retry state when notification loading fails', async () => {
+  api.getMyNotifications.mockRejectedValueOnce(new Error('API is unavailable'));
+  const screen = render(<NotificationsScreen accountId="account-1" />);
+  expect(await screen.findByText('API is unavailable')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Thử tải lại' }));
+  await waitFor(() => expect(api.getMyNotifications).toHaveBeenCalledTimes(2));
+});
 
-  expect(screen.getByRole('alert').props.children).toBe('Không lưu được trạng thái.');
-  fireEvent.press(screen.getByRole('button', { name: 'Thử lưu lại' }));
-  expect(onRetryPersistence).toHaveBeenCalledTimes(1);
+test('groups account notices by local calendar date', () => {
+  const now = new Date('2026-11-24T12:00:00');
+  expect(notificationGroup('2026-11-24T00:01:00', now)).toBe('today');
+  expect(notificationGroup('2026-11-23T12:00:00', now)).toBe('yesterday');
+  expect(notificationGroup('2026-11-19T12:00:00', now)).toBe('week');
+  expect(notificationGroup('2026-11-10T12:00:00', now)).toBe('older');
 });

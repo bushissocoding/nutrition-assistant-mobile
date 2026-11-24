@@ -20,6 +20,8 @@ test('server config keeps local defaults and disables demo persistence', () => {
     supabase: null,
     fdcApiKey: null,
     payos: null,
+    assistant: null,
+    expoPush: null,
   });
 });
 
@@ -33,6 +35,8 @@ test('server config accepts an explicit port, CORS value, and demo setting', () 
     supabase: null,
     fdcApiKey: null,
     payos: null,
+    assistant: null,
+    expoPush: null,
   });
 });
 
@@ -50,6 +54,8 @@ test('production requires current Supabase credentials and an explicit HTTPS ori
     },
     fdcApiKey: null,
     payos: null,
+    assistant: null,
+    expoPush: null,
   });
 });
 
@@ -136,4 +142,25 @@ test('PayOS config stays optional until all server credentials and HTTPS callbac
     { ...env, PAYOS_RETURN_URL: 'http://app.example.test/payment-return' },
     { ...env, PAYOS_WEBHOOK_URL: 'https://user:pass@api.example.test/webhook' },
   ]) assert.throws(() => readServerConfig(invalid), error => error.code === 'INVALID_SERVER_CONFIG');
+});
+
+test('OpenAI chat config is optional and requires a bounded server key and explicit model', () => {
+  assert.equal(readServerConfig({}).assistant, null);
+  assert.deepEqual(readServerConfig({ OPENAI_API_KEY: ' synthetic-openai-key ', OPENAI_MODEL: 'gpt-6.2-sol' }).assistant, {
+    apiKey: 'synthetic-openai-key', model: 'gpt-6.2-sol',
+  });
+  for (const invalid of [
+    { OPENAI_API_KEY: 'synthetic-openai-key' },
+    { OPENAI_MODEL: 'gpt-6.2-sol' },
+    { OPENAI_API_KEY: 'bad\nkey', OPENAI_MODEL: 'gpt-6.2-sol' },
+    { OPENAI_API_KEY: 'synthetic-key', OPENAI_MODEL: 'https://attacker.example' },
+    { OPENAI_API_KEY: 'x'.repeat(501), OPENAI_MODEL: 'gpt-6.2-sol' },
+  ]) assert.throws(() => readServerConfig(invalid), error => error.code === 'INVALID_SERVER_CONFIG');
+});
+
+test('Expo Push access token is optional, server-only and bounded', () => {
+  assert.equal(readServerConfig({}).expoPush, null);
+  assert.deepEqual(readServerConfig({ EXPO_PUSH_ACCESS_TOKEN: ' expo-secret ' }).expoPush, { accessToken: 'expo-secret' });
+  assert.throws(() => readServerConfig({ EXPO_PUSH_ACCESS_TOKEN: 'bad\ntoken' }), error => error.code === 'INVALID_SERVER_CONFIG');
+  assert.throws(() => readServerConfig({ EXPO_PUSH_ACCESS_TOKEN: 'x'.repeat(501) }), error => error.code === 'INVALID_SERVER_CONFIG');
 });

@@ -1,6 +1,6 @@
 # Full App V1 Task List
 
-Each implementation task is to be expanded into a module-specific spec and focused task checklist before code. Verification uses synthetic data only. Keep prior initiative checklists unchanged.
+Current execution status is tracked in [`plan-full-app.md`](plan-full-app.md); module specs and focused task checklists are completed before implementation. Verification uses synthetic data only. Keep prior initiative checklists unchanged.
 
 ## Phase 0 — Scope and specifications
 
@@ -27,14 +27,15 @@ Each implementation task is to be expanded into a module-specific spec and focus
   - Acceptance: Private routes require a verified principal; unsafe CORS, excess payloads and rate abuse are rejected; logs exclude sensitive payloads.
   - Verify: API tests for 401/403, expired token, CORS, limits, rate behavior and safe logs; `npm run test:api`.
   - Files: `server/server.js`, `server/src/middleware/`, `server/src/routes/`, `server/server.test.js`.
-- [ ] Task 1.4: Add migration/RLS harness and keep legacy demo routes local-only.
-  - Acceptance: Owner and role policies are versioned; demo namespace routes remain unavailable in production; RLS test command is documented.
-  - Verify: `npm run test:unit`, `npm run test:api`, and `npx supabase db reset` when available.
-  - Files: `supabase/migrations/`, server demo gates, test scripts and operations docs.
-- [ ] Checkpoint: Public `/api/v1` nutrition contracts remain compatible; no unauthenticated private route succeeds.
+- [x] Task 1.4: Add Supabase CLI project config, two-account pgTAP owner-isolation test, versioned owner/role migrations and keep legacy demo routes local-only.
+  - Acceptance: Owner and role policies are versioned; demo namespace routes remain unavailable in production; static migration contract tests exist. Live RLS remains dependent on a Supabase runtime.
+  - Verify: `npm run test:unit`, `npm run test:api`; `npx supabase db reset` when the CLI and Docker are available.
+  - Files: `supabase/migrations/`, server demo gates, tests and operations docs.
+- [x] Checkpoint: Public `/api/v1` nutrition contracts remain compatible; unauthenticated private routes fail closed. Live database isolation still requires external execution.
 
 ## Phase 2 — Identity/profile; Phase 3 — nutrition/tracking; Phase 4 — care/payment; Phase 5 — chat/records/notifications; Phase 6 — release
 
 - [x] `identity-profile`: write and self-review the module spec and focused checklist before implementation.
-- [ ] Before every later module implementation, write and self-review that module's own spec and focused checklist in capability dependency order.
+- [x] Before every later module implementation, write and self-review that module's own spec and focused checklist in capability dependency order.
+- [x] Release operations: run full required suites, complete final code review, and record external release blockers in [`SPEC-release-operations-v1.md`](../spec/SPEC-release-operations-v1.md).
 - [ ] Do not mark external credentials, provider accounts, data rights, reviews, or deployment checks complete from code alone.

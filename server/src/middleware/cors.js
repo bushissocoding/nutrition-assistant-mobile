@@ -1,5 +1,5 @@
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'];
-const BASE_HEADERS = ['content-type', 'authorization', 'idempotency-key'];
+const BASE_HEADERS = ['content-type', 'authorization', 'idempotency-key', 'x-record-content-type'];
 
 function createCorsMiddleware({ corsOrigins = ['*'], demoDataEnabled = false, environment = 'development' } = {}) {
   const allowedOrigins = new Set(corsOrigins);
@@ -15,6 +15,7 @@ function createCorsMiddleware({ corsOrigins = ['*'], demoDataEnabled = false, en
 
     if (origin) {
       res.setHeader('Access-Control-Allow-Origin', wildcard ? '*' : origin);
+      res.setHeader('Access-Control-Expose-Headers', 'X-Request-Id');
       if (!wildcard) res.setHeader('Vary', 'Origin');
     }
 

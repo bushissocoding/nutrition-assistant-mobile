@@ -65,13 +65,14 @@ async function createSourcedMealPlan({ foods, mealTemplates, catalog, profile, f
 
   let request;
   try {
-    const allowedFields = ['contractVersion', 'preferences'];
+    const allowedFields = ['contractVersion', 'preferences', 'dietaryVariety'];
     if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).some(key => !allowedFields.includes(key))) {
       return unavailable('INVALID_MEAL_PLAN_REQUEST', 'Kế hoạch chỉ nhận sở thích và phiên bản yêu cầu; chỉ tiêu được lấy từ hồ sơ tài khoản.', currentCatalogVersion);
     }
     request = validateMealPlanRequest({
       contractVersion: input.contractVersion,
       preferences: input.preferences,
+      dietaryVariety: input.dietaryVariety,
       allergies,
       hardLimits: profile.mode === 'patient' ? profile.hard_limits : {},
     }, { foods: [] });

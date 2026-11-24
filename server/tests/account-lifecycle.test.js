@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createAccountDeletionService, exportAccount } = require('../src/services/account-lifecycle');
 
-function accountDatabase({ profile = null, consents = [], plans = [], mealEntries = [], shoppingLists = [], shoppingItems = [], pantryItems = [], appointments = [], payments = [], providerProfile = null, providerCredentials = null, providerAvailability = [] } = {}) {
+function accountDatabase({ profile = null, consents = [], assistantConsents = [], assistantTurns = [], appointmentMessages = [], notificationPreferences = null, nutritionPreferences = null, notifications = [], healthRecords = [], healthRecordResults = [], plans = [], mealEntries = [], shoppingLists = [], shoppingItems = [], pantryItems = [], appointments = [], payments = [], providerProfile = null, providerCredentials = null, providerAvailability = [] } = {}) {
   return {
     from(table) {
       if (table === 'profiles') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: null }) }) }) };
@@ -13,6 +13,14 @@ function accountDatabase({ profile = null, consents = [], plans = [], mealEntrie
           }),
         }),
       };
+      if (table === 'assistant_ai_consents') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: assistantConsents, error: null }) }) }) }) };
+      if (table === 'assistant_turns') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: assistantTurns, error: null }) }) }) }) };
+      if (table === 'appointment_messages') return { select: () => ({ order: () => ({ order: async () => ({ data: appointmentMessages, error: null }) }) }) };
+      if (table === 'notification_preferences') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: notificationPreferences, error: null }) }) }) };
+      if (table === 'nutrition_preferences') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: nutritionPreferences, error: null }) }) }) };
+      if (table === 'notifications') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: notifications, error: null }) }) }) }) };
+      if (table === 'health_records') return { select: () => ({ eq: () => ({ order: () => ({ order: () => ({ order: async () => ({ data: healthRecords, error: null }) }) }) }) }) };
+      if (table === 'health_record_results') return { select: () => ({ eq: () => ({ in: () => ({ order: () => ({ order: async () => ({ data: healthRecordResults, error: null }) }) }) }) }) };
       if (table === 'meal_plans') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: plans, error: null }) }) }) }) };
       if (table === 'meal_entries') return { select: () => ({ eq: () => ({ is: () => ({ order: () => ({ order: async () => ({ data: mealEntries, error: null }) }) }) }) }) };
       if (table === 'shopping_lists') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: shoppingLists, error: null }) }) }) }) };
@@ -28,10 +36,18 @@ function accountDatabase({ profile = null, consents = [], plans = [], mealEntrie
   };
 }
 
-test('account export contains only authenticated identity and owned profile, nutrition, grocery and appointment data', async () => {
+test('account export contains only authenticated identity and owned profile, nutrition, grocery, care and notification data', async () => {
   const data = await exportAccount({
     db: accountDatabase({
       consents: [{ version: 'v1', choices: { profile_processing: true }, accepted_at: '2026-01-01T00:00:00.000Z' }],
+      assistantConsents: [{ version: 'ai-assistant-processing-v1', choice: 'accepted', recorded_at: '2026-01-02T00:00:00.000Z' }],
+      assistantTurns: [{ id: 'turn-1', request_key: 'request-1', user_message: 'How?', assistant_message: 'Open diary.', status: 'completed', created_at: '2026-01-03T00:00:00.000Z', updated_at: '2026-01-03T00:00:00.000Z' }],
+      appointmentMessages: [{ id: 'message-1', appointment_id: 'appointment-1', sender_user_id: 'synthetic-user', client_message_id: 'message-key-1', body: 'Please confirm.', created_at: '2026-01-04T00:00:00.000Z' }],
+      notificationPreferences: { in_app_appointments: true, in_app_payments: false, in_app_messages: true, push_enabled: false, push_appointments: true, push_payments: true, push_messages: false, updated_at: '2026-01-04T00:00:00.000Z' },
+      nutritionPreferences: { dietary_variety: 'varied', food_preferences: ['Vietnamese', 'easy_cook'], allergy_reminder: true, track_confirmed_targets: false, updated_at: '2026-01-04T00:00:00.000Z' },
+      notifications: [{ id: 'notice-1', kind: 'appointment', reference_id: 'appointment-1', title: 'Lịch hẹn có cập nhật', body: 'Mở ứng dụng để xem thông tin mới nhất.', read_at: null, created_at: '2026-01-04T00:00:00.000Z' }],
+      healthRecords: [{ id: 'record-1', title: 'Panel', source_date: '2026-01-03', note: '', file_mime_type: 'image/jpeg', file_size: '2400', created_at: '2026-01-04T00:00:00.000Z', updated_at: '2026-01-04T00:00:00.000Z' }],
+      healthRecordResults: [{ id: 'result-1', record_id: 'record-1', name: 'Glucose', value: '5.4', unit: 'mmol/L', reference_range: '3.9–5.5', created_at: '2026-01-04T00:00:00.000Z' }],
       plans: [{ id: 'plan-1', plan: { status: 'feasible' }, profile_updated_at: null, catalog_version: 'USDA-FDC-live-v1', created_at: '2026-01-02T00:00:00.000Z', user_id: 'not-exported' }],
       mealEntries: [{ id: 'entry-1', food_id: 'fdc:12345', food_name: 'Beans', portion_grams: '150', meal_type: 'LUNCH', consumed_at: '2026-01-03T00:00:00.000Z', time_zone: 'Asia/Saigon', notes: null, nutrients: { energyKcal: 100 }, source: { id: 'USDA-FDC', recordId: '12345' }, food_snapshot: { id: 'fdc:12345' }, catalog_version: 'USDA-FDC-live-v1', created_at: '2026-01-03T00:00:00.000Z', updated_at: '2026-01-03T00:00:00.000Z' }],
       shoppingLists: [{ id: 'list-1', source_plan_id: 'plan-1', request_key: 'grocery-intent-1', is_current: true, created_at: '2026-01-04T00:00:00.000Z', updated_at: '2026-01-04T00:00:00.000Z', user_id: 'not-exported' }],
@@ -42,10 +58,17 @@ test('account export contains only authenticated identity and owned profile, nut
     }),
     user: { id: 'synthetic-user', email: 'person@example.test' },
   });
-  assert.equal(data.exportVersion, 3);
+  assert.equal(data.exportVersion, 6);
   assert.deepEqual(data.identity, { id: 'synthetic-user', email: 'person@example.test' });
   assert.equal(data.profile, null);
   assert.deepEqual(data.consentRecords, [{ version: 'v1', choices: { profile_processing: true }, acceptedAt: '2026-01-01T00:00:00.000Z' }]);
+  assert.deepEqual(data.assistantAiConsentRecords, [{ version: 'ai-assistant-processing-v1', accepted: true, recordedAt: '2026-01-02T00:00:00.000Z' }]);
+  assert.deepEqual(data.assistantTurns, [{ id: 'turn-1', clientMessageId: 'request-1', userMessage: 'How?', assistantMessage: 'Open diary.', status: 'completed', createdAt: '2026-01-03T00:00:00.000Z', updatedAt: '2026-01-03T00:00:00.000Z' }]);
+  assert.deepEqual(data.appointmentMessages, [{ id: 'message-1', appointmentId: 'appointment-1', senderUserId: 'synthetic-user', clientMessageId: 'message-key-1', body: 'Please confirm.', createdAt: '2026-01-04T00:00:00.000Z' }]);
+  assert.deepEqual(data.notificationPreferences, { inAppAppointments: true, inAppPayments: false, inAppMessages: true, pushEnabled: false, pushAppointments: true, pushPayments: true, pushMessages: false, updatedAt: '2026-01-04T00:00:00.000Z' });
+  assert.deepEqual(data.nutritionPreferences, { dietaryVariety: 'varied', foodPreferences: ['Vietnamese', 'easy_cook'], allergyReminder: true, trackConfirmedTargets: false, updatedAt: '2026-01-04T00:00:00.000Z' });
+  assert.deepEqual(data.notifications, [{ id: 'notice-1', kind: 'appointment', referenceId: 'appointment-1', title: 'Lịch hẹn có cập nhật', body: 'Mở ứng dụng để xem thông tin mới nhất.', readAt: null, createdAt: '2026-01-04T00:00:00.000Z' }]);
+  assert.deepEqual(data.healthRecords, [{ id: 'record-1', title: 'Panel', sourceDate: '2026-01-03', note: '', source: { mimeType: 'image/jpeg', size: 2400 }, results: [{ id: 'result-1', name: 'Glucose', value: '5.4', unit: 'mmol/L', referenceRange: '3.9–5.5', createdAt: '2026-01-04T00:00:00.000Z' }], createdAt: '2026-01-04T00:00:00.000Z', updatedAt: '2026-01-04T00:00:00.000Z' }]);
   assert.deepEqual(data.mealPlans, [{ id: 'plan-1', plan: { status: 'feasible' }, profileUpdatedAt: null, catalogVersion: 'USDA-FDC-live-v1', createdAt: '2026-01-02T00:00:00.000Z' }]);
   assert.deepEqual(data.mealEntries, [{ id: 'entry-1', foodId: 'fdc:12345', foodName: 'Beans', portion: { amount: 150, unit: 'g' }, mealType: 'LUNCH', consumedAt: '2026-01-03T00:00:00.000Z', timeZone: 'Asia/Saigon', notes: null, nutrients: { energyKcal: 100 }, source: { id: 'USDA-FDC', recordId: '12345' }, foodSnapshot: { id: 'fdc:12345' }, catalogVersion: 'USDA-FDC-live-v1', createdAt: '2026-01-03T00:00:00.000Z', updatedAt: '2026-01-03T00:00:00.000Z' }]);
   assert.deepEqual(data.shoppingLists, [{ id: 'list-1', sourcePlanId: 'plan-1', requestKey: 'grocery-intent-1', isCurrent: true, createdAt: '2026-01-04T00:00:00.000Z', updatedAt: '2026-01-04T00:00:00.000Z', items: [{ id: 'item-1', foodId: 'fdc:12345', name: 'Beans', amount: 150, unit: 'g', purchased: false, source: { id: 'USDA-FDC' }, catalogVersion: 'USDA-FDC-live-v1', createdAt: '2026-01-04T00:00:00.000Z', updatedAt: '2026-01-04T00:00:00.000Z' }] }]);
@@ -76,4 +99,19 @@ test('account deletion keeps identity when a module cleanup fails and tolerates 
   const idempotent = createAccountDeletionService({ adminClient });
   await idempotent({ userId: 'synthetic-user', db: {} });
   assert.equal(identityDeleteCalls, 1);
+});
+
+test('account deletion removes private record files before deleting the auth identity', async () => {
+  const steps = [];
+  const adminClient = {
+    storage: { from(bucket) { return { async remove(paths) { steps.push(`storage:${bucket}:${paths.join(',')}`); return { error: null }; } }; } },
+    auth: { admin: { async deleteUser(userId) { steps.push(`identity:${userId}`); return { error: null }; } } },
+  };
+  const db = { from(table) {
+    assert.equal(table, 'health_records');
+    return { select: () => ({ eq: async () => ({ data: [{ file_path: 'account-1/record-1' }], error: null }) }) };
+  } };
+  const service = createAccountDeletionService({ adminClient });
+  await service({ userId: 'account-1', db });
+  assert.deepEqual(steps, ['storage:health-record-images:account-1/record-1', 'identity:account-1']);
 });

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Linking from 'expo-linking';
-import * as SecureStore from 'expo-secure-store';
 import ConsentScreen from '../features/onboarding/ConsentScreen';
 import ProfileSetupScreen from '../features/onboarding/ProfileSetupScreen';
 import DashboardScreen from '../features/dashboard/DashboardScreen';
@@ -14,7 +13,7 @@ import WelcomeScreen from '../features/onboarding/WelcomeScreen';
 import LaunchScreen from '../features/onboarding/LaunchScreen';
 import AuthScreen from '../features/onboarding/AuthScreen';
 import ChatScreen from '../features/chat/ChatScreen';
-import NotificationsScreen, { initialNotificationItems } from '../features/notifications/NotificationsScreen';
+import NotificationsScreen from '../features/notifications/NotificationsScreen';
 import SettingsScreen from '../features/settings/SettingsScreen';
 import AppointmentScreen from '../features/appointments/AppointmentScreen';
 import MedicalRecordScreen from '../features/medical-record/MedicalRecordScreen';
@@ -24,10 +23,10 @@ import { api } from '../services/api';
 import { colors } from '../theme/tokens';
 import { bottomTabs } from '../navigation/routes';
 import { hasUrgentRedFlags, validateProfile } from '../features/profile/profile-model.cjs';
-import { createNotificationStateStorage } from '../services/notification-state-storage.cjs';
+import { unregisterPushDevice } from '../services/push-notifications';
+import * as Notifications from 'expo-notifications';
 
 const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
-const notificationStateStorage = createNotificationStateStorage({ storage: SecureStore, initialItems: initialNotificationItems });
 
 function getCurrentLocalDay() {
   const now = new Date();
@@ -61,16 +60,12 @@ export default function AppShell() {
   const [diaryLoading, setDiaryLoading] = useState(false);
   const [diaryHydrationVersion, setDiaryHydrationVersion] = useState(0);
   const [storageError, setStorageError] = useState('');
-  const [notificationStorageError, setNotificationStorageError] = useState('');
-  const [notificationStateReady, setNotificationStateReady] = useState(false);
-  const [notificationSaveVersion, setNotificationSaveVersion] = useState(0);
   const [medicalRecordReturn, setMedicalRecordReturn] = useState('profile');
   const [settingsReturn, setSettingsReturn] = useState('profile');
   const [personalizationReturn, setPersonalizationReturn] = useState('profile');
   const [appointmentReturn, setAppointmentReturn] = useState('home');
   const [chatContact, setChatContact] = useState(null);
-  const [notifications, setNotifications] = useState(initialNotificationItems);
-  const notificationWriteQueue = useRef(Promise.resolve());
+  const pendingNotificationOpen = useRef(false);
   const authEpoch = useRef(0);
   const authAccountId = useRef(null);
   const finishLaunch = useCallback(() => setLaunchComplete(true), []);
@@ -80,7 +75,7 @@ export default function AppShell() {
     authAccountId.current = null;
     setAccount(null); setConsentRecord(null); setConsented(false); setProfile(null); setPlan(null);
     setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setDiaryHydrationError(''); setDiaryLoading(false);
-    setGroceryPlanId(null); setChatContact(null); setNotifications(initialNotificationItems);
+    setGroceryPlanId(null); setChatContact(null); pendingNotificationOpen.current = false;
     setScreen('welcome');
   }, []);
 
@@ -105,7 +100,7 @@ export default function AppShell() {
       const profileResult = await api.getMyProfile();
       if (epoch !== authEpoch.current) return;
       setProfile(profileResult?.profile || null);
-      setScreen(profileResult?.profile ? 'home' : 'profile-setup');
+      setScreen(pendingNotificationOpen.current ? 'notifications' : profileResult?.profile ? 'home' : 'profile-setup');
     } catch (error) {
       if (epoch !== authEpoch.current) return;
       setStorageError(error?.message || 'Không thể tải dữ liệu tài khoản. Hãy thử lại.');
@@ -115,15 +110,6 @@ export default function AppShell() {
 
   useEffect(() => {
     let active = true;
-    notificationStateStorage.load().catch(() => ({
-      items: initialNotificationItems,
-      warning: 'Không đọc được trạng thái thông báo đã lưu. Trạng thái mẫu đang dùng trong phiên này.',
-    })).then(savedNotifications => {
-      if (!active) return;
-      setNotifications(savedNotifications.items);
-      setNotificationStorageError(savedNotifications.warning);
-      setNotificationStateReady(true);
-    });
     (async () => {
       try {
         if (isAuthConfigured) {
@@ -136,6 +122,19 @@ export default function AppShell() {
     })();
     return () => { active = false; };
   }, [hydrateAccount]);
+
+  useEffect(() => {
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(() => {
+      pendingNotificationOpen.current = true;
+      if (authAccountId.current) setScreen('notifications');
+    });
+    Notifications.getLastNotificationResponseAsync?.().then(response => {
+      if (!response) return;
+      pendingNotificationOpen.current = true;
+      if (authAccountId.current) setScreen('notifications');
+    }).catch(() => undefined);
+    return () => responseSubscription?.remove?.();
+  }, []);
 
   useEffect(() => {
     if (!isAuthConfigured) return undefined;
@@ -155,15 +154,6 @@ export default function AppShell() {
     }).catch(() => setStorageError('Không thể mở liên kết xác thực.'));
     return () => { unsubscribe?.(); link.remove(); };
   }, [clearAccountState, hydrateAccount]);
-
-  useEffect(() => {
-    if (!notificationStateReady) return;
-    const itemsToSave = notifications;
-    notificationWriteQueue.current = notificationWriteQueue.current.catch(() => undefined)
-      .then(() => notificationStateStorage.save(itemsToSave))
-      .then(() => setNotificationStorageError(''))
-      .catch(() => setNotificationStorageError('Không lưu được trạng thái đã đọc trên thiết bị. Bạn có thể thử lưu lại.'));
-  }, [notificationStateReady, notifications, notificationSaveVersion]);
 
   useEffect(() => {
     if (!ready || !consented || !profile) return undefined;
@@ -198,6 +188,14 @@ export default function AppShell() {
       setStorageError('');
     } catch (error) { setStorageError(error?.message || 'Không thể lưu lựa chọn trên máy chủ. Hãy thử lại.'); }
     finally { setConsentSaving(false); }
+  }
+
+  async function enableHealthRecordStorage() {
+    if (!consentRecord?.choices) throw new Error('Hãy xác nhận các lựa chọn dữ liệu cần thiết trước khi lưu hồ sơ xét nghiệm.');
+    const result = await api.saveMyConsent({ ...consentRecord.choices, health_record_storage: true });
+    if (!result?.consent) throw new Error('Máy chủ chưa lưu lựa chọn hồ sơ xét nghiệm.');
+    setConsentRecord(result.consent);
+    return result.consent;
   }
 
   function reviewConsent(returnTo) {
@@ -325,7 +323,10 @@ export default function AppShell() {
 
   async function handleLogout() {
     setAuthBusy(true);
-    try { await authService.logout(); clearAccountState(); }
+    try {
+      if (account?.id) await unregisterPushDevice({ api, userId: account.id });
+      await authService.logout(); clearAccountState();
+    }
     catch (error) { setStorageError(error?.message || 'Không thể đăng xuất an toàn. Hãy thử lại.'); }
     finally { setAuthBusy(false); }
   }
@@ -373,20 +374,20 @@ export default function AppShell() {
   }
 
   let content;
-  if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
+  if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} profile={profile} account={account} />;
   else if (screen === 'planner') content = <MealPlanScreen profile={profile} onOpenProfile={() => openProfileSetup('planner')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
   else if (screen === 'grocery') content = <GroceryScreen savedPlanId={groceryPlanId} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
-  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
+  else if (screen === 'dashboard') content = <DashboardScreen profile={profile} diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={handleLogout} />;
-  else if (screen === 'chat') content = <ChatScreen onNavigate={navigate} />;
-  else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;
-  else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} persistenceError={notificationStorageError} onRetryPersistence={() => setNotificationSaveVersion(value => value + 1)} />;
+  else if (screen === 'chat') content = <ChatScreen account={account} onNavigate={navigate} />;
+  else if (screen === 'doctor-chat') content = <ChatScreen account={account} contact={chatContact} onNavigate={navigate} />;
+  else if (screen === 'notifications') content = <NotificationsScreen accountId={account?.id} onNavigate={navigate} />;
   else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
-  else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods' || screen === 'provider-workspace') content = <AppointmentScreen initialView={screen} account={account} onOpenDoctorChat={appointment => { setChatContact({ id: appointment.providerId, name: appointment.provider?.name, appointmentId: appointment.id }); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
-  else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
-  else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
-  else content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} plan={plan} />;
+  else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods' || screen === 'provider-workspace') content = <AppointmentScreen initialView={screen} account={account} onOpenDoctorChat={appointment => { setChatContact({ id: appointment.providerId, role: appointment.chatCounterpartyRole || 'provider', name: appointment.chatCounterpartyName || appointment.provider?.name, appointmentId: appointment.id }); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
+  else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} account={account} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
+  else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} healthRecordConsent={consentRecord?.choices?.health_record_storage === true} onEnableHealthRecordStorage={enableHealthRecordStorage} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
+  else content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} plan={plan} profile={profile} account={account} />;
 
   return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" />{content}
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}

@@ -1,4 +1,5 @@
 const express = require('express');
+const { logApiFailure } = require('../observability/request-telemetry');
 const {
   normalizeShoppingListInput,
   normalizeShoppingListItemPatch,
@@ -10,7 +11,7 @@ const DISCLAIMER = 'Danh sách là ước tính từ thực đơn mẫu; không 
 function sendRouteError(req, res, error) {
   const status = Number.isInteger(error?.status) ? error.status : 500;
   const code = typeof error?.code === 'string' ? error.code : 'INTERNAL_ERROR';
-  if (status >= 500) console.error('Shopping list API operation failed', { method: req.method, path: req.path, code });
+  if (status >= 500) logApiFailure(req, 'shopping_list_operation_failed', code);
   const message = status === 500
     ? 'Không thể xử lý danh sách đi chợ lúc này. Hãy thử lại sau.'
     : error.message;

@@ -25,9 +25,19 @@ test('shows the eight designed shortcuts and routes them to their matching featu
   expect(screen.getByRole('button', { name: 'Đi chợ' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Cá nhân hóa' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Hướng dẫn' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Báo cáo' })).toBeTruthy();
 
   fireEvent.press(screen.getByRole('button', { name: 'Đi chợ' }));
   expect(onNavigate).toHaveBeenCalledWith('grocery');
+  fireEvent.press(screen.getByRole('button', { name: 'Báo cáo' }));
+  expect(onNavigate).toHaveBeenCalledWith('dashboard');
+});
+
+test('uses the signed-in profile name instead of a fixed sample identity', () => {
+  const screen = render(<HomeScreen onNavigate={jest.fn()} profile={{ username: 'Linh Nguyen' }} account={{ email: 'sample@example.test' }} />);
+  expect(screen.getByText('Linh Nguyen')).toBeTruthy();
+  expect(screen.queryByText('Kiên Phạm')).toBeNull();
+  expect(screen.queryByText('Thực đơn demo đã sẵn sàng')).toBeNull();
 });
 
 test('loads the selected local calendar date and shows its API diary response', async () => {

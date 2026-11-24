@@ -47,7 +47,7 @@ test('meal-plan route stores only feasible account-owned sourced snapshots with 
     assert.equal(body.status, 'feasible');
     assert.equal(body.savedPlan.id, 'saved-plan-1');
     assert.equal(stored.userId, profile.id);
-    assert.deepEqual(stored.input, { contractVersion: 1, preferences: 'rice' });
+    assert.deepEqual(stored.input, { contractVersion: 1, preferences: 'rice', dietaryVariety: 'balanced' });
     assert.equal(stored.plan.plan[0].portions[0].foodId, 'fdc:12345');
   });
 });

@@ -14,24 +14,24 @@ app/
     ├── theme/tokens.js             # Shared colors, spacing and radii
     ├── shared/components/          # Reusable presentation components
     └── features/
-        ├── onboarding/             # Welcome, account preview, versioned consent and profile assessment
+        ├── onboarding/             # Welcome, Supabase Auth, versioned consent and profile assessment
         ├── home/                   # Home shortcuts, selected-date diary, and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
         ├── grocery/                 # Account-owned pantry and saved-plan shopping list
         ├── diary/                   # USDA-sourced account diary, edits, local-date history and totals
         ├── dashboard/               # Account API report and daily nutrient progress
         ├── profile/                 # Account profile, consent and lifecycle screens
-        ├── chat/                    # Local FAQ assistant and non-delivering provider conversation preview
-        ├── notifications/           # Synthetic notices with locally persisted read flags; no push service
-        ├── settings/                # Device demo preferences, privacy text and help
-        ├── medical-record/          # Local profile summary and on-device PDF export; no verified records
-        ├── personalization/         # Session-only preferences and synthetic lab-result preview
+        ├── chat/                    # Account-backed non-clinical assistant and appointment messages
+        ├── notifications/           # Account event inbox, read state and push-aware settings
+        ├── settings/                # Account security, consent, export/deletion and notifications
+        ├── medical-record/          # Private health records and local PDF export
+        ├── personalization/         # Account preferences and on-device lab OCR review
         └── appointments/            # Verified-provider directory, availability, account-owned bookings, PayOS checkout and provider workspace
 ```
 
-Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` restores Supabase Auth sessions and hydrates account-owned consent/profile; current-day diary totals and multi-day dashboard reports come from private account APIs. Account consent receipts are versioned, timestamped by Postgres, and append-only; profile, meal plans, diary, pantry and grocery rows are owner-scoped behind RLS. SecureStore contains only the Auth SDK session and the identifiers/read flags for current sample notifications.
+Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` restores Supabase Auth sessions and hydrates account-owned consent/profile; diary totals and dashboard reports come from private account APIs. Account consent receipts are versioned, timestamped by Postgres, and append-only; profile, nutrition preferences, plans, diary, pantry, grocery, care, chat, notifications and health-record metadata are owner/role-scoped behind RLS. Private health-record images use a private Storage bucket. SecureStore contains the Auth SDK session and the current account's Expo push token; notification content and read state live on the API.
 
-Welcome/login/registration and email/SMS recovery use Supabase Auth when configured. Account settings can change a password, verify a recovery phone, export current identity/profile/consent data and request staged deletion. Provider applications, verified-provider directory, provider availability, appointment holds/history/cancellation, and provider workspace use authenticated account APIs and owner/role RLS. Holds expire after 20 minutes; only a matching, signature-verified PayOS webhook can transition a booking to confirmed. Checkout uses a hosted provider page, payment receipts are included in account export, and unpaid links are canceled after appointment cancellation when PayOS is reachable. The merchant integration remains disabled until operator credentials/callback configuration exists; paid refunds need operator reconciliation. Chat and personalization still operate only in the current UI session. Notifications use synthetic sample text; read flags persist locally, but there is no push or server notification service. Provider chat is still non-delivering. Medical-record upload and OCR are not yet implemented. The medical-record screen summarizes the account profile and can create a PDF in the device cache and open the native share sheet; it does not upload the PDF or verify a medical record. The lab-scan screen has an empty state and an optional, editable synthetic sample that remains in session memory. There is no camera capture, image upload, OCR, or lab interpretation service.
+Welcome/login/registration and email recovery use Supabase Auth; SMS recovery needs an operator-configured delivery provider. Account settings can change a password, verify a recovery phone, export all registered account modules and request staged deletion. Provider applications, verified-provider directory, availability, appointment holds/history/cancellation and provider workspace use authenticated account APIs and owner/role RLS. Holds expire after 20 minutes; only a matching, signature-verified PayOS webhook can transition a booking to confirmed. Checkout uses a hosted provider page; payment receipts are included in account export, and unpaid links are canceled after cancellation when PayOS is reachable. Merchant activation and paid refunds/reconciliation require operator setup. Chat messages are persisted for eligible booking participants; the optional assistant sends only the typed message after separate consent and uses OpenAI Responses with storage disabled. Notifications are generated from business events and use a durable Expo Push outbox; the worker is a separate process. Health-record images are uploaded only after consent and user review; OCR runs on-device and never interprets results. Account personalization is persisted and sent as a soft plan-ranking hint; confirmed target display is conditional on the patient's explicit confirmation. All live providers, the database, the native OCR device path and real provider roster still require external configuration/verification.
 
 ## API (`server/`)
 
@@ -54,6 +54,10 @@ server/
 │   ├── routes/account-meal-entries.js # Account-owned diary and timezone summaries
 │   ├── routes/nutrition-report.js   # Bounded account report aggregation
 │   ├── routes/account-grocery.js    # Account-owned pantry and shopping-list API
+│   ├── routes/chat.js               # Assistant and appointment-scoped chat APIs
+│   ├── routes/health-records.js     # Private record metadata/source APIs
+│   ├── routes/notifications.js      # In-app notification and push-device APIs
+│   ├── routes/personalization.js    # Owner-scoped nutrition preferences
 │   ├── repositories/catalog.js      # Validate/load catalog and its source registry
 │   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
 │   ├── repositories/shopping-list-repository.js # Namespaced demo grocery list
@@ -70,14 +74,14 @@ server/
 │       ├── food-catalog.js          # Catalog schema, source-rights checks and diff report
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
-│       ├── meal-planner.js          # Deterministic demo planner
+│       ├── meal-planner.js          # Deterministic planner and soft ranking hints
 │       └── server-shutdown.js       # Bounded SIGINT/SIGTERM shutdown
 ├── data/                            # Versioned demonstration catalogs, source registry and synthetic fixture
 ├── tests/                            # Unit tests for domain, config and lifecycle rules
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
 
-Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. Strict production configuration, provider-verified identity middleware and request-scoped SDK constructors now exist. Consent and profile routes use verified identity and request-scoped RLS clients. Rate limiting is per process with bounded in-memory state; production deployments with multiple instances need a shared store. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
+Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres and private Storage are the selected full-app identity and persistence layers. Strict production configuration, provider-verified identity middleware and request-scoped SDK constructors exist. Private feature APIs use verified identity, owner filters and RLS. Rate limiting is per process with bounded in-memory state; production deployments with multiple instances need a shared store. Local migration/RLS execution has not been verified because the Supabase CLI and Docker are unavailable here. Private feature records use request-scoped clients and repositories; route handlers do not own database access.
 
 Startup configuration is read and validated before opening the listener. `npm run api` optionally loads `server/.env`; runtime environment values take precedence. The root `.env` is for Expo `EXPO_PUBLIC_*` settings only. Signal handling belongs in the server lifecycle service, not feature routes.
 
@@ -96,16 +100,16 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `POST/GET /api/v1/me/meal-plans` — create feasible snapshots from exact live FDC records and list owner-scoped history; allergies/hard limits come from the consented account profile. The migration enables owner RLS and per-account idempotency.
 - `/api/v1/me/meal-entries` and `/api/v1/me/nutrition-report` — authenticated diary CRUD and local-timezone daily summaries from server-resolved USDA snapshots.
 - `/api/v1/me/grocery/shopping-list` and `/api/v1/me/grocery/pantry` — account-owned list generation from a saved plan, sourced item creation, quantity/purchased editing and pantry CRUD.
+- `GET/PUT /api/v1/me/personalization` — owner-scoped meal preferences, reminder choice and target-display choice; the planner treats preferences as soft ranking hints.
 - `/api/v1/me/care` — consent-gated verified-provider directory/availability, provider application/workspace, transactional appointment holds, patient/provider lists and lifecycle actions. Booking information is shared with the selected provider only after explicit consent.
 - `POST/GET /api/v1/me/care/appointments/:id/payment` and `POST /api/v1/webhooks/payos` — hosted checkout intent/status and signature-verified payment events. Only a verified matching webhook confirms both payment and appointment.
-- `GET /health` — service health.
+- `/api/v1/me/chat` — private assistant thread/consent/turns and participant-only appointment message history/send. Assistant requests require an explicit AI consent receipt; provider messages require an eligible appointment.
+- `/api/v1/me/health-records` — consent-gated private record CRUD, source image upload and short-lived owner-scoped source view; records can be included in account PDF/export.
+- `/api/v1/me/notifications` — paginated account event inbox, read/read-all, notification preferences and Expo token register/unregister. `npm run push:worker` runs durable outbox delivery separately from the API.
+- `GET /health` — process liveness only; does not prove database or provider health.
 
-Auth sessions use a chunked, failure-safe SecureStore adapter. Sign-up, login/email recovery, password changes, verified-phone linking and account assessment use Supabase Auth when configured; SMS recovery still needs an operator-configured provider. Consent, profile, saved meal plans, diary/report, pantry, grocery, provider applications, availability, appointments and payment receipts use verified bearer identity, request-scoped Supabase RLS and owner filters. Export includes patient appointments/payments and provider-owned profile/credentials/availability; deletion relies on Auth cascades. Appointment reservations are transactional and expire after 20 minutes. PayOS checkout uses hosted pages and server-side signed webhooks; the merchant integration is disabled until server credentials and callback URLs are configured. Provider chat, uploaded records/OCR, and server notifications remain to be built. Sourced FDC lookup, nutrition calculation and profile-constrained saved plans require a server-only `FDC_API_KEY` and exact source matches. Local RLS integration has not run because Docker/Supabase CLI are unavailable. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+Auth sessions use a chunked, failure-safe SecureStore adapter. Consent, profile, meal plans, diary/report, grocery, care, chat, health records, notification state and nutrition preferences use verified bearer identity, request-scoped Supabase RLS and owner/role filters. Export covers the registered account modules; account deletion removes private record objects before Auth deletion and cascades the owned rows. Appointment reservations are transactional and expire after 20 minutes. PayOS checkout uses hosted pages and server-side signed webhooks; merchant credentials and callback URLs are external. FDC lookup requires a server-only `FDC_API_KEY` and exact source matches. The Expo Push worker runs separately using Supabase service credentials and an optional Expo access token. Local RLS integration and physical-device OCR have not been run. Do not enter real health information until database, privacy, security and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
-## Suggested next additions
+## Release gates
 
-1. Replace demo JSON storage with Supabase persistence and authenticated ownership only after the data lifecycle and RLS policies are implemented and verified.
-2. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
-3. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
-4. Before enabling real data or production use, provide credentials through protected server configuration, verify ownership, consent, retention/deletion and security controls, and complete qualified reviews. See [`spec/SPEC-app-completion-v2.md`](../spec/SPEC-app-completion-v2.md) for the prior demo-readiness list and [`spec/SPEC-full-app-v1.md`](../spec/SPEC-full-app-v1.md) for the full-app contract.
-5. Continue with independently reviewed mobile end-to-end and production API integration tests before a release; preserve nutrient/source, allergy, infeasible-plan, and error-state gates.
+All product modules have authenticated API/UI paths and synthetic contract tests. A production release still needs credentials and configured projects, database migration/RLS execution, native-device checks, source rights, verified provider staffing, monitoring and backup operators, support contacts, and privacy/security/clinical review. Track these in [`spec/SPEC-release-operations-v1.md`](../spec/SPEC-release-operations-v1.md) and [`docs/security-and-operations.md`](security-and-operations.md). The prior [`spec/SPEC-app-completion-v2.md`](../spec/SPEC-app-completion-v2.md) records an earlier demo-only increment; it is not the current capability map.

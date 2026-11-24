@@ -1,14 +1,50 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { Alert } from 'react-native';
+import { api } from '../../services/api';
+import { registerPushDevice } from '../../services/push-notifications';
 import SettingsScreen from './SettingsScreen';
 
-test('notification preferences expose switches with working selected states', () => {
-  const screen = render(<SettingsScreen screen="settings-notifications" />);
-  const sound = screen.getByRole('switch', { name: 'Âm thanh' });
-  expect(sound.props.accessibilityState.checked).toBe(false);
-  fireEvent.press(sound);
-  expect(screen.getByRole('switch', { name: 'Âm thanh' }).props.accessibilityState.checked).toBe(true);
+jest.mock('../../services/api', () => ({ api: { getMyNotificationPreferences: jest.fn(), saveMyNotificationPreferences: jest.fn() } }));
+jest.mock('../../services/push-notifications', () => ({ registerPushDevice: jest.fn() }));
+
+const notificationPreferences = { inAppAppointments: true, inAppPayments: true, inAppMessages: true, pushEnabled: false, pushAppointments: true, pushPayments: true, pushMessages: true };
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  api.getMyNotificationPreferences.mockResolvedValue({ preferences: { ...notificationPreferences, updatedAt: '2026-11-23T00:00:00Z' } });
+  api.saveMyNotificationPreferences.mockImplementation(async value => ({ preferences: { ...value, updatedAt: '2026-11-24T00:00:00Z' } }));
+});
+
+test('notification preferences load from the account and save changes to the API', async () => {
+  const screen = render(<SettingsScreen screen="settings-notifications" account={{ id: 'account-1' }} />);
+  const appointments = await screen.findByRole('switch', { name: 'Lịch hẹn' });
+  await waitFor(() => expect(appointments.props.accessibilityState.disabled).toBe(false));
+  expect(appointments.props.accessibilityState.checked).toBe(true);
+  fireEvent.press(appointments);
+  await waitFor(() => expect(api.saveMyNotificationPreferences).toHaveBeenCalledWith({ ...notificationPreferences, inAppAppointments: false }));
+  expect(screen.getByRole('switch', { name: 'Lịch hẹn' }).props.accessibilityState.checked).toBe(false);
+});
+
+test('enables push only after OS device registration succeeds and records the account choice', async () => {
+  registerPushDevice.mockResolvedValue({ expoPushToken: 'ExponentPushToken[device-token]', platform: 'ios' });
+  const screen = render(<SettingsScreen screen="settings-notifications" account={{ id: 'account-1' }} />);
+  const push = await screen.findByRole('switch', { name: 'Gửi tới thiết bị này' });
+  await waitFor(() => expect(push.props.accessibilityState.disabled).toBe(false));
+  fireEvent.press(push);
+  await waitFor(() => expect(registerPushDevice).toHaveBeenCalledWith({ api, userId: 'account-1' }));
+  await waitFor(() => expect(api.saveMyNotificationPreferences).toHaveBeenCalledWith({ ...notificationPreferences, pushEnabled: true }));
+  expect(screen.getByRole('switch', { name: 'Gửi tới thiết bị này' }).props.accessibilityState.checked).toBe(true);
+});
+
+test('rolls push opt-in back if the device cannot be registered', async () => {
+  registerPushDevice.mockRejectedValue(new Error('EAS Project ID is missing'));
+  const screen = render(<SettingsScreen screen="settings-notifications" account={{ id: 'account-1' }} />);
+  fireEvent.press(await screen.findByRole('switch', { name: 'Gửi tới thiết bị này' }));
+  await waitFor(() => expect(api.saveMyNotificationPreferences).toHaveBeenCalledTimes(2));
+  expect(api.saveMyNotificationPreferences.mock.calls[1][0]).toMatchObject({ pushEnabled: false });
+  expect(await screen.findByText('EAS Project ID is missing')).toBeTruthy();
+  expect(screen.getByRole('switch', { name: 'Gửi tới thiết bị này' }).props.accessibilityState.checked).toBe(false);
 });
 
 test('settings main screen follows the three reference destinations', () => {

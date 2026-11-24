@@ -16,12 +16,17 @@ const shortcuts = [
 ];
 
 const mealLabels = { BREAKFAST: 'Bữa sáng', LUNCH: 'Bữa trưa', DINNER: 'Bữa tối', SNACK: 'Bữa phụ' };
-const mealTimes = { BREAKFAST: '8:30 AM', LUNCH: '12:00 PM', DINNER: '6:30 PM', SNACK: '3:30 PM' };
+const mealTimes = { BREAKFAST: '08:30', LUNCH: '12:00', DINNER: '18:30', SNACK: '15:30' };
 function formatNumber(value) {
   return Math.round(Number(value) || 0).toLocaleString('vi-VN');
 }
 
-export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, diaryError = '', diaryLoading = false, onRetryDiary, plan }) {
+function displayInitials(value) {
+  const parts = String(value || '').trim().split(/[\s._-]+/).filter(Boolean);
+  return parts.slice(0, 2).map(part => Array.from(part)[0]?.toLocaleUpperCase('vi')).join('') || 'TA';
+}
+
+export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, diaryError = '', diaryLoading = false, onRetryDiary, plan, profile, account }) {
   const today = useMemo(() => new Date(), []);
   const todayKey = formatLocalDateKey(today);
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
@@ -33,6 +38,7 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
   const week = useMemo(() => getLocalWeek(today), [today]);
   const showingToday = selectedDate === todayKey;
   const meals = showingToday ? diary : selectedDateResult?.items || [];
+  const displayName = profile?.username?.trim() || account?.username?.trim() || account?.email?.split('@')[0] || 'Tài khoản';
 
   useEffect(() => {
     if (showingToday) {
@@ -71,10 +77,10 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
-      <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Text style={styles.avatarText}>KP</Text></View>
+      <View style={styles.avatar} accessibilityElementsHidden importantForAccessibility="no-hide-descendants"><Text style={styles.avatarText}>{displayInitials(displayName)}</Text></View>
       <View style={styles.greeting}>
         <Text style={styles.welcome}>Chào mừng trở lại</Text>
-        <Text style={styles.name}>Kiên Phạm</Text>
+        <Text style={styles.name}>{displayName}</Text>
       </View>
       <View style={styles.headerActions}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel="Thông báo" style={styles.headerAction} onPress={() => onNavigate('notifications')}><Text style={styles.headerActionText}>♧</Text></TouchableOpacity>
@@ -86,8 +92,8 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
       <TouchableOpacity accessibilityRole="button" style={styles.quickAction} onPress={() => onNavigate('appointments')}>
         <Text style={styles.quickGlyph}>♧</Text><Text style={styles.quickText}>Bác sĩ</Text>
       </TouchableOpacity>
-      <TouchableOpacity accessibilityRole="button" style={styles.quickAction} onPress={() => onNavigate('appointments')}>
-        <Text style={styles.quickGlyph}>♡</Text><Text style={styles.quickText}>Yêu thích</Text>
+      <TouchableOpacity accessibilityRole="button" style={styles.quickAction} onPress={() => onNavigate('dashboard')}>
+        <Text style={styles.quickGlyph}>▣</Text><Text style={styles.quickText}>Báo cáo</Text>
       </TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tìm món ăn và ghi nhật ký" style={styles.searchAction} onPress={() => onNavigate('diary')}>
         <Text style={styles.searchGlass}>⌕</Text><Text style={styles.searchPlaceholder}>Tìm kiếm</Text><Text style={styles.searchIcon}>⌕</Text>
@@ -150,11 +156,11 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
       <Text accessibilityRole="alert" style={styles.errorText}>{showingToday ? diaryError : `Không tải được nhật ký ngày ${selectedDate}: ${selectedDateError}`}</Text>
       <TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => showingToday ? onRetryDiary?.() : setRetryVersion(value => value + 1)}><Text style={styles.retryText}>Thử lại</Text></TouchableOpacity>
     </View> : null}
-    <Text style={styles.disclaimer}>Thông tin dinh dưỡng là ước tính từ bản demo, không phải tư vấn y tế.</Text>
+    <Text style={styles.disclaimer}>Giá trị dinh dưỡng là ước tính và không thay thế tư vấn y tế.</Text>
 
     {plan?.plan?.length ? <TouchableOpacity accessibilityRole="button" style={styles.planBanner} onPress={() => onNavigate('planner')}>
       <View style={styles.planMark}><Text style={styles.planMarkText}>✓</Text></View>
-      <View style={styles.planCopy}><Text style={styles.planTitle}>Thực đơn demo đã sẵn sàng</Text><Text style={styles.planCaption}>{plan.plan.length} bữa trong ngày · Xem chi tiết</Text></View>
+      <View style={styles.planCopy}><Text style={styles.planTitle}>Thực đơn đã sẵn sàng</Text><Text style={styles.planCaption}>{plan.plan.length} bữa trong ngày · Xem chi tiết</Text></View>
       <Text style={styles.planArrow}>›</Text>
     </TouchableOpacity> : null}
   </ScrollView>;

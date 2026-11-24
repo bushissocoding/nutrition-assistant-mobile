@@ -17,7 +17,7 @@ export function buildRecordHtml(content) {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Tóm tắt hồ sơ demo</title>
+    <title>Tóm tắt hồ sơ sức khỏe cá nhân</title>
     <style>
       @page { margin: 24mm 18mm; }
       body { color: #26314f; font-family: Arial, sans-serif; font-size: 12pt; line-height: 1.6; }
@@ -27,8 +27,8 @@ export function buildRecordHtml(content) {
     </style>
   </head>
   <body>
-    <h1>Tóm tắt hồ sơ tham khảo</h1>
-    <p class="notice">BẢN DEMO · Không phải hồ sơ bệnh án hoặc tư vấn y tế.</p>
+    <h1>Tóm tắt hồ sơ sức khỏe cá nhân</h1>
+    <p class="notice">Dữ liệu do người dùng cung cấp; kết quả phiên âm chưa được kiểm tra y tế. Không phải hồ sơ bệnh án, chẩn đoán hoặc điều trị.</p>
     <section>${paragraphs}</section>
   </body>
 </html>`;
@@ -65,7 +65,7 @@ export async function createAndShareMedicalRecord(content, { printToFileAsync, i
     await shareAsync(file.uri, {
       mimeType: 'application/pdf',
       UTI: '.pdf',
-      dialogTitle: 'Chia sẻ hồ sơ demo',
+      dialogTitle: 'Chia sẻ hồ sơ sức khỏe',
     });
   } catch {
     throw exportError('SHARING_FAILED', 'PDF đã được tạo cục bộ nhưng không mở được bảng chia sẻ. Bạn có thể thử lại.');

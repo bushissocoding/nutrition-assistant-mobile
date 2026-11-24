@@ -1,6 +1,6 @@
 # Spec: `notifications-settings` — V2
 
-Status: approved for implementation under the user's explicit delegation to make and approve technical decisions.
+Status: implementation complete in repository; live Expo credentials/device delivery and Supabase RLS checks remain release gates.
 
 ## Objective
 
@@ -20,13 +20,13 @@ Expo SDK 58 / React Native with `expo-notifications`, Express `/api/v1`, Supabas
 
 ## Project Structure
 
-- `server/src/routes/account-notifications.js` validates notifications, preferences and token APIs.
+- `server/src/routes/notifications.js` validates notifications, preferences and token APIs.
 - `server/src/repositories/notification-repository.js` uses owner-scoped reads and service-only worker RPCs.
 - `server/src/services/expo-push-gateway.js` sends minimal payloads and checks tickets/receipts.
-- `server/src/services/notification-worker.js` claims durable jobs with bounded retries and receipt cleanup.
+- `server/src/services/push-worker.js` claims durable jobs with bounded retries and receipt processing; `server/push-worker.js` is its separately supervised process entry point.
 - `app/src/features/notifications/NotificationsScreen.js` renders account events and read state.
 - `app/src/features/settings/SettingsScreen.js` edits saved categories/privacy preferences and push opt-in.
-- `app/src/services/push-registration.js` requests permission and registers/revokes device tokens.
+- `app/src/services/push-notifications.js` requests permission and registers/revokes device tokens.
 - `supabase/migrations/` owns notification events, preferences, tokens, outbox and lifecycle triggers.
 
 ## Code Style
@@ -36,9 +36,8 @@ Keep event text generic and the push payload free of medical/message content:
 ```js
 await pushGateway.send({
   to: token,
-  title: 'Cập nhật lịch hẹn',
-  body: 'Bạn có một thông báo mới trong ứng dụng.',
-  data: { notificationId },
+  title: 'Nutrition Assistant',
+  body: 'Bạn có thông báo mới. Mở ứng dụng để xem.',
 });
 ```
 

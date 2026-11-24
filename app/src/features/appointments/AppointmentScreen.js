@@ -476,6 +476,7 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
       {providerAppointments.length ? providerAppointments.map(appointment => <View key={appointment.id}>
         <AppointmentCard appointment={appointment} showPatient />
         <View style={styles.buttonRow}>
+          {['confirmed', 'completed'].includes(appointment.status) && onOpenDoctorChat && <PrimaryButton title="Nhắn người khám" secondary onPress={() => onOpenDoctorChat({ ...appointment, chatCounterpartyName: appointment.patient?.name || 'Người khám', chatCounterpartyRole: 'patient' })} />}
           {appointment.status === 'confirmed' && <PrimaryButton title="Đánh dấu hoàn tất" disabled={new Date(appointment.startsAt).getTime() > Date.now()} loading={actionBusyId === appointment.id} onPress={() => completeAppointment(appointment)} />}
           {appointment.status === 'confirmed' && <PrimaryButton title="Hủy lịch" secondary loading={actionBusyId === appointment.id} onPress={() => confirmCancelAppointment(appointment, 'provider')} />}
         </View>

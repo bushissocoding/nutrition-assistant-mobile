@@ -1,6 +1,6 @@
 # Spec: `records-labs` — V2
 
-Status: approved for implementation under the user's explicit delegation to make and approve technical decisions.
+Status: implementation complete in repository; live Supabase storage/RLS and physical-device OCR checks remain release gates.
 
 ## Objective
 

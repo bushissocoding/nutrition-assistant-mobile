@@ -1,4 +1,5 @@
 const express = require('express');
+const { logApiFailure } = require('../observability/request-telemetry');
 const { createCurrentConsentMiddleware } = require('../middleware/current-consent');
 const { createCareBookingRepository, CareBookingRepositoryError } = require('../repositories/care-booking-repository');
 const { validIdempotencyKey } = require('../repositories/meal-plan-repository');
@@ -21,7 +22,7 @@ function asyncRoute(handler) {
     if (error instanceof CareBookingValidationError || error instanceof CareBookingRepositoryError || Number.isInteger(error?.status)) {
       return res.status(error.status).json({ error: error.message, code: error.code || 'CARE_BOOKING_UNAVAILABLE' });
     }
-    console.error('Care booking operation failed', { method: req.method, path: req.path, code: 'CARE_BOOKING_UNAVAILABLE' });
+    logApiFailure(req, 'care_booking_operation_failed', 'CARE_BOOKING_UNAVAILABLE');
     return res.status(503).json({ error: 'Không thể xử lý lịch hẹn lúc này. Hãy thử lại sau.', code: 'CARE_BOOKING_UNAVAILABLE' });
   });
 }

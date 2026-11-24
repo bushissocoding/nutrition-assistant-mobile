@@ -1,4 +1,5 @@
 const express = require('express');
+const { logApiFailure } = require('../observability/request-telemetry');
 const { randomUUID } = require('node:crypto');
 const { getLocalDateRange, sortAndPaginateEntries } = require('../services/meal-entries');
 const {
@@ -58,7 +59,7 @@ function sendAccountDiaryError(req, res, error) {
     return res.status(error.status).json({ error: error.message, code: error.code || 'MEAL_DIARY_UNAVAILABLE' });
   }
   if (error instanceof FoodSourceError) return sendFoodSourceError(res, error);
-  console.error('Account meal diary operation failed', { method: req.method, path: req.path, code: 'MEAL_DIARY_UNAVAILABLE' });
+  logApiFailure(req, 'account_meal_diary_operation_failed', 'MEAL_DIARY_UNAVAILABLE');
   return res.status(503).json({ error: 'Không thể xử lý nhật ký lúc này. Hãy thử lại sau.', code: 'MEAL_DIARY_UNAVAILABLE' });
 }
 

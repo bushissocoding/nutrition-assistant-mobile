@@ -4,7 +4,7 @@ import DashboardScreen from './DashboardScreen';
 import { api } from '../../services/api';
 import { formatLocalDateKey } from '../diary/diary-history.cjs';
 
-jest.mock('../../services/api', () => ({ api: { getMyNutritionReport: jest.fn() } }));
+jest.mock('../../services/api', () => ({ api: { getMyNutritionReport: jest.fn(), getMyPersonalization: jest.fn() } }));
 
 function report({ date, days = 6, hasEntries = false, overrides = {} }) {
   const last = new Date(`${date}T12:00:00`);
@@ -22,7 +22,28 @@ function report({ date, days = 6, hasEntries = false, overrides = {} }) {
 
 beforeEach(() => {
   api.getMyNutritionReport.mockReset();
+  api.getMyPersonalization.mockReset();
+  api.getMyPersonalization.mockResolvedValue({ preferences: { trackConfirmedTargets: false } });
   api.getMyNutritionReport.mockImplementation(async query => report(query));
+});
+
+test('shows user-entered ranges only when confirmed targets are enabled for a confirmed patient profile', async () => {
+  api.getMyPersonalization.mockResolvedValue({ preferences: { trackConfirmedTargets: true } });
+  const profile = { mode: 'patient', medicalLimitsConfirmed: true, hardLimits: { proteinG: { min: 50, max: 90 }, sodiumMg: { max: 2000 } } };
+  const screen = render(<DashboardScreen profile={profile} diaryHasEntries diaryTotals={{ proteinG: 62, sodiumMg: 2300 }} />);
+
+  expect(await screen.findByText('Đối chiếu giới hạn đã xác nhận')).toBeTruthy();
+  expect(screen.getAllByText('62 g')).toHaveLength(2);
+  expect(screen.getByText(/Khoảng: 50–90 g · Trong khoảng bạn nhập/)).toBeTruthy();
+  expect(screen.getByText(/Khoảng: Tối đa 2000 mg · Ngoài khoảng bạn nhập/)).toBeTruthy();
+  expect(screen.getByText(/không phải đánh giá y tế/)).toBeTruthy();
+});
+
+test('does not show confirmed target ranges for healthy or unconfirmed profiles', async () => {
+  api.getMyPersonalization.mockResolvedValue({ preferences: { trackConfirmedTargets: true } });
+  const screen = render(<DashboardScreen profile={{ mode: 'patient', medicalLimitsConfirmed: false, hardLimits: { proteinG: { max: 70 } } }} />);
+  await waitFor(() => expect(api.getMyPersonalization).toHaveBeenCalled());
+  expect(screen.queryByText('Đối chiếu giới hạn đã xác nhận')).toBeNull();
 });
 
 test('shows today report values and loads a bounded account nutrition report', async () => {

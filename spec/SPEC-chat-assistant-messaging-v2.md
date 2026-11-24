@@ -1,6 +1,6 @@
 # Spec: `chat-assistant-messaging` — V2
 
-Status: approved for implementation under the user's explicit delegation to make and approve technical decisions.
+Status: implementation complete in repository; live model credentials, provider staffing and Supabase RLS execution remain release gates.
 
 ## Objective
 
@@ -21,7 +21,7 @@ Expo SDK 58 / React Native 0.88, JavaScript, the existing authenticated `/api/v1
 
 - `server/src/routes/chat.js` validates owner/participant APIs.
 - `server/src/repositories/chat-repository.js` owns scoped message reads and RPC calls.
-- `server/src/services/assistant-provider.js` and `assistant-chat.js` own the model request and bounded assistant rules.
+- `server/src/services/assistant-provider.js` owns the model request and bounded assistant rules; `server/src/middleware/user-rate-limit.js` bounds per-account usage.
 - `app/src/features/chat/ChatScreen.js` renders assistant and appointment conversations.
 - `app/src/app/AppShell.js` supplies the authenticated account, selected conversation and navigation.
 - `supabase/migrations/` owns conversation/message tables, consent and authorization RPCs.

@@ -13,8 +13,12 @@ const { createAccountMealEntryRouter } = require('./account-meal-entries');
 const { createNutritionReportRouter } = require('./nutrition-report');
 const { createAccountGroceryRouter } = require('./account-grocery');
 const { createCareBookingRouter, createPayosWebhookRouter } = require('./care-bookings');
+const { createChatRouter } = require('./chat');
+const { createHealthRecordRouter } = require('./health-records');
+const { createNotificationRouter } = require('./notifications');
+const { createPersonalizationRouter } = require('./personalization');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, paymentRepository, payosGateway, payosConfig, requireCurrentConsent } = {}) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, paymentRepository, payosGateway, payosConfig, requireCurrentConsent, chatRepository, assistantProvider, healthRecordRepository, notificationRepository, personalizationRepository } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -36,6 +40,10 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
     router.use('/me/nutrition-report', authMiddleware, createNutritionReportRouter());
     router.use('/me/grocery', authMiddleware, createAccountGroceryRouter({ foodSource }));
     router.use('/me/care', authMiddleware, createCareBookingRouter({ repository: careBookingRepository, paymentRepository, payosGateway, requireCurrentConsent }));
+    router.use('/me/chat', authMiddleware, createChatRouter({ repository: chatRepository, assistantProvider, requireCurrentConsent }));
+    router.use('/me/health-records', authMiddleware, createHealthRecordRouter({ repository: healthRecordRepository }));
+    router.use('/me/notifications', authMiddleware, createNotificationRouter({ repository: notificationRepository }));
+    router.use('/me/personalization', authMiddleware, createPersonalizationRouter({ repository: personalizationRepository }));
   }
   router.use('/webhooks/payos', createPayosWebhookRouter({ paymentRepository, checksumKey: payosConfig?.checksumKey }));
   router.use(createSourcedFoodRouter({ foodSource }));

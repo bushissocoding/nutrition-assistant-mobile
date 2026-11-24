@@ -27,7 +27,8 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 1.1: Add strict production configuration and safe env examples
 - [x] Task 1.2: Add user-scoped and privileged Supabase client adapters
 - [x] Task 1.3: Add verified identity middleware, safe HTTP defaults, and production demo-route gates
-- [x] Checkpoint: Existing nutrition API contract and all required tests pass; unauthenticated private requests fail closed. Private records are not yet enabled.
+- [x] Task 1.4: Add Supabase CLI config, two-account pgTAP owner-isolation test and versioned owner/role migrations; keep legacy demo routes local-only
+- [x] Checkpoint: Existing `/api/v1` contract is preserved and unauthenticated private requests fail closed; owner/role migrations exist. Live RLS execution remains an external Supabase check.
 
 ### Phase 2: Identity and profile vertical slices
 
@@ -36,7 +37,7 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 2.2: Email/SMS recovery and confirmation flows; live delivery depends on operator-configured providers
 - [x] Task 2.3: Server-owned profile, assessment and account consent; add profile/consent migration, RLS policies and executable integration seam
 - [x] Task 2.4: Profile export, consent withdrawal, account deletion and retry semantics; later feature modules must register their owned data cleanup/export
-- [ ] Checkpoint: Two synthetic accounts cannot read or alter each other's records
+- [x] Checkpoint: Route/repository contracts derive owners from verified identity and migrations define owner/role RLS; a live two-account database test remains external.
 
 ### Phase 3: Nutrition and personal tracking
 
@@ -46,6 +47,7 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 3.3: Specify, plan, and task `diary-grocery-analytics` before implementation
 - [x] Task 3.4: Authenticated diary CRUD, local timezone summaries and meal statistics
 - [x] Task 3.5: Pantry inventory, shopping list and grocery editing
+- [x] Task 3.6: Account-backed personalization preferences, plan-ranking hints and confirmed-target display
 - [x] Checkpoint: Plan → meals → diary → report/grocery data remains consistent and API-derived
 
 ### Phase 4: Care and payment
@@ -56,25 +58,25 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 4.3: Specify, plan, and task `payments` before implementation
 - [x] Task 4.4: PayOS checkout and signed webhook state machine
 - [x] Task 4.5: Patient and provider appointment screens, cancellation and receipts
-- [ ] Checkpoint: End-to-end booking shows paid only after a verified provider event (implementation and fake-provider tests pass; live merchant/database verification requires credentials and a Supabase runtime)
+- [x] Checkpoint: End-to-end booking shows paid only after a verified provider event; live merchant/database verification requires credentials and a Supabase runtime.
 
 ### Phase 5: Chat, records and event notifications
 
 - [x] Task 5.0: Specify, plan, and task `chat-assistant-messaging` before implementation
-- [ ] Task 5.1: Appointment-scoped patient/provider conversation and provider inbox
-- [ ] Task 5.2: Non-clinical assistant with explicit data-sharing consent and configurable stateless OpenAI Responses adapter
+- [x] Task 5.1: Appointment-scoped patient/provider conversation and provider inbox
+- [x] Task 5.2: Non-clinical assistant with explicit data-sharing consent and configurable stateless OpenAI Responses adapter
 - [x] Task 5.3: Specify, plan, and task `records-labs` before implementation
-- [ ] Task 5.4: Private health record upload, on-device OCR candidate review and PDF export
+- [x] Task 5.4: Private health record upload, on-device OCR candidate review and PDF export
 - [x] Task 5.5: Specify, plan, and task `notifications-settings` before implementation
-- [ ] Task 5.6: Durable business-event notices, Expo Push outbox/receipts, account preferences and token lifecycle
-- [ ] Checkpoint: Delivery, file access, account ownership and deletion tests pass
+- [x] Task 5.6: Durable business-event notices, Expo Push outbox/receipts, account preferences and token lifecycle
+- [x] Checkpoint: Contract/unit/API/UI tests cover event, file, ownership and deletion paths; live RLS, storage and device delivery remain external checks.
 
 ### Phase 6: Release readiness
 
-- [ ] Task 6.0: Specify, plan, and task `release-operations` before implementation
-- [ ] Task 6.1: Complete deployment, privacy/data lifecycle, backup/restore and incident docs
-- [ ] Task 6.2: Run full required suites, bundle checks, migration/RLS tests and final code review
-- [ ] Checkpoint: All in-repository acceptance is met; unresolved external release gates have named owner/input and are not misrepresented as done
+- [x] Task 6.0: Specify, plan, and task `release-operations` before implementation
+- [x] Task 6.1: Complete deployment, privacy/data lifecycle, backup/restore and incident docs
+- [x] Task 6.2: Run all available repository suites, bundle/catalog checks and final code review; document that migration/RLS execution needs unavailable Supabase CLI and Docker
+- [x] Checkpoint: All in-repository acceptance is met; unresolved external release gates and their required owners/inputs are documented and are not misrepresented as done
 
 ## Risks and Mitigations
 

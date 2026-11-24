@@ -1,4 +1,5 @@
 const express = require('express');
+const { logApiFailure } = require('../observability/request-telemetry');
 const { createHash } = require('node:crypto');
 const { createCurrentConsentMiddleware } = require('../middleware/current-consent');
 const {
@@ -45,7 +46,7 @@ function asyncRoute(handler) {
       return res.status(error.status).json({ error: error.message, code: error.code || 'GROCERY_UNAVAILABLE' });
     }
     if (error instanceof FoodSourceError) return sendFoodSourceError(res, error);
-    console.error('Account grocery operation failed', { method: req.method, path: req.path, code: 'GROCERY_UNAVAILABLE' });
+    logApiFailure(req, 'account_grocery_operation_failed', 'GROCERY_UNAVAILABLE');
     return res.status(503).json({ error: 'Không thể xử lý kho thực phẩm lúc này. Hãy thử lại sau.', code: 'GROCERY_UNAVAILABLE' });
   });
 }

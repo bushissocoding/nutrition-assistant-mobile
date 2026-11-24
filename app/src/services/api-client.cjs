@@ -58,6 +58,8 @@ function createApiClient({
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('API timeout must be a positive number.');
 
   async function request(path, options = {}) {
+    const requestTimeoutMs = options.timeoutMs === undefined ? timeoutMs : options.timeoutMs;
+    if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) throw new ApiClientError('API_TIMEOUT_INVALID', 'Thời hạn yêu cầu API không hợp lệ.');
     let base;
     try {
       base = resolveApiBaseUrl(baseUrl);
@@ -93,9 +95,9 @@ function createApiClient({
       deadlineExpired = true;
       controller.abort();
       rejectTimeout(new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.'));
-    }, timeoutMs);
+    }, requestTimeoutMs);
 
-    const { demo = false, authenticated = false, headers: customHeaders, ...fetchOptions } = options;
+    const { demo = false, authenticated = false, headers: customHeaders, timeoutMs: _timeoutMs, ...fetchOptions } = options;
 
     const work = (async () => {
       const headers = {
@@ -256,6 +258,26 @@ function createApiMethods(apiClient) {
     getMyProviderAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/provider/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
     completeMyProviderAppointment: id => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/complete`, { method: 'POST', authenticated: true, body: '{}' }),
     cancelMyProviderAppointment: (id, payload) => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    getMyHealthRecords: ({ limit = 50, offset = 0 } = {}) => request(`/api/v1/me/health-records?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyHealthRecord: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}`, { authenticated: true }),
+    saveMyHealthRecord: (payload, id, requestKey) => request(`/api/v1/me/health-records${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', authenticated: true, ...(id ? {} : { headers: { 'Idempotency-Key': requestKey } }), body: JSON.stringify(payload) }),
+    uploadMyHealthRecordSource: (id, bytes, mimeType, timeoutMs = 60000) => request(`/api/v1/me/health-records/${encodeURIComponent(id)}/source`, { method: 'PUT', authenticated: true, timeoutMs, headers: { 'Content-Type': 'application/octet-stream', 'X-Record-Content-Type': mimeType }, body: bytes }),
+    getMyHealthRecordSource: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}/source`, { authenticated: true }),
+    deleteMyHealthRecord: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyNotifications: ({ limit = 25, offset = 0, unread = false } = {}) => request(`/api/v1/me/notifications?${new URLSearchParams({ limit: String(limit), offset: String(offset), unread: String(unread) })}`, { authenticated: true }),
+    markMyNotificationRead: id => request(`/api/v1/me/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', authenticated: true, body: '{}' }),
+    markAllMyNotificationsRead: () => request('/api/v1/me/notifications/read-all', { method: 'POST', authenticated: true, body: '{}' }),
+    getMyNotificationPreferences: () => request('/api/v1/me/notifications/preferences', { authenticated: true }),
+    saveMyNotificationPreferences: preferences => request('/api/v1/me/notifications/preferences', { method: 'PUT', authenticated: true, body: JSON.stringify(preferences) }),
+    registerMyPushDevice: ({ expoPushToken, platform }) => request('/api/v1/me/notifications/devices', { method: 'POST', authenticated: true, body: JSON.stringify({ expoPushToken, platform }) }),
+    unregisterMyPushDevice: ({ expoPushToken, platform }) => request('/api/v1/me/notifications/devices', { method: 'DELETE', authenticated: true, body: JSON.stringify({ expoPushToken, platform }) }),
+    getMyPersonalization: () => request('/api/v1/me/personalization', { authenticated: true }),
+    saveMyPersonalization: preferences => request('/api/v1/me/personalization', { method: 'PUT', authenticated: true, body: JSON.stringify(preferences) }),
+    getMyAssistantThread: () => request('/api/v1/me/chat/assistant', { authenticated: true }),
+    saveMyAssistantConsent: ({ version, accepted }) => request('/api/v1/me/chat/assistant/consent', { method: 'POST', authenticated: true, body: JSON.stringify({ version, accepted }) }),
+    sendMyAssistantTurn: ({ clientMessageId, message }) => request('/api/v1/me/chat/assistant/turns', { method: 'POST', authenticated: true, body: JSON.stringify({ clientMessageId, message }) }),
+    getMyAppointmentMessages: appointmentId => request(`/api/v1/me/chat/appointments/${encodeURIComponent(appointmentId)}/messages`, { authenticated: true }),
+    sendMyAppointmentMessage: (appointmentId, { clientMessageId, body }) => request(`/api/v1/me/chat/appointments/${encodeURIComponent(appointmentId)}/messages`, { method: 'POST', authenticated: true, body: JSON.stringify({ clientMessageId, body }) }),
   };
 }
 

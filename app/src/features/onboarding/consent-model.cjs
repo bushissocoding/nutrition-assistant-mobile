@@ -46,7 +46,7 @@ const CONSENT_DISCLOSURE = Object.freeze([
     body: 'Bạn có thể xem lại hoặc rút từng lựa chọn tùy chọn. Yêu cầu xuất hoặc xóa tài khoản phải được máy chủ xác nhận; quá trình xóa có thể cần thời gian để hoàn tất trên các dịch vụ liên kết.',
   }),
   Object.freeze({
-    title: 'Giới hạn của bản demo',
+    title: 'Giới hạn sử dụng',
     body: 'Thông tin dinh dưỡng chỉ mang tính tham khảo, không thay thế tư vấn chuyên môn. Chỉ bật tài khoản sản xuất sau khi nhà vận hành đã hoàn tất quyền dữ liệu, kiểm soát an toàn, bảo mật và đánh giá chuyên môn phù hợp.',
   }),
 ]);

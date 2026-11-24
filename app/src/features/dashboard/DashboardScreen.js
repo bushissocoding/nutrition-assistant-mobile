@@ -3,6 +3,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import { api } from '../../services/api';
 import { colors, radius, spacing } from '../../theme/tokens';
 import { getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
+import { NUTRIENTS } from '../profile/profile-model.cjs';
 
 const metrics = [
   { key: 'proteinG', label: 'Protein', unit: 'g', icon: '♧' },
@@ -16,11 +17,12 @@ function rounded(value) {
   return Math.round(Number(value) || 0);
 }
 
-export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryHasEntries = false, diaryError = '', diaryLoading = false, onRetryDiary }) {
+export default function DashboardScreen({ profile, diaryTotals = {}, diary = [], diaryHasEntries = false, diaryError = '', diaryLoading = false, onRetryDiary }) {
   const [metricIndex, setMetricIndex] = useState(0);
   const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
   const [historyLoading, setHistoryLoading] = useState(true);
   const [retryVersion, setRetryVersion] = useState(0);
+  const [trackConfirmedTargets, setTrackConfirmedTargets] = useState(false);
   const activeMetric = metrics[metricIndex];
   const week = useMemo(() => getRecentLocalDays(new Date(), 7), []);
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
@@ -36,6 +38,16 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryHas
     });
     return () => { active = false; };
   }, [week, timeZone, retryVersion]);
+
+  useEffect(() => {
+    let active = true;
+    api.getMyPersonalization().then(result => {
+      if (active) setTrackConfirmedTargets(result?.preferences?.trackConfirmedTargets === true);
+    }).catch(() => {
+      if (active) setTrackConfirmedTargets(false);
+    });
+    return () => { active = false; };
+  }, []);
 
   const hasTodayEntries = diaryHasEntries || diary.length > 0;
   const chartValues = week.map(day => {
@@ -55,6 +67,12 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryHas
   const chartMaximum = Math.max(...chartValues.filter(value => value !== null), activeMetric.key === 'energyKcal' ? 1800 : 100);
   const failedDateCount = Object.keys(history.errorsByDate).length + (diaryError ? 1 : 0);
   const hasEntries = hasTodayEntries || week.slice(0, -1).some(day => history.byDate[day.date]?.hasEntries);
+  const confirmedTargets = profile?.mode === 'patient' && profile.medicalLimitsConfirmed === true && trackConfirmedTargets
+    ? NUTRIENTS.filter(nutrient => {
+      const range = profile.hardLimits?.[nutrient.key];
+      return range && ((Number.isFinite(range.min) && range.min >= 0) || (Number.isFinite(range.max) && range.max >= 0));
+    })
+    : [];
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
@@ -74,6 +92,26 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryHas
         </View>;
       })}
     </View>
+
+    {confirmedTargets.length > 0 && <View accessibilityLabel="Đối chiếu giới hạn do bạn xác nhận" style={styles.targetCard}>
+      <Text accessibilityRole="header" style={styles.chartTitle}>Đối chiếu giới hạn đã xác nhận</Text>
+      <Text style={styles.chartNotice}>Các khoảng do bạn nhập trong hồ sơ; đây là phép đối chiếu nhật ký, không phải đánh giá y tế.</Text>
+      {confirmedTargets.map(nutrient => {
+        const range = profile.hardLimits[nutrient.key];
+        const hasMin = Number.isFinite(range.min) && range.min >= 0;
+        const hasMax = Number.isFinite(range.max) && range.max >= 0;
+        const rangeText = hasMin && hasMax ? `${rounded(range.min)}–${rounded(range.max)} ${nutrient.unit}` : hasMin ? `Từ ${rounded(range.min)} ${nutrient.unit}` : `Tối đa ${rounded(range.max)} ${nutrient.unit}`;
+        const value = diaryTotals[nutrient.key];
+        const hasValue = hasTodayEntries && Number.isFinite(value) && !diaryLoading && !diaryError;
+        const inside = hasValue && (!hasMin || value >= range.min) && (!hasMax || value <= range.max);
+        const state = !hasValue ? 'Chưa có dữ liệu nhật ký hôm nay' : inside ? 'Trong khoảng bạn nhập' : 'Ngoài khoảng bạn nhập';
+        return <View key={nutrient.key} style={styles.targetRow}>
+          <Text style={styles.targetName}>{nutrient.label}</Text>
+          <Text style={styles.targetValue}>{hasValue ? `${rounded(value)} ${nutrient.unit}` : '—'}</Text>
+          <Text style={styles.targetHint}>Khoảng: {rangeText} · {state}</Text>
+        </View>;
+      })}
+    </View>}
 
     <View style={styles.chartHeading}>
       <Text accessibilityRole="header" style={styles.chartTitle}>Biểu đồ 7 ngày gần nhất</Text>
@@ -130,6 +168,11 @@ const styles = StyleSheet.create({
   todayButton: { minHeight: 54, minWidth: 90, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill },
   todayText: { color: colors.text, fontSize: 14, fontWeight: '700' },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
+  targetCard: { padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 17, backgroundColor: 'white', marginTop: spacing.md },
+  targetRow: { paddingVertical: 10, borderTopWidth: 1, borderColor: colors.border },
+  targetName: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  targetValue: { color: colors.primary, fontSize: 18, fontWeight: '800', marginTop: 3 },
+  targetHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
   metricCard: { borderWidth: 1, borderColor: '#E6E8ED', borderRadius: 22, backgroundColor: 'white', padding: 15, minHeight: 91 },
   thirdCard: { width: '31%' },
   halfCard: { width: '48%' },

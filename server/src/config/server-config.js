@@ -118,6 +118,23 @@ function readPayosConfig(env) {
   };
 }
 
+function readAssistantConfig(env) {
+  const apiKey = typeof env.OPENAI_API_KEY === 'string' ? env.OPENAI_API_KEY.trim() : '';
+  const model = typeof env.OPENAI_MODEL === 'string' ? env.OPENAI_MODEL.trim() : '';
+  if (!apiKey && !model) return null;
+  if (!apiKey || !model) throw invalidConfig('OPENAI_API_KEY and OPENAI_MODEL', 'must be configured together.');
+  if (apiKey.length > 500 || /[\r\n\0]/.test(apiKey)) throw invalidConfig('OPENAI_API_KEY', 'must be valid server-only configuration.');
+  if (model.length > 100 || !/^[A-Za-z0-9._:-]+$/.test(model)) throw invalidConfig('OPENAI_MODEL', 'must be a valid model identifier.');
+  return { apiKey, model };
+}
+
+function readExpoPushConfig(env) {
+  const accessToken = typeof env.EXPO_PUSH_ACCESS_TOKEN === 'string' ? env.EXPO_PUSH_ACCESS_TOKEN.trim() : '';
+  if (!accessToken) return null;
+  if (accessToken.length > 500 || /[\r\n\0]/.test(accessToken)) throw invalidConfig('EXPO_PUSH_ACCESS_TOKEN', 'must be valid server-only configuration.');
+  return { accessToken };
+}
+
 function readServerConfig(env = process.env) {
   const environment = readEnvironment(env.NODE_ENV);
   const demoDataEnabled = readDemoDataEnabled(env.DEMO_DATA_ENABLED);
@@ -132,6 +149,8 @@ function readServerConfig(env = process.env) {
     supabase: readSupabaseConfig(env, environment),
     fdcApiKey: readFdcApiKey(env.FDC_API_KEY),
     payos: readPayosConfig(env),
+    assistant: readAssistantConfig(env),
+    expoPush: readExpoPushConfig(env),
   };
 }
 

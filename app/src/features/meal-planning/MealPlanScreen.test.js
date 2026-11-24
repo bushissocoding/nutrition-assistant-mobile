@@ -3,7 +3,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import MealPlanScreen from './MealPlanScreen';
 import { api } from '../../services/api';
 
-jest.mock('../../services/api', () => ({ api: { createMyMealPlan: jest.fn(), getMyMealPlans: jest.fn(), searchSourcedFoods: jest.fn(), calculateSourcedNutrition: jest.fn() } }));
+jest.mock('../../services/api', () => ({ api: { createMyMealPlan: jest.fn(), getMyMealPlans: jest.fn(), getMyPersonalization: jest.fn(), searchSourcedFoods: jest.fn(), calculateSourcedNutrition: jest.fn() } }));
 
 const profile = { mode: 'healthy', allergies: [], redFlags: [] };
 const generatedPlan = {
@@ -32,7 +32,10 @@ const generatedPlan = {
 };
 const persistedPlan = { ...generatedPlan, savedPlan: { id: 'saved-plan-1', createdAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1', profileUpdatedAt: '2026-11-24T00:00:00.000Z' } };
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => {
+  jest.clearAllMocks();
+  api.getMyPersonalization.mockResolvedValue({ preferences: { dietaryVariety: 'varied', foodPreferences: ['Vietnamese', 'easy_cook'], allergyReminder: true, trackConfirmedTargets: false } });
+});
 
 test('loads and restores a saved account meal plan', async () => {
   api.getMyMealPlans.mockResolvedValue({ items: [persistedPlan.savedPlan && { ...persistedPlan.savedPlan, plan: generatedPlan }] });
@@ -49,13 +52,14 @@ test('passes a feasible backend plan to the create-list flow and displays proven
   api.createMyMealPlan.mockResolvedValue(persistedPlan);
   const screen = render(<MealPlanScreen profile={profile} onOpenGrocery={onOpenGrocery} />);
 
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   await waitFor(() => expect(screen.getByText('Tạo danh sách đi chợ')).toBeTruthy());
   expect(screen.getAllByText(/USDA FoodData Central/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Chưa có giá có nguồn/).length).toBeGreaterThan(0);
   fireEvent.press(screen.getByText('Tạo danh sách đi chợ'));
   expect(onOpenGrocery).toHaveBeenCalledWith(persistedPlan.savedPlan.id);
-  expect(api.createMyMealPlan).toHaveBeenCalledWith({ contractVersion: 1, preferences: '' }, expect.stringMatching(/^plan-/));
+  expect(api.createMyMealPlan).toHaveBeenCalledWith({ contractVersion: 1, dietaryVariety: 'varied', preferences: 'món Việt; dễ nấu' }, expect.stringMatching(/^plan-/));
   expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('allergies');
   expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('hardLimits');
 });
@@ -92,6 +96,7 @@ test('opens a recipe detail from a generated meal and returns to the schedule', 
   api.createMyMealPlan.mockResolvedValue(persistedPlan);
   const screen = render(<MealPlanScreen profile={profile} />);
 
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   await waitFor(() => expect(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' })).toBeTruthy());
   fireEvent.press(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' }));
@@ -101,6 +106,18 @@ test('opens a recipe detail from a generated meal and returns to the schedule', 
   expect(screen.getByText('1. Dùng cơm đã nấu chín.')).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Quay lại thực đơn' }));
   expect(screen.getByText('Lịch ăn hằng ngày')).toBeTruthy();
+});
+
+test('sends account food preferences and variety as bounded ranking hints without client health limits', async () => {
+  api.createMyMealPlan.mockResolvedValue(persistedPlan);
+  const screen = render(<MealPlanScreen profile={profile} />);
+  await waitFor(() => expect(screen.getByText(/Ưu tiên lưu: độ phong phú đa dạng/)).toBeTruthy());
+  fireEvent.changeText(screen.getByLabelText('Món bạn yêu thích'), 'canh bí');
+  await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
+  await waitFor(() => expect(api.createMyMealPlan).toHaveBeenCalledTimes(1));
+  expect(api.createMyMealPlan.mock.calls[0][0]).toEqual({ contractVersion: 1, dietaryVariety: 'varied', preferences: 'canh bí; món Việt; dễ nấu' });
+  expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('allergies');
+  expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('hardLimits');
 });
 
 test('shows an explicit infeasible state and does not expose a partial plan as success', async () => {
@@ -116,6 +133,7 @@ test('shows an explicit infeasible state and does not expose a partial plan as s
   const onPlanGenerated = jest.fn();
   const screen = render(<MealPlanScreen profile={profile} onPlanGenerated={onPlanGenerated} />);
 
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   expect(screen.getByText('Chưa có thực đơn khả thi')).toBeTruthy();
   expect(screen.getByText('Không có món an toàn cho Bữa tối.')).toBeTruthy();
@@ -134,6 +152,7 @@ test('shows unavailable plan data without substituting an unsourced catalog', as
     limitations: []
   });
   const screen = render(<MealPlanScreen profile={profile} />);
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   expect(screen.getByText('Dữ liệu chưa đủ để tạo thực đơn')).toBeTruthy();
   expect(screen.getByText('Nguồn USDA chưa được cấu hình.')).toBeTruthy();
@@ -144,6 +163,7 @@ test('shows a loading state while the request is pending', async () => {
   let resolveRequest;
   api.createMyMealPlan.mockReturnValue(new Promise(resolve => { resolveRequest = resolve; }));
   const screen = render(<MealPlanScreen profile={profile} />);
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   fireEvent.press(screen.getByText('Tạo thực đơn'));
   expect(screen.getByText('Đang tạo thực đơn')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Đang tạo thực đơn' }).props.accessibilityState?.disabled).toBe(true);
@@ -155,6 +175,7 @@ test('shows a direct retry after a network error and repeats the same plan reque
   api.createMyMealPlan.mockRejectedValueOnce(new Error('API đang ngoại tuyến.')).mockResolvedValueOnce(persistedPlan);
   const screen = render(<MealPlanScreen profile={profile} />);
 
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   expect(screen.getByText('API đang ngoại tuyến.')).toBeTruthy();
   const retry = screen.getByRole('button', { name: 'Thử lại tạo thực đơn' });

@@ -31,6 +31,9 @@ function provenanceText(meal, catalogVersion) {
   ].join('\n');
 }
 
+const preferenceLabels = { vegetarian: 'ăn chay', low_sugar: 'ít đường', low_salt: 'ít muối', mild: 'không cay', Vietnamese: 'món Việt', easy_cook: 'dễ nấu' };
+const varietyLabels = { simple: 'đơn giản', balanced: 'cân bằng', varied: 'đa dạng' };
+
 function MealDetails({ meal, catalogVersion }) {
   return <View style={styles.card}>
     <Text accessibilityRole="header" style={styles.heading}>{meal.name}</Text>
@@ -50,6 +53,7 @@ function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
   const plan = Array.isArray(result.plan) ? result.plan : [];
   return <View>
     <Text accessibilityRole="header" style={styles.heading}>Lịch thực đơn</Text>
+    <Text style={styles.helper}>Ưu tiên xếp hạng: {varietyLabels[result.metadata?.dietaryVariety] || 'cân bằng'}. Đây chỉ là gợi ý mềm, không bảo đảm thành phần phù hợp.</Text>
     {(result.warnings || []).map((warning, index) => <Text key={`warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.meals}>
       {plan.map((meal, index) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal)}>
@@ -76,6 +80,9 @@ function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
 
 export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, onPlanGenerated }) {
   const [preferences, setPreferences] = useState('');
+  const [personalization, setPersonalization] = useState(null);
+  const [personalizationLoading, setPersonalizationLoading] = useState(true);
+  const [personalizationError, setPersonalizationError] = useState('');
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -95,6 +102,18 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
   const [savedPlansError, setSavedPlansError] = useState('');
   const searchRequest = useRef(0);
   const planIntent = useRef(null);
+
+  async function loadPersonalization() {
+    setPersonalizationLoading(true); setPersonalizationError('');
+    try {
+      const result = await api.getMyPersonalization();
+      if (!result?.preferences || !Array.isArray(result.preferences.foodPreferences)) throw new Error('API chưa trả về lựa chọn cá nhân hóa hợp lệ.');
+      setPersonalization(result.preferences);
+    } catch (requestError) { setPersonalization(null); setPersonalizationError(requestError?.message || 'Không tải được lựa chọn cá nhân hóa.'); }
+    finally { setPersonalizationLoading(false); }
+  }
+
+  useEffect(() => { loadPersonalization(); }, []);
 
   useEffect(() => {
     const query = foodQuery.trim();
@@ -158,7 +177,8 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
     }
     const request = {
       contractVersion: 1,
-      preferences,
+      dietaryVariety: personalization?.dietaryVariety || 'balanced',
+      preferences: [preferences.trim(), ...(personalization?.foodPreferences || []).map(value => preferenceLabels[value]).filter(Boolean)].filter(Boolean).join('; ').slice(0, 200),
     };
     const signature = `${JSON.stringify(request)}:${profile?.updatedAt || ''}`;
     if (planIntent.current?.signature !== signature) planIntent.current = { signature, key: createPlanIntentKey() };
@@ -247,8 +267,12 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
     </View>}
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.heading}>Tùy chỉnh thực đơn</Text>
+      {personalizationLoading && <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tải lựa chọn cá nhân hóa" /><Text style={styles.helper}>Đang tải lựa chọn tài khoản…</Text></View>}
+      {!!personalizationError && <View accessibilityRole="alert"><Text style={styles.error}>{personalizationError}</Text><TouchableOpacity accessibilityRole="button" onPress={loadPersonalization}><Text style={styles.retryText}>Tải lại lựa chọn</Text></TouchableOpacity><Text style={styles.helper}>Nếu tiếp tục, các lựa chọn đã lưu chưa tải được sẽ không được gửi; giới hạn và dị ứng của hồ sơ vẫn do API áp dụng.</Text></View>}
+      {profile?.allergies?.length > 0 && personalization?.allergyReminder && <View accessibilityRole="alert" style={styles.warning}><Text style={styles.profileHint}>Nhắc dị ứng: {profile.allergies.join(', ')}. Kiểm tra nhãn, thành phần và nguy cơ nhiễm chéo; dữ liệu nguồn không xác nhận độ an toàn.</Text></View>}
+      {!personalizationLoading && !personalizationError && personalization && <Text style={styles.helper}>Ưu tiên lưu: độ phong phú {varietyLabels[personalization.dietaryVariety] || 'cân bằng'}{personalization.foodPreferences.length ? ` · ${personalization.foodPreferences.map(value => preferenceLabels[value]).filter(Boolean).join(', ')}` : ''}. Các lựa chọn chỉ xếp hạng gợi ý và không phải bộ lọc an toàn.</Text>}
       <Text style={styles.label}>Món bạn yêu thích</Text>
-      <TextInput accessibilityLabel="Món bạn yêu thích" value={preferences} onChangeText={setPreferences} placeholder="Ví dụ: món cá, canh bí..." style={styles.input} maxLength={200} />
+      <TextInput accessibilityLabel="Món bạn yêu thích" value={preferences} onChangeText={setPreferences} placeholder="Ví dụ: canh bí, món hấp..." style={styles.input} maxLength={120} />
       <Text style={styles.helper}>Giá thực phẩm chưa có nguồn xác minh; kế hoạch hiện không đánh giá chi phí.</Text>
       <Text style={styles.label}>Hồ sơ tài khoản</Text>
       <View style={styles.profileSummary}>
@@ -258,11 +282,11 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
         {profile?.mode === 'patient' && <Text style={styles.profileHint}>Các hardLimits đã xác nhận được áp dụng bắt buộc.</Text>}
         <TouchableOpacity accessibilityRole="button" onPress={onOpenProfile} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.editLink}>Chỉnh sửa hồ sơ ›</Text></TouchableOpacity>
       </View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={loading ? 'Đang tạo thực đơn' : 'Tạo thực đơn'} style={styles.button} disabled={loading} accessibilityState={{ disabled: loading }} onPress={generatePlan}>
-        {loading ? <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tạo thực đơn" color="white" /><Text style={styles.buttonText}>Đang tạo thực đơn</Text></View> : <Text style={styles.buttonText}>Tạo thực đơn</Text>}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={loading ? 'Đang tạo thực đơn' : 'Tạo thực đơn'} style={[styles.button, (loading || personalizationLoading) && styles.disabledButton]} disabled={loading || personalizationLoading} accessibilityState={{ disabled: loading || personalizationLoading }} onPress={generatePlan}>
+        {loading ? <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tạo thực đơn" color="white" /><Text style={styles.buttonText}>Đang tạo thực đơn</Text></View> : <Text style={styles.buttonText}>{personalizationLoading ? 'Đang tải lựa chọn…' : 'Tạo thực đơn'}</Text>}
       </TouchableOpacity>
       {!!error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
-      {retryable && <TouchableOpacity accessibilityRole="button" style={styles.retryButton} disabled={loading} accessibilityState={{ disabled: loading }} onPress={generatePlan}>
+      {retryable && <TouchableOpacity accessibilityRole="button" style={styles.retryButton} disabled={loading || personalizationLoading} accessibilityState={{ disabled: loading || personalizationLoading }} onPress={generatePlan}>
         <Text style={styles.retryText}>{loading ? 'Đang thử lại…' : 'Thử lại tạo thực đơn'}</Text>
       </TouchableOpacity>}
     </View>
@@ -317,6 +341,7 @@ const styles = StyleSheet.create({
   input: { minHeight: 54, backgroundColor: '#F5F7FB', borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6, color: colors.text, fontSize: 14 },
   helper: { color: colors.muted, fontSize: 14, lineHeight: 17, marginTop: 6 },
   button: { minHeight: 54, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
+  disabledButton: { opacity: 0.5 },
   loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   buttonText: { color: 'white', fontWeight: '800' },
   error: { color: colors.danger, marginTop: 10 },

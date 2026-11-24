@@ -5,14 +5,25 @@
   "orientation": "portrait",
   "userInterfaceStyle": "light",
   "scheme": "nutritionassistant",
-  "ios": { "supportsTablet": false },
+  "ios": {
+    "supportsTablet": false
+  },
   "android": {
-    "adaptiveIcon": { "backgroundColor": "#F4F7FF" },
+    "adaptiveIcon": {
+      "backgroundColor": "#F4F7FF"
+    },
     "softwareKeyboardLayoutMode": "pan"
   },
   "plugins": [
     "expo-secure-store",
     "expo-status-bar",
-    "expo-sharing"
+    "expo-sharing",
+    ["expo-ai-kit", { "vision": ["text-recognition"] }],
+    ["expo-image-picker", {
+      "photosPermission": "Cho phép Nutrition Assistant chọn ảnh kết quả xét nghiệm để nhận diện chữ trên thiết bị.",
+      "cameraPermission": "Cho phép Nutrition Assistant chụp ảnh kết quả xét nghiệm để nhận diện chữ trên thiết bị.",
+      "microphonePermission": false
+    }],
+    "expo-notifications"
   ]
 }

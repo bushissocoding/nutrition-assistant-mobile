@@ -86,7 +86,7 @@ begin
   perform public.assert_current_care_consent(v_user);
   perform 1 from auth.users where id = v_user for update;
   insert into public.assistant_threads (user_id) values (v_user)
-    on conflict (user_id) do update set updated_at = public.assistant_threads.updated_at
+    on conflict (user_id) do update set updated_at = now()
     returning * into v_thread;
   select consent.choice into v_latest_choice from public.assistant_ai_consents consent
     where consent.user_id = v_user order by consent.recorded_at desc, consent.id desc limit 1;

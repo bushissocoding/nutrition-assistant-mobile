@@ -334,6 +334,97 @@ test('care booking and provider workspace methods use authenticated account rout
   assert.equal(calls[8].options.headers['Idempotency-Key'], 'appointment-intent-1');
 });
 
+test('chat methods use authenticated account-scoped routes and send opaque client message identifiers', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  const clientMessageId = '01380e6e-b95f-4bd5-8f38-a1391ae3bda1';
+  await api.getMyAssistantThread();
+  await api.saveMyAssistantConsent({ version: 'ai-assistant-processing-v1', accepted: true });
+  await api.sendMyAssistantTurn({ clientMessageId, message: 'Xin chào' });
+  await api.getMyAppointmentMessages('appointment-1');
+  await api.sendMyAppointmentMessage('appointment-1', { clientMessageId, body: 'Xin chào bác sĩ' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/chat/assistant', '/api/v1/me/chat/assistant/consent', '/api/v1/me/chat/assistant/turns',
+    '/api/v1/me/chat/appointments/appointment-1/messages', '/api/v1/me/chat/appointments/appointment-1/messages',
+  ]);
+  assert.deepEqual(JSON.parse(calls[1].options.body), { version: 'ai-assistant-processing-v1', accepted: true });
+  assert.deepEqual(JSON.parse(calls[2].options.body), { clientMessageId, message: 'Xin chào' });
+  assert.deepEqual(JSON.parse(calls[4].options.body), { clientMessageId, body: 'Xin chào bác sĩ' });
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('health record methods use private account routes and binary source upload headers', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  const payload = { title: 'Blood panel', sourceDate: '2026-11-24', note: '', results: [{ name: 'Glucose', value: '5.4', unit: 'mmol/L', referenceRange: '', confirmed: true }] };
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff]);
+  await api.getMyHealthRecords({ limit: 10, offset: 20 });
+  await api.saveMyHealthRecord(payload, null, '01380e6e-b95f-4bd5-8f38-a1391ae3bda1');
+  await api.uploadMyHealthRecordSource('record-1', bytes, 'image/jpeg');
+  await api.getMyHealthRecordSource('record-1');
+  await api.deleteMyHealthRecord('record-1');
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/health-records', '/api/v1/me/health-records', '/api/v1/me/health-records/record-1/source',
+    '/api/v1/me/health-records/record-1/source', '/api/v1/me/health-records/record-1',
+  ]);
+  assert.equal(calls[2].options.headers['Content-Type'], 'application/octet-stream');
+  assert.equal(calls[2].options.headers['X-Record-Content-Type'], 'image/jpeg');
+  assert.equal(calls[2].options.body, bytes);
+  assert.deepEqual(JSON.parse(calls[1].options.body), payload);
+  assert.equal(calls[1].options.headers['Idempotency-Key'], '01380e6e-b95f-4bd5-8f38-a1391ae3bda1');
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('notification methods use authenticated owner routes and server-backed preference/device state', async () => {
+  const calls = [];
+  const api = createApiMethods(createApiClient({
+    baseUrl: 'https://api.example.test', getAccessToken: async () => 'private-token',
+    fetchImpl: async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); },
+  }));
+  const preferences = { inAppAppointments: true, inAppPayments: false, inAppMessages: true, pushEnabled: true, pushAppointments: false, pushPayments: true, pushMessages: true };
+  const device = { expoPushToken: 'ExponentPushToken[device-token]', platform: 'ios' };
+  await api.getMyNotifications({ limit: 10, offset: 20, unread: true });
+  await api.markMyNotificationRead('notice-1');
+  await api.markAllMyNotificationsRead();
+  await api.getMyNotificationPreferences();
+  await api.saveMyNotificationPreferences(preferences);
+  await api.registerMyPushDevice(device);
+  await api.unregisterMyPushDevice(device);
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/notifications', '/api/v1/me/notifications/notice-1/read', '/api/v1/me/notifications/read-all',
+    '/api/v1/me/notifications/preferences', '/api/v1/me/notifications/preferences',
+    '/api/v1/me/notifications/devices', '/api/v1/me/notifications/devices',
+  ]);
+  assert.equal(new URL(calls[0].url).search, '?limit=10&offset=20&unread=true');
+  assert.deepEqual(JSON.parse(calls[4].options.body), preferences);
+  assert.deepEqual(JSON.parse(calls[5].options.body), device);
+  assert.equal(calls[6].options.method, 'DELETE');
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer private-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('personalization methods use the authenticated account boundary', async () => {
+  const calls = [];
+  const api = createApiMethods(createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: async () => 'private-token', fetchImpl: async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); } }));
+  const preferences = { dietaryVariety: 'varied', foodPreferences: ['Vietnamese', 'easy_cook'], allergyReminder: true, trackConfirmedTargets: false };
+  await api.getMyPersonalization();
+  await api.saveMyPersonalization(preferences);
+  assert.deepEqual(calls.map(call => call.url), ['https://api.example.test/api/v1/me/personalization', 'https://api.example.test/api/v1/me/personalization']);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer private-token');
+  assert.deepEqual(JSON.parse(calls[1].options.body), preferences);
+  assert.equal(calls[1].options.headers['X-Demo-Namespace'], undefined);
+});
+
 test('appointment payment methods are authenticated and carry a stable idempotency key', async () => {
   const requests = [];
   const api = createApiMethods(createApiClient({
