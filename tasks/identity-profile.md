@@ -12,9 +12,9 @@ Spec: `spec/SPEC-identity-profile.md`. Scope: account-backed identity, consent a
 - [ ] 5. Add profile/consent migration, RLS, schema constraints and database integration tests runnable against local Supabase. Migration and static contracts are present; local database proof is blocked by missing Docker/Supabase CLI.
 - [x] 6. Add profile/consent validation, repository and owner-scoped API routes; enforce current consent before health processing.
 - [x] 7. Connect assessment/profile/consent UI to owned API; keep only auth credentials in SecureStore.
-- [ ] 8. Add email reset, optional verified-phone linking/SMS recovery, callback URL configuration and generic anti-enumeration UI.
-- [ ] 9. Add profile export and staged deletion operation; deletion API includes extension hooks for records from later modules and never reports complete before all registered handlers succeed.
-- [ ] 10. Add focused unit/API/UI tests, run required full suites and Android bundle, update architecture and operational docs, self-review, commit.
+- [x] 8. Add email reset, optional verified-phone linking/SMS recovery, callback URL configuration and generic anti-enumeration UI. Code paths and mocked state transitions are covered; real message delivery needs the operator's SMTP/SMS configuration.
+- [x] 9. Add profile export and staged deletion operation; deletion API includes extension hooks for records from later modules and never reports complete before all registered handlers succeed. Current export covers identity/profile/consent; later modules must extend both export and cleanup.
+- [x] 10. Add focused unit/API/UI tests, run required full suites and Android bundle, update architecture and operational docs, self-review, commit. Local Supabase two-account RLS execution remains the explicit environment exception in task 5.
 
 ## Per-task verification
 

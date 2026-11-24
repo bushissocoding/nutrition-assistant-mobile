@@ -6,8 +6,9 @@ const { createShoppingListRouter } = require('./shopping-lists');
 const { createCurrentUserRouter } = require('./current-user');
 const { createProfileRouter } = require('./profiles');
 const { createConsentRouter } = require('./consent');
+const { createAccountRouter } = require('./account');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware } = {}) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -21,6 +22,7 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
   });
   if (authMiddleware) {
     router.use('/me', createCurrentUserRouter(authMiddleware));
+    router.use('/me', authMiddleware, createAccountRouter({ deleteAccount }));
     router.use('/me/consent', authMiddleware, createConsentRouter());
     router.use('/me/profile', authMiddleware, createProfileRouter());
   }

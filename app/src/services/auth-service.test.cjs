@@ -70,6 +70,27 @@ test('phone linking requires a verified phone-change OTP result', async () => {
   assert.equal(auth.calls[1][1].type, 'phone_change');
 });
 
+test('account settings update the password only in a live session', async () => {
+  const noSession = createAuthService({ client: { auth: fakeAuth() } });
+  await assert.rejects(noSession.updatePassword({ password: 'secure-pass', confirmPassword: 'secure-pass' }), error => error.code === 'SESSION_UNAVAILABLE');
+
+  const auth = fakeAuth({ async getSession() { return { data: { session: { access_token: 'synthetic-token' } }, error: null }; } });
+  const service = createAuthService({ client: { auth } });
+  assert.deepEqual(await service.updatePassword({ password: 'secure-pass', confirmPassword: 'secure-pass' }), { status: 'updated' });
+  assert.deepEqual(auth.calls.map(call => call[0]), ['updateUser']);
+  assert.deepEqual(auth.calls[0][1], { password: 'secure-pass' });
+});
+
+test('auth user DTO exposes only a verified phone for account recovery settings', async () => {
+  const auth = fakeAuth({
+    async getSession() { return { data: { session: { access_token: 'synthetic-token' } }, error: null }; },
+    async getUser() { return { data: { user: { id: 'synthetic-user', email: 'person@example.test', phone: '+84900123456', phone_confirmed_at: 'synthetic-time', user_metadata: { username: 'patient_1', private: 'ignored' } } }, error: null }; },
+  });
+  const service = createAuthService({ client: { auth } });
+  const result = await service.restoreSession();
+  assert.deepEqual(result.user, { id: 'synthetic-user', email: 'person@example.test', username: 'patient_1', phone: '+84900123456' });
+});
+
 test('recovery callback exchanges PKCE code and rejects malformed callback', async () => {
   const auth = fakeAuth();
   const service = createAuthService({ client: { auth } });

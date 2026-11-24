@@ -36,6 +36,8 @@ test('exposes the existing API methods with their original v1 paths and payloads
   await api.getMyProfile();
   await api.saveMyProfile({ age: 30 });
   await api.deleteMyProfile();
+  await api.getMyAccountExport();
+  await api.deleteMyAccount();
 
   assert.deepEqual(foods, { ok: true });
   assert.deepEqual(calls, [
@@ -48,6 +50,8 @@ test('exposes the existing API methods with their original v1 paths and payloads
     { path: '/api/v1/me/profile', options: { authenticated: true } },
     { path: '/api/v1/me/profile', options: { method: 'PUT', authenticated: true, body: JSON.stringify({ age: 30 }) } },
     { path: '/api/v1/me/profile', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/export', options: { authenticated: true } },
+    { path: '/api/v1/me', options: { method: 'DELETE', authenticated: true } },
   ]);
 });
 

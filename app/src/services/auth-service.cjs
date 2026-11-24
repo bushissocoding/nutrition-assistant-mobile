@@ -12,7 +12,12 @@ function requireClient(client) {
 }
 
 function toAuthUser(user) {
-  return user ? { id: user.id, email: user.email, username: user.user_metadata?.username || null } : null;
+  return user ? {
+    id: user.id,
+    email: user.email,
+    username: user.user_metadata?.username || null,
+    phone: user.phone_confirmed_at ? user.phone || null : null,
+  } : null;
 }
 
 function createAuthService({ client, callbackUrl = () => '', parseUrl = value => new URL(value) } = {}) {
@@ -100,6 +105,16 @@ function createAuthService({ client, callbackUrl = () => '', parseUrl = value =>
       const { error } = await requireClient(client).updateUser({ phone });
       if (error) throw safeError('PHONE_LINK_FAILED', 'Không thể liên kết số điện thoại. Hãy thử số khác hoặc thử lại sau.');
       return { status: 'verification-required' };
+    },
+
+    async updatePassword({ password, confirmPassword }) {
+      if (!validatePassword(password, confirmPassword)) throw safeError('INVALID_PASSWORD', 'Mật khẩu cần 8–72 ký tự và phải khớp xác nhận.');
+      const auth = requireClient(client);
+      const { data: sessionData, error: sessionError } = await auth.getSession();
+      if (sessionError || !sessionData?.session?.access_token) throw safeError('SESSION_UNAVAILABLE', 'Hãy đăng nhập lại trước khi đổi mật khẩu.');
+      const { data, error } = await auth.updateUser({ password });
+      if (error || !data?.user?.id) throw safeError('PASSWORD_UPDATE_FAILED', 'Không thể cập nhật mật khẩu. Hãy thử lại sau.');
+      return { status: 'updated' };
     },
 
     async verifyPhoneLink({ phone: value, token }) {

@@ -1,6 +1,6 @@
 # Security and Operations Baseline
 
-Last reviewed: 2026-11-17
+Last reviewed: 2026-11-24
 
 This repository is a demonstration prototype. It is not an authenticated health service and is not approved for real personal or health data, public deployment, clinical use, or legal-compliance claims.
 
@@ -19,7 +19,7 @@ Before changing dependencies, run `npm audit --json`, inspect the installed depe
 
 ## Current data and trust boundaries
 
-- The Expo app stores a versioned, timestamped consent receipt and a minimal synthetic prototype profile locally through SecureStore. The receipt is device-local, is not account-linked, and is not server-verified proof of consent compliance.
+- When configured, Supabase Auth provides the identity session; the Expo app keeps only its Auth SDK session in SecureStore. Consent receipts and profile data are account-owned via the API and RLS. The privacy/legal owner has not approved the consent copy, and a local Supabase RLS integration run is still outstanding.
 - Diary and grocery API data is persisted in `server/.local-data/demo-store.json` only when `DEMO_DATA_ENABLED=true`. Demo routes are disabled by default and always disabled in production.
 - `X-Demo-Namespace` is caller-controlled. It separates local demo collections but is not authentication, authorization, or account ownership.
 - Catalog and planner values are estimates with the source limitations recorded in `server/data/sources.json`. They are not clinical advice and the catalog does not claim to be official Vietnamese Institute of Nutrition data.
@@ -33,9 +33,9 @@ The root `.env` contains Expo `EXPO_PUBLIC_*` configuration. Expo embeds those v
 
 ## Storage, deletion, and retention
 
-The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. App profile/consent deletion first requests the diary and grocery namespace purges; a failed purge must preserve local state and offer retry. The demo store can still remain in a developer-controlled file until that file is removed. The consent disclosure explains these limitations but has not been reviewed by a privacy/legal owner. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
+The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. Identity export covers the authenticated identity, health profile and consent receipts. Account deletion runs registered module cleanup steps before deleting the Auth identity; diary/grocery remain in the caller-controlled demo namespace and are not yet part of account deletion. The consent disclosure explains these limitations but has not been reviewed by a privacy/legal owner. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
 
-Only synthetic data is allowed. Supabase Auth/Postgres have been selected; server constructors distinguish user-scoped publishable-key clients from privileged secret-key clients, and bearer middleware verifies accounts with Supabase Auth. `GET /api/v1/me` returns only the authenticated account ID; profile and other account-owned feature routes/persistence are not connected. CORS uses an exact configured production origin, API responses receive security headers, and an in-process rate limiter caps request volume; that limiter is not shared between multiple server instances. Before real health data is considered, the project needs RLS-backed ownership, qualified privacy/security review, an approved retention/deletion policy, transport/storage protections, and tested backup/restore and incident handling. Do not treat the local consent receipt or `X-Demo-Namespace` as authentication or ownership.
+Only synthetic data is allowed. Supabase Auth/Postgres have been selected; server constructors distinguish user-scoped publishable-key clients from privileged secret-key clients, and bearer middleware verifies accounts with Supabase Auth. Identity, consent and profile routes use owner-scoped RLS; local two-account DB integration remains unverified. Diary, grocery and the other feature modules are not yet account-owned. CORS uses an exact configured production origin, API responses receive security headers, and an in-process rate limiter caps request volume; that limiter is not shared between multiple server instances. Before real health data is considered, all module data needs RLS-backed ownership, qualified privacy/security review, an approved retention/deletion policy, transport/storage protections, and tested backup/restore and incident handling. `X-Demo-Namespace` remains caller-controlled and is never authentication or ownership.
 
 The CI Android export verifies that Metro can produce a bundle for Android; it does not verify installation, device networking, or physical-device behavior. The high/critical audit threshold is an automated dependency gate and does not remove the moderate findings recorded above.
 

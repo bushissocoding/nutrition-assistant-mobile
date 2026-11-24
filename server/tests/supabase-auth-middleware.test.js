@@ -48,7 +48,7 @@ test('a provider-verified account becomes the principal and request-scoped RLS c
 
   assert.equal(res.statusCode, 200);
   assert.equal(req.userDatabase, expectedClient);
-  assert.deepEqual(req.auth, { user: { id: 'account-123' } });
+  assert.deepEqual(req.auth, { user: { id: 'account-123', email: 'private@example.test' } });
   assert.equal(nextCalls, 1);
 });
 

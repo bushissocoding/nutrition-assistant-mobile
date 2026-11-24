@@ -32,10 +32,10 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 ### Phase 2: Identity and profile vertical slices
 
 - [x] Task 2.0: Specify, plan, and task `identity-profile` before implementation
-- [ ] Task 2.1: Registration, email verification, login/logout, restore and expiry
-- [ ] Task 2.2: Email/SMS recovery and confirmation flows
-- [ ] Task 2.3: Server-owned profile, assessment and account consent; add profile/consent migration, RLS policies and executable integration seam
-- [ ] Task 2.4: Profile export, consent withdrawal, account deletion and retry semantics
+- [x] Task 2.1: Registration, email verification, login/logout, restore and expiry
+- [x] Task 2.2: Email/SMS recovery and confirmation flows; live delivery depends on operator-configured providers
+- [x] Task 2.3: Server-owned profile, assessment and account consent; add profile/consent migration, RLS policies and executable integration seam
+- [x] Task 2.4: Profile export, consent withdrawal, account deletion and retry semantics; later feature modules must register their owned data cleanup/export
 - [ ] Checkpoint: Two synthetic accounts cannot read or alter each other's records
 
 ### Phase 3: Nutrition and personal tracking

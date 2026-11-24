@@ -1,35 +1,63 @@
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors, radius } from '../../theme/tokens';
 
 const settingsRows = [
   ['♧', 'Cài đặt thông báo', 'settings-notifications', ''],
   ['⚿', 'Quản lý mật khẩu', 'settings-password', ''],
+  ['☎', 'Số điện thoại khôi phục', 'settings-phone', ''],
   ['♙', 'Xóa tài khoản', 'settings-delete', ''],
 ];
 
-export default function SettingsScreen({ screen = 'settings', onNavigate, onBack, onForgotPassword }) {
+export default function SettingsScreen({ screen = 'settings', account, phone, busy = false, onNavigate, onBack, onForgotPassword, onUpdatePassword, onRequestPhoneLink, onVerifyPhoneLink, onDeleteAccount, onExportAccount }) {
   const [toggles, setToggles] = useState({ general: true, sound: false, calls: false, payment: true });
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [phoneInput, setPhoneInput] = useState(phone || '');
+  const [phoneCode, setPhoneCode] = useState('');
+  const [awaitingPhoneCode, setAwaitingPhoneCode] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [feedback, setFeedback] = useState('');
   const [faq, setFaq] = useState(-1);
   const [tab, setTab] = useState('faq');
-  const title = ({ settings: 'Cài đặt', 'settings-notifications': 'Cài đặt thông báo', 'settings-password': 'Quản lý mật khẩu', 'settings-delete': 'Xóa tài khoản', 'settings-privacy': 'Chính sách và quyền riêng tư', 'settings-help': 'Trung tâm hỗ trợ' })[screen] || 'Cài đặt';
+  const title = ({ settings: 'Cài đặt', 'settings-notifications': 'Cài đặt thông báo', 'settings-password': 'Quản lý mật khẩu', 'settings-phone': 'Số điện thoại khôi phục', 'settings-delete': 'Xóa tài khoản', 'settings-privacy': 'Chính sách và quyền riêng tư', 'settings-help': 'Trung tâm hỗ trợ' })[screen] || 'Cài đặt';
 
   function toggle(key) { setToggles(value => ({ ...value, [key]: !value[key] })); }
-  function validatePassword() {
-    if (newPassword.length < 8) setFeedback('Mật khẩu demo cần có ít nhất 8 ký tự.');
-    else if (newPassword !== confirmPassword) setFeedback('Mật khẩu xác nhận chưa khớp.');
-    else setFeedback('Mật khẩu chưa được đổi: bản demo không có tài khoản hoặc xác thực.');
+  async function validatePassword() {
+    if (newPassword.length < 8) { setFeedback('Mật khẩu cần có ít nhất 8 ký tự.'); return; }
+    if (newPassword !== confirmPassword) { setFeedback('Mật khẩu xác nhận chưa khớp.'); return; }
+    try {
+      if (typeof onUpdatePassword !== 'function') throw new Error('Dịch vụ đổi mật khẩu chưa được cấu hình.');
+      await onUpdatePassword({ password: newPassword, confirmPassword });
+      setNewPassword(''); setConfirmPassword(''); setFeedback('Đã cập nhật mật khẩu.');
+    } catch (error) { setFeedback(error?.message || 'Không thể đổi mật khẩu lúc này.'); }
+  }
+  async function requestPhoneCode() {
+    setFeedback('');
+    try { await onRequestPhoneLink?.(phoneInput); setAwaitingPhoneCode(true); setFeedback('Nếu yêu cầu được chấp nhận, hãy nhập mã SMS gửi tới số điện thoại.'); }
+    catch (error) { setFeedback(error?.message || 'Không thể gửi mã lúc này.'); }
+  }
+  async function confirmPhoneCode() {
+    setFeedback('');
+    try { await onVerifyPhoneLink?.({ phone: phoneInput, token: phoneCode }); setAwaitingPhoneCode(false); setPhoneCode(''); setFeedback('Số điện thoại đã được xác minh.'); }
+    catch (error) { setFeedback(error?.message || 'Mã không hợp lệ hoặc đã hết hạn.'); }
+  }
+  function confirmDeleteAccount() {
+    Alert.alert('Xóa tài khoản vĩnh viễn?', 'Máy chủ sẽ xóa hồ sơ và dữ liệu liên kết. Nếu một bước xóa chưa hoàn tất, tài khoản vẫn được giữ lại để bạn thử lại.', [
+      { text: 'Hủy', style: 'cancel' },
+      { text: 'Xóa tài khoản', style: 'destructive', onPress: async () => {
+        try {
+          if (typeof onDeleteAccount !== 'function') throw new Error('Dịch vụ xóa tài khoản chưa được cấu hình.');
+          await onDeleteAccount();
+        } catch (error) { setFeedback(error?.message || 'Không thể xóa tài khoản lúc này.'); }
+      } },
+    ]);
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.title}>{title}</Text><View style={styles.headerSpace} /></View>
     {screen === 'settings' && <>
       {settingsRows.map(([icon, label, route]) => <TouchableOpacity accessibilityRole="button" key={route} style={styles.menuRow} onPress={() => onNavigate?.(route)}><Text style={styles.menuIcon}>{icon}</Text><View style={styles.menuCopy}><Text style={styles.menuTitle}>{label}</Text></View><Text style={styles.arrow}>›</Text></TouchableOpacity>)}
-      <View style={styles.demoBox}><Text style={styles.demoTitle}>TÀI KHOẢN DEMO TRÊN THIẾT BỊ</Text><Text style={styles.copy}>Không có tài khoản trực tuyến. Hồ sơ và lựa chọn đồng ý demo được lưu cục bộ trên thiết bị.</Text></View>
+      <View style={styles.demoBox}><Text style={styles.demoTitle}>TÀI KHOẢN</Text><Text style={styles.copy}>{account?.email || 'Đã đăng nhập'}</Text><Text style={styles.copy}>Hồ sơ cá nhân được tải từ API theo phiên đăng nhập hiện tại.</Text></View>
     </>}
     {screen === 'settings-notifications' && <>
       <SettingToggle label="Thông báo thông thường" hint="Cập nhật và nhắc nhở trong bản demo" value={toggles.general} onPress={() => toggle('general')} />
@@ -39,30 +67,39 @@ export default function SettingsScreen({ screen = 'settings', onNavigate, onBack
       <Text style={styles.notice}>Các lựa chọn chỉ áp dụng khi màn hình còn mở. Bản demo chưa gửi thông báo đẩy.</Text>
     </>}
     {screen === 'settings-password' && <>
-      <Text style={styles.notice}>Chức năng đổi mật khẩu chỉ là bản xem trước. Không nhập mật khẩu thật; app chưa có xác thực hay tài khoản.</Text>
-      <Input label="Mật khẩu hiện tại" value={currentPassword} setValue={setCurrentPassword} placeholder="••••••••" secureTextEntry />
+      <Text style={styles.notice}>Mật khẩu được cập nhật qua dịch vụ tài khoản. Không chia sẻ mật khẩu hoặc mã xác minh.</Text>
       <TouchableOpacity accessibilityRole="button" style={styles.forgotButton} onPress={onForgotPassword}><Text style={styles.forgotText}>Quên mật khẩu?</Text></TouchableOpacity>
       <Input label="Mật khẩu mới" value={newPassword} setValue={setNewPassword} placeholder="Tối thiểu 8 ký tự" secureTextEntry />
       <Input label="Xác nhận mật khẩu mới" value={confirmPassword} setValue={setConfirmPassword} placeholder="••••••••" secureTextEntry />
       {!!feedback && <Text accessibilityRole="alert" style={styles.feedback}>{feedback}</Text>}
-      <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={validatePassword}><Text style={styles.primaryText}>Xem trước thao tác</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} style={styles.primary} onPress={validatePassword}><Text style={styles.primaryText}>{busy ? 'Đang cập nhật…' : 'Đổi mật khẩu'}</Text></TouchableOpacity>
+    </>}
+    {screen === 'settings-phone' && <>
+      <Text style={styles.notice}>Số điện thoại chỉ được dùng khôi phục sau khi mã SMS xác nhận được. Không thể dùng số chưa liên kết để vào tài khoản.</Text>
+      <Text style={styles.copy}>Số đã xác minh: {phone || 'Chưa có'}</Text>
+      <Input label="Số điện thoại (E.164)" value={phoneInput} setValue={setPhoneInput} placeholder="+84900123456" />
+      {awaitingPhoneCode && <Input label="Mã xác nhận SMS" value={phoneCode} setValue={setPhoneCode} placeholder="Mã 6–8 chữ số" />}
+      {!!feedback && <Text accessibilityRole="alert" style={styles.feedback}>{feedback}</Text>}
+      <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: busy }} disabled={busy} style={styles.primary} onPress={awaitingPhoneCode ? confirmPhoneCode : requestPhoneCode}><Text style={styles.primaryText}>{busy ? 'Đang xử lý…' : awaitingPhoneCode ? 'Xác minh số điện thoại' : phone ? 'Xác minh số mới' : 'Liên kết số điện thoại'}</Text></TouchableOpacity>
     </>}
     {screen === 'settings-delete' && <View style={styles.deleteCard}>
       <View style={styles.deleteIcon}><Text style={styles.deleteIconText}>!</Text></View>
-      <Text accessibilityRole="header" style={styles.deleteHeading}>Không có tài khoản trực tuyến</Text>
-      <Text style={styles.copy}>Nutrition Assistant đang chạy ở chế độ demo nên không có tài khoản để xóa. Bạn có thể xem và xóa hồ sơ demo cùng dữ liệu liên quan trong trang Hồ sơ.</Text>
-      <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => onNavigate?.('profile')}><Text style={styles.primaryText}>Mở trang hồ sơ</Text></TouchableOpacity>
+      <Text accessibilityRole="header" style={styles.deleteHeading}>Xóa dữ liệu tài khoản</Text>
+      <Text style={styles.copy}>Tài khoản: {account?.email || 'đang đăng nhập'}. Yêu cầu xóa sẽ dừng truy cập và xóa dữ liệu tài khoản qua API. Các phần xóa đang chờ được giữ để thử lại.</Text>
+      {!!feedback && <Text accessibilityRole="alert" style={styles.feedback}>{feedback}</Text>}
+      <TouchableOpacity accessibilityRole="button" disabled={busy} style={styles.primary} onPress={onExportAccount}><Text style={styles.primaryText}>Xuất dữ liệu của tôi</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" disabled={busy} style={[styles.primary, { backgroundColor: colors.danger }]} onPress={confirmDeleteAccount}><Text style={styles.primaryText}>Xóa tài khoản vĩnh viễn</Text></TouchableOpacity>
     </View>}
     {screen === 'settings-privacy' && <View style={styles.policy}>
       <Text style={styles.policyDate}>CẬP NHẬT · PHIÊN BẢN DEMO</Text>
       <Text style={styles.policyHeading}>Chính sách và quyền riêng tư</Text>
       <Text style={styles.policyCopy}>Nutrition Assistant là bản thử nghiệm. Không sử dụng thông tin cá nhân, hồ sơ bệnh án hoặc dữ liệu sức khỏe thật.</Text>
       <Text style={styles.policyHeading}>Dữ liệu được dùng</Text>
-      <Text style={styles.policyCopy}>Bản demo lưu lựa chọn đồng ý và hồ sơ tối thiểu trong vùng lưu trữ an toàn trên thiết bị. Nhật ký bữa ăn và danh sách đi chợ có thể được gửi tới API demo và lưu trong vùng dữ liệu thử nghiệm.</Text>
+      <Text style={styles.policyCopy}>Khi cấu hình Supabase, tài khoản dùng dịch vụ xác thực; hồ sơ và biên nhận đồng ý được lưu theo account trên API/Postgres. Phiên đăng nhập nằm trong SecureStore. Nhật ký bữa ăn và danh sách đi chợ hiện vẫn dùng vùng dữ liệu demo riêng.</Text>
       <Text style={styles.policyHeading}>Giới hạn dịch vụ</Text>
-      <Text style={styles.policyCopy}>App chưa có tài khoản, xác thực, đồng bộ hồ sơ, dịch vụ tư vấn, đặt khám hoặc thanh toán. Các giá trị dinh dưỡng và mục tiêu chỉ là ước tính minh họa; danh mục thực phẩm không phải dữ liệu chính thức của Viện Dinh dưỡng.</Text>
+      <Text style={styles.policyCopy}>Luồng tài khoản/hồ sơ cần cấu hình Supabase và kiểm thử RLS trên môi trường cơ sở dữ liệu. Nhật ký, đặt khám, thanh toán, chat bác sĩ và tư vấn dinh dưỡng chưa phải dịch vụ trực tuyến. Các giá trị dinh dưỡng chỉ là ước tính minh họa; danh mục hiện tại không phải dữ liệu chính thức của Viện Dinh dưỡng.</Text>
       <Text style={styles.policyHeading}>Quyền của bạn</Text>
-      <Text style={styles.policyCopy}>Bạn có thể xem lại lựa chọn đồng ý hoặc yêu cầu xóa dữ liệu demo từ trang Hồ sơ. Dữ liệu phía API được xóa trước; nếu API không xác nhận, app giữ lại dữ liệu cục bộ để thử lại.</Text>
+      <Text style={styles.policyCopy}>Bạn có thể xuất danh tính, hồ sơ và biên nhận đồng ý hoặc yêu cầu xóa tài khoản trong Cài đặt. Xóa chỉ được xác nhận sau khi API hoàn tất các bước đã đăng ký. Dữ liệu demo của các module chưa chuyển đổi có vòng đời riêng.</Text>
     </View>}
     {screen === 'settings-help' && <>
       <View accessibilityRole="tablist" style={styles.helpTabs}>{[['faq', 'Hỏi đáp'], ['contact', 'Liên hệ']].map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} style={[styles.helpTab, tab === key && styles.helpTabActive]} onPress={() => setTab(key)}><Text style={[styles.helpTabText, tab === key && styles.helpTabTextActive]}>{label}</Text></TouchableOpacity>)}</View>

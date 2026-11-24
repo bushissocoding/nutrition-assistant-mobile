@@ -200,6 +200,8 @@ function createApiMethods(apiClient) {
     getMyProfile: () => request('/api/v1/me/profile', { authenticated: true }),
     saveMyProfile: profile => request('/api/v1/me/profile', { method: 'PUT', authenticated: true, body: JSON.stringify(profile) }),
     deleteMyProfile: () => request('/api/v1/me/profile', { method: 'DELETE', authenticated: true }),
+    getMyAccountExport: () => request('/api/v1/me/export', { authenticated: true }),
+    deleteMyAccount: () => request('/api/v1/me', { method: 'DELETE', authenticated: true }),
   };
 }
 

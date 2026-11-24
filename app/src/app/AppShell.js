@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, SafeAreaView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import ConsentScreen from '../features/onboarding/ConsentScreen';
@@ -277,6 +277,51 @@ export default function AppShell() {
     finally { setAuthBusy(false); }
   }
 
+  async function handleAccountPasswordUpdate(input) {
+    setAuthBusy(true);
+    try { return await authService.updatePassword(input); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function handlePhoneLink(phone) {
+    setAuthBusy(true);
+    try { return await authService.requestPhoneLink(phone); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function handlePhoneVerify(input) {
+    setAuthBusy(true);
+    try {
+      const result = await authService.verifyPhoneLink(input);
+      setAccount(current => current ? { ...current, phone: result.phone } : current);
+      return result;
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleAccountExport() {
+    setAuthBusy(true);
+    try {
+      const data = await api.getMyAccountExport();
+      await Share.share({ title: 'Bản xuất dữ liệu tài khoản', message: JSON.stringify(data, null, 2) });
+    } catch (error) { setStorageError(error?.message || 'Không thể xuất dữ liệu tài khoản lúc này.'); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function handleAccountDelete() {
+    setAuthBusy(true);
+    try {
+      await api.deleteMyAccount();
+    } catch (error) {
+      setStorageError(error?.message || 'Chưa thể hoàn tất xóa tài khoản. Dữ liệu vẫn được giữ lại để thử lại.');
+      setAuthBusy(false);
+      return;
+    }
+    try { await authService.logout(); } catch { /* The server deletion already revoked account access. */ }
+    clearAccountState();
+    setAuthBusy(false);
+    Alert.alert('Đã xóa tài khoản', 'Tài khoản đã được xóa khỏi dịch vụ xác thực và bạn đã đăng xuất khỏi thiết bị.');
+  }
+
   async function handleLogout() {
     setAuthBusy(true);
     try { await authService.logout(); clearAccountState(); }
@@ -335,7 +380,7 @@ export default function AppShell() {
   else if (screen === 'chat') content = <ChatScreen onNavigate={navigate} />;
   else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;
   else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} persistenceError={notificationStorageError} onRetryPersistence={() => setNotificationSaveVersion(value => value + 1)} />;
-  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} />;
+  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
   else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods') content = <AppointmentScreen initialView={screen} request={bookingRequest} onRequestCreate={setBookingRequest} onRequestClear={() => setBookingRequest(null)} onOpenDoctorChat={doctor => { setChatContact(doctor); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
   else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
   else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
