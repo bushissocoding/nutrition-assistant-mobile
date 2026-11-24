@@ -20,3 +20,6 @@ sql_paths = []
 
 [storage]
 enabled = true
+
+[auth]
+additional_redirect_urls = ["nutritionassistant://auth/callback"]
