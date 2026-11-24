@@ -60,13 +60,13 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 
 ### Phase 5: Chat, records and event notifications
 
-- [ ] Task 5.0: Specify, plan, and task `chat-assistant-messaging` before implementation
+- [x] Task 5.0: Specify, plan, and task `chat-assistant-messaging` before implementation
 - [ ] Task 5.1: Appointment-scoped patient/provider conversation and provider inbox
-- [ ] Task 5.2: Non-clinical assistant with explicit data-sharing UX and configurable OpenAI adapter
-- [ ] Task 5.3: Specify, plan, and task `records-labs` before implementation
+- [ ] Task 5.2: Non-clinical assistant with explicit data-sharing consent and configurable stateless OpenAI Responses adapter
+- [x] Task 5.3: Specify, plan, and task `records-labs` before implementation
 - [ ] Task 5.4: Private health record upload, on-device OCR candidate review and PDF export
-- [ ] Task 5.5: Specify, plan, and task `notifications-settings` before implementation
-- [ ] Task 5.6: Persisted notification events/read state, push token lifecycle and settings
+- [x] Task 5.5: Specify, plan, and task `notifications-settings` before implementation
+- [ ] Task 5.6: Durable business-event notices, Expo Push outbox/receipts, account preferences and token lifecycle
 - [ ] Checkpoint: Delivery, file access, account ownership and deletion tests pass
 
 ### Phase 6: Release readiness
