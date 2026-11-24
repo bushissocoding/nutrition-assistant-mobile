@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Linking from 'expo-linking';
 import * as SecureStore from 'expo-secure-store';
 import ConsentScreen from '../features/onboarding/ConsentScreen';
 import ProfileSetupScreen from '../features/onboarding/ProfileSetupScreen';
@@ -18,12 +19,11 @@ import SettingsScreen from '../features/settings/SettingsScreen';
 import AppointmentScreen from '../features/appointments/AppointmentScreen';
 import MedicalRecordScreen from '../features/medical-record/MedicalRecordScreen';
 import PersonalizationScreen from '../features/personalization/PersonalizationScreen';
-import { clearStoredProfile, loadConsent, loadProfile, revokeConsentAndClear, saveConsent, saveProfile } from '../services/profile-storage';
+import { authService, isAuthConfigured } from '../services/auth-client';
 import { api } from '../services/api';
 import { colors } from '../theme/tokens';
 import { bottomTabs } from '../navigation/routes';
 import { hasUrgentRedFlags, validateProfile } from '../features/profile/profile-model.cjs';
-import { purgeBeforeLocalDelete } from './purge-before-local-delete.cjs';
 import { createNotificationStateStorage } from '../services/notification-state-storage.cjs';
 
 const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
@@ -47,6 +47,8 @@ export default function AppShell() {
   const [consentReturnScreen, setConsentReturnScreen] = useState('profile-setup');
   const [profileSetupReturn, setProfileSetupReturn] = useState('home');
   const [authReturn, setAuthReturn] = useState('welcome');
+  const [authBusy, setAuthBusy] = useState(false);
+  const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState('welcome');
   const [groceryItems, setGroceryItems] = useState(null);
@@ -69,32 +71,90 @@ export default function AppShell() {
   const [chatContact, setChatContact] = useState(null);
   const [notifications, setNotifications] = useState(initialNotificationItems);
   const notificationWriteQueue = useRef(Promise.resolve());
+  const authEpoch = useRef(0);
+  const authAccountId = useRef(null);
   const finishLaunch = useCallback(() => setLaunchComplete(true), []);
+
+  const clearAccountState = useCallback(() => {
+    authEpoch.current += 1;
+    authAccountId.current = null;
+    setAccount(null); setConsentRecord(null); setConsented(false); setProfile(null); setPlan(null);
+    setDiary([]); setDiaryTotals(emptyTotals); setDiaryHydrationError(''); setDiaryLoading(false);
+    setGroceryItems(null); setBookingRequest(null); setChatContact(null); setNotifications(initialNotificationItems);
+    setScreen('welcome');
+  }, []);
+
+  const hydrateAccount = useCallback(async user => {
+    if (!user?.id) return;
+    const epoch = ++authEpoch.current;
+    authAccountId.current = user.id;
+    setAccount(user);
+    setStorageError('');
+    setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setBookingRequest(null);
+    try {
+      const currentUser = await api.getCurrentUser();
+      if (currentUser?.user?.id !== user.id || epoch !== authEpoch.current) return;
+      const consentResult = await api.getMyConsent();
+      if (epoch !== authEpoch.current) return;
+      const record = consentResult?.consent || null;
+      setConsentRecord(record);
+      const requiredChoices = ['profile_processing', 'nutrition_processing', 'data_lifecycle'];
+      const hasConsent = record?.version === consentResult.currentVersion && requiredChoices.every(key => record.choices?.[key] === true);
+      setConsented(hasConsent);
+      if (!hasConsent) { setScreen('consent'); return; }
+      const profileResult = await api.getMyProfile();
+      if (epoch !== authEpoch.current) return;
+      setProfile(profileResult?.profile || null);
+      setScreen(profileResult?.profile ? 'home' : 'profile-setup');
+    } catch (error) {
+      if (epoch !== authEpoch.current) return;
+      setStorageError(error?.message || 'Không thể tải dữ liệu tài khoản. Hãy thử lại.');
+      setScreen('account-error');
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
-    const loadNotifications = notificationStateStorage.load().catch(() => ({
+    notificationStateStorage.load().catch(() => ({
       items: initialNotificationItems,
       warning: 'Không đọc được trạng thái thông báo đã lưu. Trạng thái mẫu đang dùng trong phiên này.',
-    }));
-    Promise.all([loadConsent(), loadProfile(), loadNotifications]).then(([accepted, savedProfile, savedNotifications]) => {
+    })).then(savedNotifications => {
       if (!active) return;
-      setConsentRecord(accepted);
-      setConsented(Boolean(accepted));
-      setProfile(savedProfile);
       setNotifications(savedNotifications.items);
       setNotificationStorageError(savedNotifications.warning);
       setNotificationStateReady(true);
-      setScreen(savedProfile ? 'home' : accepted ? 'profile-setup' : 'welcome');
-    }).catch(() => {
-      if (!active) return;
-      setStorageError('Không thể truy cập vùng lưu trữ an toàn. Chưa thể lưu hồ sơ trên thiết bị này.');
-      setNotifications(initialNotificationItems);
-      setNotificationStorageError('Không thể tải trạng thái thông báo; trạng thái mẫu đang dùng trong phiên này.');
-      setNotificationStateReady(true);
-    }).finally(() => { if (active) setReady(true); });
+    });
+    (async () => {
+      try {
+        if (isAuthConfigured) {
+          const restored = await authService.restoreSession();
+          if (active && restored?.user) await hydrateAccount(restored.user);
+        }
+      } catch (error) {
+        if (active) setStorageError(error?.message || 'Không thể khôi phục phiên đăng nhập.');
+      } finally { if (active) setReady(true); }
+    })();
     return () => { active = false; };
-  }, []);
+  }, [hydrateAccount]);
+
+  useEffect(() => {
+    if (!isAuthConfigured) return undefined;
+    const unsubscribe = authService.subscribe(({ event, session, user }) => {
+      if (event === 'PASSWORD_RECOVERY') { setScreen('auth-reset-password'); return; }
+      if (event === 'SIGNED_OUT') { clearAccountState(); return; }
+      if (event === 'SIGNED_IN' && user && authAccountId.current !== user.id) {
+        clearAccountState();
+        setTimeout(() => { if (authAccountId.current !== user.id) hydrateAccount(user); }, 0);
+      }
+    });
+    const link = Linking.addEventListener('url', ({ url }) => {
+      authService.completeCallback(url).catch(error => setStorageError(error?.message || 'Liên kết xác thực không hợp lệ hoặc đã hết hạn.'));
+    });
+    Linking.getInitialURL().then(url => {
+      if (url) authService.completeCallback(url).catch(error => setStorageError(error?.message || 'Liên kết xác thực không hợp lệ hoặc đã hết hạn.'));
+    }).catch(() => setStorageError('Không thể mở liên kết xác thực.'));
+    return () => { unsubscribe?.(); link.remove(); };
+  }, [clearAccountState, hydrateAccount]);
 
   useEffect(() => {
     if (!notificationStateReady) return;
@@ -126,12 +186,16 @@ export default function AppShell() {
   async function acceptConsent(choices) {
     setConsentSaving(true);
     try {
-      const record = await saveConsent(choices);
+      const result = await api.saveMyConsent(choices);
+      const record = result?.consent;
       setConsentRecord(record);
-      setConsented(true);
-      setScreen(screen === 'consent-review' ? consentReturnScreen : profile ? 'home' : 'profile-setup');
+      const accepted = record?.version === result.currentVersion
+        && ['profile_processing', 'nutrition_processing', 'data_lifecycle'].every(key => record.choices?.[key] === true);
+      setConsented(accepted);
+      if (!accepted) { setProfile(null); setScreen('consent'); }
+      else setScreen(screen === 'consent-review' ? consentReturnScreen : profile ? 'home' : 'profile-setup');
       setStorageError('');
-    } catch { setStorageError('Không lưu được lựa chọn trên thiết bị. Chưa thể tiếp tục; hãy thử lại.'); }
+    } catch (error) { setStorageError(error?.message || 'Không thể lưu lựa chọn trên máy chủ. Hãy thử lại.'); }
     finally { setConsentSaving(false); }
   }
 
@@ -153,50 +217,86 @@ export default function AppShell() {
 
   async function completeProfile(nextProfile) {
     try {
-      await saveProfile(nextProfile);
-      setProfile(nextProfile);
+      const payload = {
+        ...nextProfile,
+        username: nextProfile.username || account?.username,
+        age: Number(nextProfile.age),
+        heightCm: Number(nextProfile.heightCm),
+        weightKg: Number(nextProfile.weightKg),
+      };
+      const result = await api.saveMyProfile(payload);
+      setProfile(result.profile);
       setPlan(null);
       setScreen(profile ? profileSetupReturn : 'home');
       setStorageError('');
-    } catch { setStorageError('Không lưu được hồ sơ vào SecureStore. Không tiếp tục với dữ liệu chưa lưu.'); }
-  }
-
-  async function purgeRemoteDemoData() {
-    await api.purgeMealEntries();
-    await api.purgeShoppingLists();
+    } catch (error) { setStorageError(error?.message || 'Không thể lưu hồ sơ tài khoản. Chưa tiếp tục với dữ liệu chưa được máy chủ xác nhận.'); }
   }
 
   async function withdrawConsentAndDelete() {
-    Alert.alert('Thu hồi sự đồng ý?', 'Nhật ký và danh sách đi chợ demo trên máy chủ sẽ được xóa trước. Nếu máy chủ chưa xác nhận, hồ sơ và trạng thái đồng ý trên thiết bị vẫn được giữ lại.', [
-      { text: 'Hủy', style: 'cancel' },
-      { text: 'Thu hồi và xóa', style: 'destructive', onPress: async () => {
+    Alert.alert('Thu hồi quyền xử lý dữ liệu?', 'Ứng dụng sẽ dừng mở các tính năng xử lý hồ sơ và dinh dưỡng. Dữ liệu không tự bị xóa; hãy dùng chức năng xóa tài khoản nếu muốn yêu cầu xóa dữ liệu.', [
+      { text: 'Giữ nguyên', style: 'cancel' },
+      { text: 'Thu hồi quyền xử lý', style: 'destructive', onPress: async () => {
         try {
-          await purgeBeforeLocalDelete(purgeRemoteDemoData, () => revokeConsentAndClear());
-          setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setBookingRequest(null); setConsentRecord(null); setConsented(false); setScreen('welcome'); setStorageError('');
-          Alert.alert('Đã rút đồng ý và xóa dữ liệu demo', 'API đã xác nhận xóa nhật ký và danh sách đi chợ. Hồ sơ và lựa chọn đồng ý trên thiết bị đã được xóa.');
-        } catch (error) { setStorageError(error?.message || 'Không xóa được nhật ký trên máy chủ. Hãy kiểm tra kết nối rồi thử lại.'); }
+          const choices = { ...(consentRecord?.choices || {}), profile_processing: false, nutrition_processing: false, data_lifecycle: false };
+          const result = await api.saveMyConsent(choices);
+          setConsentRecord(result.consent); setConsented(false); setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setScreen('consent'); setStorageError('');
+        } catch (error) { setStorageError(error?.message || 'Không thể xác nhận thay đổi. Lựa chọn hiện tại vẫn được giữ.'); }
       } },
     ]);
   }
 
+  async function handleAuthSubmit(input) {
+    setAuthBusy(true);
+    try {
+      const result = input.mode === 'register'
+        ? await authService.register(input)
+        : await authService.login(input);
+      if (result?.session && result.user) await hydrateAccount(result.user);
+      return result;
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleRecoveryRequest({ method, recipient }) {
+    setAuthBusy(true);
+    try {
+      return method === 'sms'
+        ? await authService.requestSmsRecovery(recipient)
+        : await authService.requestEmailRecovery(recipient);
+    } finally { setAuthBusy(false); }
+  }
+
+  async function handleRecoveryVerify(input) {
+    setAuthBusy(true);
+    try { return await authService.verifySmsRecovery(input); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function handlePasswordUpdate(input) {
+    setAuthBusy(true);
+    try { return await authService.updateRecoveredPassword(input); }
+    finally { setAuthBusy(false); }
+  }
+
+  async function handleLogout() {
+    setAuthBusy(true);
+    try { await authService.logout(); clearAccountState(); }
+    catch (error) { setStorageError(error?.message || 'Không thể đăng xuất an toàn. Hãy thử lại.'); }
+    finally { setAuthBusy(false); }
+  }
+
   if (!launchComplete) return <SafeAreaView style={styles.safe}><LaunchScreen onComplete={finishLaunch} ready={ready} /></SafeAreaView>;
-  if (!ready) return <SafeAreaView style={[styles.safe, styles.splash]}><StatusBar barStyle="light-content" /><View style={styles.splashMark}><View style={styles.splashVertical} /><View style={styles.splashHorizontal} /></View><Text style={styles.splashTitle}>CLINICARE</Text><ActivityIndicator color="white" style={styles.splashLoader} /><Text style={styles.splashCopy}>Đang mở bản demo…</Text></SafeAreaView>;
-  if (screen === 'welcome') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><WelcomeScreen onLogin={() => { setAuthReturn('welcome'); setScreen('auth-login'); }} onRegister={() => { setAuthReturn('welcome'); setScreen('auth-register'); }} onExploreDemo={() => setScreen('consent')} /></SafeAreaView>;
-  if (screen.startsWith('auth-')) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen mode={screen.slice(5)} onBack={() => setScreen(authReturn)} onModeChange={mode => setScreen(`auth-${mode}`)} onExploreDemo={() => setScreen('consent')} /></SafeAreaView>;
+  if (!ready) return <SafeAreaView style={[styles.safe, styles.splash]}><StatusBar barStyle="light-content" /><View style={styles.splashMark}><View style={styles.splashVertical} /><View style={styles.splashHorizontal} /></View><Text style={styles.splashTitle}>CLINICARE</Text><ActivityIndicator color="white" style={styles.splashLoader} /><Text style={styles.splashCopy}>Đang khôi phục phiên tài khoản…</Text></SafeAreaView>;
+  if (screen === 'welcome') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><WelcomeScreen serviceConfigured={isAuthConfigured} onLogin={() => { setAuthReturn('welcome'); setScreen('auth-login'); }} onRegister={() => { setAuthReturn('welcome'); setScreen('auth-register'); }} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (screen.startsWith('auth-')) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><AuthScreen mode={screen.slice(5)} busy={authBusy} onBack={() => setScreen(authReturn)} onModeChange={mode => setScreen(`auth-${mode}`)} onSubmit={handleAuthSubmit} onRecoveryRequest={handleRecoveryRequest} onRecoveryVerify={handleRecoveryVerify} onUpdatePassword={handlePasswordUpdate} /></SafeAreaView>;
+  if (screen === 'account-error') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.accountError}><Text accessibilityRole="header" style={styles.splashTitle}>Chưa tải được tài khoản</Text><Text style={styles.accountErrorText}>{storageError}</Text><TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => account && hydrateAccount(account)}><Text style={styles.retryText}>Thử lại</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={handleLogout}><Text style={styles.retryText}>Đăng xuất</Text></TouchableOpacity></View></SafeAreaView>;
   if (!consented || screen === 'consent-review') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ConsentScreen onContinue={acceptConsent} busy={consentSaving} initialChoices={consentRecord?.choices} onBack={screen === 'consent-review' ? () => setScreen(consentReturnScreen) : undefined} onWithdraw={profile || consentRecord ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
-  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile || { username: account?.username || '' }} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
 
   function openGrocery(items) { setGroceryReturn(screen); setGroceryItems(Array.isArray(items) ? items : null); setScreen('grocery'); }
   async function deleteProfileData() {
-    await purgeBeforeLocalDelete(purgeRemoteDemoData, () => clearStoredProfile());
-    setProfile(null);
-    setPlan(null);
-    setDiary([]);
-    setDiaryTotals(emptyTotals);
-    setGroceryItems(null);
-    setBookingRequest(null);
-    setScreen('profile-setup');
-    Alert.alert('Đã xóa hồ sơ demo', 'Nhật ký và danh sách đi chợ trên API, hồ sơ trên thiết bị và dữ liệu trong bộ nhớ đã được xóa. Biên nhận đồng ý vẫn được giữ lại.');
+    await api.deleteMyProfile();
+    setProfile(null); setPlan(null); setGroceryItems(null); setScreen('profile-setup');
+    Alert.alert('Đã xóa hồ sơ sức khỏe', 'Hồ sơ sức khỏe tài khoản đã được máy chủ xóa. Biên nhận đồng ý và các dữ liệu tính năng khác vẫn được giữ lại.');
   }
   function updateTodayDiary(date, entries, totals) {
     if (date !== getCurrentLocalDay().date) return;
@@ -231,7 +331,7 @@ export default function AppShell() {
   else if (screen === 'grocery') content = <GroceryScreen sourceItems={groceryItems || []} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
   else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
-  else if (screen === 'profile') content = <ProfileScreen profile={profile} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={() => setScreen('welcome')} />;
+  else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={handleLogout} />;
   else if (screen === 'chat') content = <ChatScreen onNavigate={navigate} />;
   else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;
   else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} persistenceError={notificationStorageError} onRetryPersistence={() => setNotificationSaveVersion(value => value + 1)} />;
@@ -262,4 +362,4 @@ export default function AppShell() {
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.canvas }, splash: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, splashMark: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }, splashVertical: { position: 'absolute', width: 27, height: 76, borderRadius: 11, backgroundColor: 'white' }, splashHorizontal: { position: 'absolute', width: 76, height: 27, borderRadius: 11, backgroundColor: 'white' }, splashTitle: { color: 'white', fontSize: 19, letterSpacing: 4, fontWeight: '300', marginTop: 24 }, splashLoader: { marginTop: 76 }, splashCopy: { color: 'white', fontSize: 12, marginTop: 10 }, nav: { position: 'absolute', bottom: 14, left: 30, right: 30, minHeight: 54, borderRadius: 29, backgroundColor: colors.primary, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 8, elevation: 8 }, navItem: { alignItems: 'center', justifyContent: 'center', width: 48, minWidth: 48, minHeight: 48, borderRadius: 24 }, navItemSelected: { backgroundColor: 'rgba(255,255,255,0.16)' }, navIcon: { color: 'white', fontSize: 25 }, placeholderCopy: { color: colors.muted, fontSize: 14 }, storageError: { color: colors.danger, backgroundColor: '#FFF0F0', padding: 10, marginHorizontal: 16, borderRadius: 9, fontSize: 14 } });
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.canvas }, splash: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, splashMark: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }, splashVertical: { position: 'absolute', width: 27, height: 76, borderRadius: 11, backgroundColor: 'white' }, splashHorizontal: { position: 'absolute', width: 76, height: 27, borderRadius: 11, backgroundColor: 'white' }, splashTitle: { color: 'white', fontSize: 19, letterSpacing: 4, fontWeight: '300', marginTop: 24 }, splashLoader: { marginTop: 76 }, splashCopy: { color: 'white', fontSize: 12, marginTop: 10 }, accountError: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.surface }, accountErrorText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginVertical: 18 }, retryButton: { minHeight: 50, minWidth: 180, alignItems: 'center', justifyContent: 'center', marginTop: 8, backgroundColor: colors.primary, borderRadius: 24 }, retryText: { color: 'white', fontWeight: '800' }, nav: { position: 'absolute', bottom: 14, left: 30, right: 30, minHeight: 54, borderRadius: 29, backgroundColor: colors.primary, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 8, elevation: 8 }, navItem: { alignItems: 'center', justifyContent: 'center', width: 48, minWidth: 48, minHeight: 48, borderRadius: 24 }, navItemSelected: { backgroundColor: 'rgba(255,255,255,0.16)' }, navIcon: { color: 'white', fontSize: 25 }, placeholderCopy: { color: colors.muted, fontSize: 14 }, storageError: { color: colors.danger, backgroundColor: '#FFF0F0', padding: 10, marginHorizontal: 16, borderRadius: 9, fontSize: 14 } });

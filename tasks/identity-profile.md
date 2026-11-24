@@ -5,13 +5,13 @@ Spec: `spec/SPEC-identity-profile.md`. Scope: account-backed identity, consent a
 ## Ordering and acceptance
 
 - [x] Specify the account lifecycle, data ownership, sensitive boundaries and acceptance criteria before implementation.
-- [ ] 1. Establish mobile Auth client and failure-safe SecureStore adapter; add unit tests for chunking, corruption and atomic pointer swap.
-- [ ] 2. Add auth service for email registration/login/logout/session restore and recovery callback; keep SDK errors mapped to safe user messages.
-- [ ] 3. Replace AuthScreen local-only success with real async operations and loading/error/email-confirmation/reset-password states; remove demo path from production configuration.
-- [ ] 4. Bind app session lifecycle to root navigation; clear account state on logout/switch/expiry and ignore stale async results.
-- [ ] 5. Add profile/consent migration, RLS, schema constraints and database integration tests runnable against local Supabase.
-- [ ] 6. Add profile/consent validation, repository and owner-scoped API routes; enforce current consent before health processing.
-- [ ] 7. Connect assessment/profile/consent UI to owned API; keep only auth credentials in SecureStore.
+- [x] 1. Establish mobile Auth client and failure-safe SecureStore adapter; add unit tests for chunking, corruption and atomic pointer swap.
+- [x] 2. Add auth service for email registration/login/logout/session restore and recovery callback; keep SDK errors mapped to safe user messages.
+- [x] 3. Replace AuthScreen local-only success with real async operations and loading/error/email-confirmation/reset-password states; remove demo path from production configuration.
+- [x] 4. Bind app session lifecycle to root navigation; clear account state on logout/switch/expiry and ignore stale async results.
+- [ ] 5. Add profile/consent migration, RLS, schema constraints and database integration tests runnable against local Supabase. Migration and static contracts are present; local database proof is blocked by missing Docker/Supabase CLI.
+- [x] 6. Add profile/consent validation, repository and owner-scoped API routes; enforce current consent before health processing.
+- [x] 7. Connect assessment/profile/consent UI to owned API; keep only auth credentials in SecureStore.
 - [ ] 8. Add email reset, optional verified-phone linking/SMS recovery, callback URL configuration and generic anti-enumeration UI.
 - [ ] 9. Add profile export and staged deletion operation; deletion API includes extension hooks for records from later modules and never reports complete before all registered handlers succeed.
 - [ ] 10. Add focused unit/API/UI tests, run required full suites and Android bundle, update architecture and operational docs, self-review, commit.

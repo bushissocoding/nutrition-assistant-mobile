@@ -46,13 +46,13 @@ async function parseResponse(response) {
 function createApiClient({
   baseUrl,
   namespaceStore,
+  getAccessToken = async () => null,
   fetchImpl = globalThis.fetch,
   AbortControllerImpl = globalThis.AbortController,
   timeoutMs = 15000,
 } = {}) {
-  if (!namespaceStore || typeof namespaceStore.getNamespace !== 'function') {
-    throw new TypeError('API client requires a demo namespace store.');
-  }
+  if (namespaceStore && typeof namespaceStore.getNamespace !== 'function') throw new TypeError('Demo namespace store is invalid.');
+  if (typeof getAccessToken !== 'function') throw new TypeError('API client requires an access-token provider.');
   if (typeof fetchImpl !== 'function') throw new TypeError('API client requires fetch.');
   if (typeof AbortControllerImpl !== 'function') throw new TypeError('API client requires AbortController.');
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('API timeout must be a positive number.');
@@ -95,18 +95,29 @@ function createApiClient({
       rejectTimeout(new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.'));
     }, timeoutMs);
 
-    const customHeaders = options.headers;
+    const { demo = false, authenticated = false, headers: customHeaders, ...fetchOptions } = options;
 
     const work = (async () => {
-      let namespace;
-      try {
-        namespace = await namespaceStore.getNamespace();
-      } catch (cause) {
-        throw new ApiClientError(
-          'API_NAMESPACE_UNAVAILABLE',
-          cause?.message || 'Không đọc được mã phiên demo trên thiết bị. Hãy thử lại.',
-          { cause },
-        );
+      const headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(customHeaders || {}),
+      };
+      if (authenticated) {
+        let token;
+        try { token = await getAccessToken(); }
+        catch (cause) { throw new ApiClientError('API_AUTH_UNAVAILABLE', 'Không thể đọc phiên đăng nhập. Hãy đăng nhập lại.', { cause }); }
+        if (typeof token !== 'string' || !token) throw new ApiClientError('API_AUTH_REQUIRED', 'Hãy đăng nhập để tiếp tục.');
+        headers.Authorization = `Bearer ${token}`;
+      }
+      if (demo) {
+        if (!namespaceStore) throw new ApiClientError('API_NAMESPACE_UNAVAILABLE', 'Chế độ dữ liệu demo chưa được cấu hình.');
+        let namespace;
+        try { namespace = await namespaceStore.getNamespace(); }
+        catch (cause) {
+          throw new ApiClientError('API_NAMESPACE_UNAVAILABLE', cause?.message || 'Không đọc được mã phiên demo trên thiết bị. Hãy thử lại.', { cause });
+        }
+        headers['X-Demo-Namespace'] = namespace;
       }
       if (deadlineExpired) {
         throw new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.');
@@ -115,16 +126,10 @@ function createApiClient({
         throw new ApiClientError('API_REQUEST_ABORTED', 'Yêu cầu đã bị hủy.');
       }
 
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(customHeaders || {}),
-        'X-Demo-Namespace': namespace,
-      };
       let response;
       try {
         response = await fetchImpl(`${base}${path}`, {
-          ...options,
+          ...fetchOptions,
           headers,
           signal: controller.signal,
         });
@@ -157,34 +162,44 @@ function createApiMethods(apiClient) {
     calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
     getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
     createMealEntry: (payload, idempotencyKey) => request('/api/v1/meal-entries', {
+      demo: true,
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(payload),
     }),
     getMealEntries: ({ date, timeZone, limit = 50, offset = 0 }) => {
       const query = new URLSearchParams({ date, timeZone, limit: String(limit), offset: String(offset) });
-      return request(`/api/v1/meal-entries?${query.toString()}`);
+      return request(`/api/v1/meal-entries?${query.toString()}`, { demo: true });
     },
-    getMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`),
+    getMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { demo: true }),
     updateMealEntry: (id, payload) => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, {
       method: 'PATCH',
+      demo: true,
       body: JSON.stringify(payload),
     }),
-    deleteMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    purgeMealEntries: () => request('/api/v1/meal-entries', { method: 'DELETE' }),
-    getCurrentShoppingList: () => request('/api/v1/shopping-lists/current'),
+    deleteMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE', demo: true }),
+    purgeMealEntries: () => request('/api/v1/meal-entries', { method: 'DELETE', demo: true }),
+    getCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { demo: true }),
     createShoppingList: (payload, idempotencyKey) => request('/api/v1/shopping-lists', {
       method: 'POST',
+      demo: true,
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(payload),
     }),
     updateShoppingListItem: (id, payload) => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, {
       method: 'PATCH',
+      demo: true,
       body: JSON.stringify(payload),
     }),
-    deleteShoppingListItem: id => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    deleteCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { method: 'DELETE' }),
-    purgeShoppingLists: () => request('/api/v1/shopping-lists', { method: 'DELETE' }),
+    deleteShoppingListItem: id => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, { method: 'DELETE', demo: true }),
+    deleteCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { method: 'DELETE', demo: true }),
+    purgeShoppingLists: () => request('/api/v1/shopping-lists', { method: 'DELETE', demo: true }),
+    getCurrentUser: () => request('/api/v1/me', { authenticated: true }),
+    getMyConsent: () => request('/api/v1/me/consent', { authenticated: true }),
+    saveMyConsent: choices => request('/api/v1/me/consent', { method: 'PUT', authenticated: true, body: JSON.stringify({ choices }) }),
+    getMyProfile: () => request('/api/v1/me/profile', { authenticated: true }),
+    saveMyProfile: profile => request('/api/v1/me/profile', { method: 'PUT', authenticated: true, body: JSON.stringify(profile) }),
+    deleteMyProfile: () => request('/api/v1/me/profile', { method: 'DELETE', authenticated: true }),
   };
 }
 

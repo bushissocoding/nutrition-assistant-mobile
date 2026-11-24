@@ -33,7 +33,7 @@ app.use((err, req, res, _next) => {
   const isMealEntryRequest = req.path.startsWith('/api/v1/meal-entries');
   const isShoppingListRequest = req.path.startsWith('/api/v1/shopping-lists');
   console.error('API request failed', { method: req.method, path: req.path, type: err?.type || 'UNHANDLED_ERROR' });
-  if ((isMealEntryRequest || isShoppingListRequest) && ['entity.parse.failed', 'entity.too.large'].includes(err?.type)) {
+  if ((isMealEntryRequest || isShoppingListRequest || req.path.startsWith('/api/v1/me/')) && ['entity.parse.failed', 'entity.too.large'].includes(err?.type)) {
     return res.status(400).json({ error: 'Nội dung JSON không hợp lệ hoặc quá lớn.', code: 'VALIDATION_ERROR' });
   }
   return res.status(500).json({ error: 'Lỗi nội bộ.' });

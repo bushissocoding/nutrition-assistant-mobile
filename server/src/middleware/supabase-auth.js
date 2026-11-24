@@ -41,9 +41,14 @@ function createSupabaseAuthMiddleware({ settings, createClient } = {}) {
       return sendAuthError(res, status, message, code);
     }
 
-    const userId = result?.data?.user?.id;
+    const user = result?.data?.user;
+    const userId = user?.id;
     if (typeof userId !== 'string' || userId.trim().length === 0) {
       return sendAuthError(res, 401, 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.', 'AUTHENTICATION_REQUIRED');
+    }
+
+    if (!user.email_confirmed_at && !user.phone_confirmed_at && !user.confirmed_at) {
+      return sendAuthError(res, 403, 'Hãy xác minh email hoặc số điện thoại trước khi tiếp tục.', 'ACCOUNT_NOT_VERIFIED');
     }
 
     req.auth = Object.freeze({ user: Object.freeze({ id: userId }) });

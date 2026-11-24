@@ -67,7 +67,7 @@ server/
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
 
-Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. Strict production configuration, provider-verified identity middleware and request-scoped SDK constructors now exist; no private feature route or account-owned database persistence is wired yet. Rate limiting is per process with bounded in-memory state; production deployments with multiple instances need a shared store. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
+Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. Strict production configuration, provider-verified identity middleware and request-scoped SDK constructors now exist. Consent and profile routes use verified identity and request-scoped RLS clients. Rate limiting is per process with bounded in-memory state; production deployments with multiple instances need a shared store. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
 
 Startup configuration is read and validated before opening the listener. `npm run api` optionally loads `server/.env`; runtime environment values take precedence. The root `.env` is for Expo `EXPO_PUBLIC_*` settings only. Signal handling belongs in the server lifecycle service, not feature routes.
 
@@ -79,9 +79,11 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.
 - `/api/v1/shopping-lists` — demo-only current grocery list created from a planner snapshot; item quantity/unit/purchased CRUD, idempotent create, and namespace purge. The caller-provided demo namespace is not authentication or account ownership.
 - `GET /api/v1/me` — requires a Supabase Auth bearer token and returns only that verified account's ID; it does not load or persist a profile.
+- `GET/PUT /api/v1/me/consent` — reads the latest account receipt or appends explicit choices with a database timestamp.
+- `GET/PUT/DELETE /api/v1/me/profile` — reads, validates, saves or deletes the caller's own health profile after current required consent.
 - `GET /health` — service health.
 
-The current client stores consent, a minimal profile, and synthetic notification read flags locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no verified server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+Auth sessions now use a chunked, failure-safe SecureStore adapter. Sign-up, login, email/SMS recovery and profile screens use Supabase Auth when configured. Consent and health profile API routes use verified bearer identity and owner-scoped Supabase RLS; the profile is no longer read from or written to local SecureStore. Only the Auth SDK session remains local. Account-private routes currently cover consent and profile; diary/grocery and other feature workflows remain demo/local until their modules are implemented. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 

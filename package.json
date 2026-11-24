@@ -15,7 +15,7 @@
     "api": "node --env-file-if-exists=server/.env server/server.js",
     "api:dev": "node --env-file-if-exists=server/.env --watch server/server.js",
     "test:api": "node server/server.test.js",
-    "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs app/src/features/onboarding/consent-model.test.cjs app/src/features/diary/diary-history.test.cjs app/src/services/notification-state-storage.test.cjs app/src/services/api-config.test.cjs app/src/services/demo-namespace-storage.test.cjs app/src/services/api-client.test.cjs app/src/app/purge-before-local-delete.test.cjs",
+    "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs app/src/features/onboarding/consent-model.test.cjs app/src/features/diary/diary-history.test.cjs app/src/services/notification-state-storage.test.cjs app/src/services/auth-session-storage.test.cjs app/src/services/identity-model.test.cjs app/src/services/auth-service.test.cjs app/src/services/api-config.test.cjs app/src/services/demo-namespace-storage.test.cjs app/src/services/api-client.test.cjs app/src/app/purge-before-local-delete.test.cjs",
     "test:ui": "jest --runInBand",
     "catalog:validate": "node server/scripts/import-food-catalog.js --input server/data/foods.json --check --allow-legacy",
     "catalog:fixture": "node server/scripts/import-food-catalog.js --input server/data/fixtures/synthetic-foods.json --check",
@@ -24,6 +24,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.119.2",
     "expo": "~58.0.0",
+    "expo-linking": "~58.0.17",
     "expo-print": "~58.0.9",
     "expo-secure-store": "~58.0.3",
     "expo-sharing": "~58.0.23",

@@ -30,12 +30,24 @@ test('exposes the existing API methods with their original v1 paths and payloads
   const foods = await api.getFoods('rau muống');
   await api.calculateNutrition([{ foodId: 'food-1', grams: 150 }]);
   await api.generateMealPlan(plan);
+  await api.getCurrentUser();
+  await api.getMyConsent();
+  await api.saveMyConsent({ ai_processing: false });
+  await api.getMyProfile();
+  await api.saveMyProfile({ age: 30 });
+  await api.deleteMyProfile();
 
   assert.deepEqual(foods, { ok: true });
   assert.deepEqual(calls, [
     { path: '/api/v1/foods?q=rau%20mu%E1%BB%91ng', options: undefined },
     { path: '/api/v1/nutrition/calculate', options: { method: 'POST', body: '{"items":[{"foodId":"food-1","grams":150}]}' } },
     { path: '/api/v1/meal-plans/generate', options: { method: 'POST', body: JSON.stringify(plan) } },
+    { path: '/api/v1/me', options: { authenticated: true } },
+    { path: '/api/v1/me/consent', options: { authenticated: true } },
+    { path: '/api/v1/me/consent', options: { method: 'PUT', authenticated: true, body: JSON.stringify({ choices: { ai_processing: false } }) } },
+    { path: '/api/v1/me/profile', options: { authenticated: true } },
+    { path: '/api/v1/me/profile', options: { method: 'PUT', authenticated: true, body: JSON.stringify({ age: 30 }) } },
+    { path: '/api/v1/me/profile', options: { method: 'DELETE', authenticated: true } },
   ]);
 });
 
@@ -53,12 +65,12 @@ test('exposes diary CRUD and purge methods through the shared API request client
   await api.purgeMealEntries();
 
   assert.deepEqual(calls, [
-    { path: '/api/v1/meal-entries', options: { method: 'POST', headers: { 'Idempotency-Key': 'intent-key-0001' }, body: JSON.stringify(input) } },
-    { path: '/api/v1/meal-entries?date=2026-11-16&timeZone=Asia%2FHo_Chi_Minh&limit=25&offset=50', options: undefined },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: undefined },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'PATCH', body: JSON.stringify({ notes: 'edited' }) } },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'DELETE' } },
-    { path: '/api/v1/meal-entries', options: { method: 'DELETE' } },
+    { path: '/api/v1/meal-entries', options: { method: 'POST', demo: true, headers: { 'Idempotency-Key': 'intent-key-0001' }, body: JSON.stringify(input) } },
+    { path: '/api/v1/meal-entries?date=2026-11-16&timeZone=Asia%2FHo_Chi_Minh&limit=25&offset=50', options: { demo: true } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { demo: true } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'PATCH', demo: true, body: JSON.stringify({ notes: 'edited' }) } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/meal-entries', options: { method: 'DELETE', demo: true } },
   ]);
 });
 
@@ -76,12 +88,12 @@ test('exposes grocery list CRUD and namespace purge through the shared API reque
   await api.purgeShoppingLists();
 
   assert.deepEqual(calls, [
-    { path: '/api/v1/shopping-lists/current', options: undefined },
-    { path: '/api/v1/shopping-lists', options: { method: 'POST', headers: { 'Idempotency-Key': 'grocery-intent-0001' }, body: JSON.stringify(payload) } },
-    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'PATCH', body: JSON.stringify({ amount: 1.5, unit: 'kg', purchased: true }) } },
-    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'DELETE' } },
-    { path: '/api/v1/shopping-lists/current', options: { method: 'DELETE' } },
-    { path: '/api/v1/shopping-lists', options: { method: 'DELETE' } },
+    { path: '/api/v1/shopping-lists/current', options: { demo: true } },
+    { path: '/api/v1/shopping-lists', options: { method: 'POST', demo: true, headers: { 'Idempotency-Key': 'grocery-intent-0001' }, body: JSON.stringify(payload) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'PATCH', demo: true, body: JSON.stringify({ amount: 1.5, unit: 'kg', purchased: true }) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/shopping-lists/current', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/shopping-lists', options: { method: 'DELETE', demo: true } },
   ]);
 });
 
@@ -108,6 +120,7 @@ test('sends JSON request with the stable demo namespace and returns parsed data'
 
   const result = await client.request('/api/v1/meal-plans/generate', {
     method: 'POST',
+    demo: true,
     body: JSON.stringify({ servings: 2 }),
   });
 
@@ -200,10 +213,33 @@ test('applies the request deadline while loading the namespace and does not fetc
     namespaceStore: { async getNamespace() { await new Promise(resolve => setTimeout(resolve, 25)); return 'demo-test-device'; } },
   });
 
-  await assert.rejects(client.request('/api/v1/foods'), error => error.code === 'API_TIMEOUT');
+  await assert.rejects(client.request('/api/v1/meal-entries', { demo: true }), error => error.code === 'API_TIMEOUT');
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(fetchCalls, 0);
 }, { timeout: 1000 });
+
+test('private requests send only a bearer token and never request demo namespace state', async () => {
+  let request;
+  let namespaceReads = 0;
+  const client = createClient(async (_url, options) => {
+    request = options;
+    return createResponse(200, '{}');
+  }, {
+    namespaceStore: { async getNamespace() { namespaceReads += 1; return 'demo-test-device'; } },
+    getAccessToken: async () => 'synthetic-access-token',
+  });
+  await client.request('/api/v1/me/profile', { authenticated: true });
+  assert.equal(request.headers.Authorization, 'Bearer synthetic-access-token');
+  assert.equal(request.headers['X-Demo-Namespace'], undefined);
+  assert.equal(namespaceReads, 0);
+});
+
+test('private requests fail before network access when no account token exists', async () => {
+  let fetchCalls = 0;
+  const client = createClient(async () => { fetchCalls += 1; return createResponse(200, '{}'); }, { getAccessToken: async () => null });
+  await assert.rejects(client.request('/api/v1/me', { authenticated: true }), error => error.code === 'API_AUTH_REQUIRED');
+  assert.equal(fetchCalls, 0);
+});
 
 test('caller abort settles even when fetch ignores abort', async () => {
   const client = createClient(() => new Promise(() => {}));

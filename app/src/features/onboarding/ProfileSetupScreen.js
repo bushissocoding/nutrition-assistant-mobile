@@ -25,7 +25,11 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
   const [limitInputs, setLimitInputs] = useState(() => Object.fromEntries(NUTRIENTS.flatMap(({ key }) => [[`${key}Min`, initialProfile?.hardLimits?.[key]?.min == null ? '' : String(initialProfile.hardLimits[key].min)], [`${key}Max`, initialProfile?.hardLimits?.[key]?.max == null ? '' : String(initialProfile.hardLimits[key].max)]])));
   const [step, setStep] = useState(0);
   const [attempted, setAttempted] = useState(false);
-  const errors = useMemo(() => validateProfile(buildProfileDraft(profile, allergyText, limitInputs), limitInputs), [profile, allergyText, limitInputs]);
+  const errors = useMemo(() => {
+    const result = validateProfile(buildProfileDraft(profile, allergyText, limitInputs), limitInputs);
+    if (!/^[A-Za-z0-9_.-]{3,30}$/.test(String(profile.username || '').trim())) result.username = 'Tên người dùng gồm 3–30 chữ cái, số hoặc . _ -.';
+    return result;
+  }, [profile, allergyText, limitInputs]);
   const selectedAllergies = allergyText.split(',').map(value => value.trim()).filter(Boolean);
   const bmi = calculateAdultBmi(profile);
   const isPatient = profile.mode === 'patient';
@@ -46,7 +50,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
     if (step === 5 && isPatient && (errors.medicalLimitsConfirmed || NUTRIENTS.some(({ key }) => errors[`${key}Min`] || errors[`${key}Max`]))) return;
     if (step < STEP_COUNT - 1) { setAttempted(false); setStep(value => value + 1); return; }
     const next = buildProfileDraft(profile, allergyText, limitInputs);
-    if (Object.keys(validateProfile(next, limitInputs)).length) return;
+    if (Object.keys(errors).length) return;
     onComplete(next);
   }
   function skipStep() {
@@ -54,7 +58,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
     if (step === 4) setField('conditionType', 'unspecified');
     if (step === 6) {
       const next = buildProfileDraft(profile, allergyText, limitInputs);
-      const nextErrors = validateProfile(next, limitInputs);
+      const nextErrors = errors;
       if (Object.keys(nextErrors).length) { setAttempted(true); return; }
       onComplete(next); return;
     }
@@ -97,7 +101,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
           style={[styles.conditionRow, profile.conditionType === key && styles.conditionSelected]}
           onPress={() => setField('conditionType', key)}
         ><View style={[styles.conditionRadio, profile.conditionType === key && styles.conditionRadioSelected]}><View style={[styles.conditionRadioDot, profile.conditionType === key && styles.conditionDotSelected]} /></View><Text style={[styles.conditionText, profile.conditionType === key && styles.conditionTextSelected]}>{label}</Text></TouchableOpacity>)}
-        <Text style={styles.conditionDisclaimer}>Lựa chọn này chỉ được lưu trong hồ sơ demo. Không suy ra chẩn đoán hay chỉ tiêu dinh dưỡng.</Text>
+        <Text style={styles.conditionDisclaimer}>Lựa chọn này chỉ được lưu như thông tin bạn tự khai báo. Không suy ra chẩn đoán hay chỉ tiêu dinh dưỡng.</Text>
       </View>}
 
       {step === 5 && <View style={styles.stepBody}>
@@ -110,6 +114,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
       </View>}
 
       {step === 6 && <View style={styles.stepBody}>
+        <Field label="Tên người dùng" value={profile.username || ''} onChangeText={value => setField('username', value)} placeholder="3–30 chữ cái, số, . _ -" />{errorFor('username')}
         <View style={styles.allergyIllustration}><Text style={styles.allergySymbol}>✳</Text><View style={styles.bubbleOne} /><View style={styles.bubbleTwo} /><View style={styles.bubbleThree} /></View>
         <View style={styles.allergyInputBox}>
           <View style={styles.allergyChips}>{ALLERGY_OPTIONS.map(option => {
@@ -125,7 +130,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
       </View>}
       {attempted && Object.keys(errors).length > 0 && step === 6 && <Text accessibilityRole="alert" style={styles.errorSummary}>Cần kiểm tra các thông tin hồ sơ trước khi lưu.</Text>}
     </ScrollView>
-    <View style={styles.footer}><TouchableOpacity accessibilityRole="button" accessibilityLabel={step === STEP_COUNT - 1 ? 'Lưu hồ sơ demo' : 'Tiếp tục'} style={styles.continueButton} onPress={goForward}><Text style={styles.continueText}>{step === STEP_COUNT - 1 ? 'Lưu hồ sơ demo' : 'Tiếp tục'}　→</Text></TouchableOpacity><Text style={styles.footerNote}>Bản demo · không phải chẩn đoán hoặc tư vấn y tế</Text>{onWithdrawConsent && <TouchableOpacity accessibilityRole="button" style={styles.withdrawButton} onPress={onWithdrawConsent}><Text style={styles.withdrawText}>Rút đồng ý và yêu cầu xóa dữ liệu demo</Text></TouchableOpacity>}</View>
+    <View style={styles.footer}><TouchableOpacity accessibilityRole="button" accessibilityLabel={step === STEP_COUNT - 1 ? 'Lưu hồ sơ' : 'Tiếp tục'} style={styles.continueButton} onPress={goForward}><Text style={styles.continueText}>{step === STEP_COUNT - 1 ? 'Lưu hồ sơ' : 'Tiếp tục'}　→</Text></TouchableOpacity><Text style={styles.footerNote}>Thông tin tham khảo · không phải chẩn đoán hoặc tư vấn y tế</Text>{onWithdrawConsent && <TouchableOpacity accessibilityRole="button" style={styles.withdrawButton} onPress={onWithdrawConsent}><Text style={styles.withdrawText}>Thu hồi quyền xử lý dữ liệu</Text></TouchableOpacity>}</View>
   </View>;
 }
 

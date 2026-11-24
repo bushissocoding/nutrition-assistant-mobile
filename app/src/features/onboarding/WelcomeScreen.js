@@ -2,7 +2,7 @@ import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-nati
 import BrandMark from './BrandMark';
 import { colors } from '../../theme/tokens';
 
-export default function WelcomeScreen({ onLogin, onRegister }) {
+export default function WelcomeScreen({ onLogin, onRegister, serviceConfigured = true }) {
   return <ScrollView style={styles.viewport} contentContainerStyle={styles.screen}>
     <View style={styles.brand}>
       <BrandMark size={210} color={colors.primary} cutout="#FFFFFF" />
@@ -12,7 +12,7 @@ export default function WelcomeScreen({ onLogin, onRegister }) {
     <View style={styles.actions}>
       <TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={onLogin}><Text style={styles.primaryText}>Đăng Nhập</Text></TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onRegister}><Text style={styles.secondaryText}>Đăng Ký</Text></TouchableOpacity>
-      <Text style={styles.demoNote}>Bản demo · Đăng nhập và đăng ký chưa được kết nối</Text>
+      {!serviceConfigured && <Text accessibilityRole="alert" style={styles.demoNote}>Cần cấu hình dịch vụ tài khoản để đăng nhập hoặc đăng ký.</Text>}
     </View>
   </ScrollView>;
 }

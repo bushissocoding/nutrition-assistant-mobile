@@ -22,20 +22,20 @@ export default function ConsentScreen({ onContinue, onWithdraw, onBack, initialC
     <View style={styles.brand}>
       <Text style={styles.mark}>♡</Text>
       <Text accessibilityRole="header" style={styles.title}>Nutrition Advisor</Text>
-      <Text style={styles.subtitle}>Thông tin trước khi dùng bản demo · {CONSENT_VERSION}</Text>
+      <Text style={styles.subtitle}>Thông tin về dữ liệu tài khoản · {CONSENT_VERSION}</Text>
     </View>
 
     <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.heading}>Dữ liệu của bạn trong bản demo</Text>
+      <Text accessibilityRole="header" style={styles.heading}>Dữ liệu tài khoản và cách sử dụng</Text>
       {CONSENT_DISCLOSURE.map(section => <View key={section.title} style={styles.disclosure}>
         <Text style={styles.sectionTitle}>{section.title}</Text>
         <Text style={styles.copy}>{section.body}</Text>
       </View>)}
-      <Text style={styles.deviceTime}>Biên nhận được ghi trên thiết bị và không liên kết với tài khoản.</Text>
+      <Text style={styles.deviceTime}>Lựa chọn được lưu kèm thời điểm do máy chủ ghi nhận.</Text>
     </View>
 
     <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.heading}>Các lựa chọn cần xác nhận</Text>
+      <Text accessibilityRole="header" style={styles.heading}>Lựa chọn bắt buộc và tùy chọn</Text>
       {CONSENT_CHOICES.map(choice => <TouchableOpacity
         key={choice.key}
         accessibilityRole="checkbox"
@@ -47,7 +47,7 @@ export default function ConsentScreen({ onContinue, onWithdraw, onBack, initialC
         <View style={[styles.checkbox, choices[choice.key] && styles.checked]}>
           <Text style={styles.checkText}>{choices[choice.key] ? '✓' : ''}</Text>
         </View>
-        <Text style={styles.item}>{choice.label}</Text>
+        <Text style={styles.item}>{choice.label}{choice.required ? ' (bắt buộc)' : ' (tùy chọn)'}</Text>
       </TouchableOpacity>)}
       <TouchableOpacity
         accessibilityRole="button"
@@ -62,7 +62,7 @@ export default function ConsentScreen({ onContinue, onWithdraw, onBack, initialC
         <Text style={styles.secondaryText}>Quay lại</Text>
       </TouchableOpacity>}
       {onWithdraw && <TouchableOpacity accessibilityRole="button" style={styles.withdraw} onPress={onWithdraw}>
-        <Text style={styles.withdrawText}>Rút lựa chọn và yêu cầu xóa dữ liệu demo</Text>
+        <Text style={styles.withdrawText}>Rút lựa chọn và yêu cầu xử lý dữ liệu</Text>
       </TouchableOpacity>}
     </View>
   </ScrollView>;

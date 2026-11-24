@@ -4,7 +4,7 @@ import ProfileSetupScreen from './ProfileSetupScreen';
 
 test('moves through the assessment wizard and saves only the completed demo profile', () => {
   const onComplete = jest.fn();
-  const screen = render(<ProfileSetupScreen onComplete={onComplete} />);
+  const screen = render(<ProfileSetupScreen initialProfile={{ username: 'patient_1' }} onComplete={onComplete} />);
 
   fireEvent.press(screen.getByRole('radio', { name: 'Nam' }));
   fireEvent.press(screen.getByText(/Tiếp tục/));
@@ -18,7 +18,7 @@ test('moves through the assessment wizard and saves only the completed demo prof
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.press(screen.getByText(/Tiếp tục/));
   fireEvent.changeText(screen.getByLabelText('Dị ứng hoặc thực phẩm cần tránh'), 'tôm');
-  fireEvent.press(screen.getByRole('button', { name: /Lưu hồ sơ demo/ }));
+  fireEvent.press(screen.getByRole('button', { name: /Lưu hồ sơ/ }));
 
   expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({
     gender: 'male', age: '30', heightCm: '170', weightKg: '65', conditionType: 'acute-kidney-disease', allergies: ['tôm'],
@@ -36,7 +36,7 @@ test('keeps the wizard on the measurement step when a required value is invalid'
 
 test('skipping optional steps preserves existing allergy exclusions and safety flags', () => {
   const onComplete = jest.fn();
-  const initialProfile = { mode: 'healthy', age: '30', heightCm: '170', weightKg: '65', activityLevel: 'moderate', allergies: ['tôm'], redFlags: ['chestPain'] };
+  const initialProfile = { username: 'patient_1', mode: 'healthy', age: '30', heightCm: '170', weightKg: '65', activityLevel: 'moderate', allergies: ['tôm'], redFlags: ['chestPain'] };
   const screen = render(<ProfileSetupScreen initialProfile={initialProfile} onComplete={onComplete} />);
 
   fireEvent.press(screen.getByText('Bỏ qua'));

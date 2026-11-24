@@ -42,7 +42,7 @@ test('missing and malformed bearer credentials are rejected before provider acce
 });
 
 test('a provider-verified account becomes the principal and request-scoped RLS client', async () => {
-  const expectedClient = { auth: { getUser: async token => ({ data: { user: { id: 'account-123', email: 'private@example.test', user_metadata: { private: true } } }, error: null, token }) } };
+  const expectedClient = { auth: { getUser: async token => ({ data: { user: { id: 'account-123', email: 'private@example.test', email_confirmed_at: 'synthetic-time', user_metadata: { private: true } } }, error: null, token }) } };
   const middleware = createSupabaseAuthMiddleware({ settings, createClient: () => expectedClient });
   const { req, res, nextCalls } = await runMiddleware(middleware, 'Bearer synthetic-user-token');
 
@@ -63,6 +63,21 @@ test('invalid sessions return a safe 401 without exposing provider details or to
   assert.equal(res.body.code, 'AUTHENTICATION_REQUIRED');
   assert.doesNotMatch(JSON.stringify(res.body), /rejected private provider detail|synthetic-user-token/);
   assert.equal(nextCalls, 0);
+});
+
+test('rejects an unverified email and phone account before creating a private database client', async () => {
+  let nextCalled = false;
+  const middleware = createSupabaseAuthMiddleware({
+    settings,
+    createClient: () => ({ auth: { getUser: async () => ({ data: { user: { id: 'unverified-account' } }, error: null }) } }),
+  });
+  const req = { get: () => 'Bearer synthetic-token' };
+  const res = createResponse();
+  await middleware(req, res, () => { nextCalled = true; });
+  assert.equal(res.statusCode, 403);
+  assert.equal(res.body.code, 'ACCOUNT_NOT_VERIFIED');
+  assert.equal(nextCalled, false);
+  assert.equal(req.userDatabase, undefined);
 });
 
 test('identity-provider failures return a retryable 503 instead of treating the session as expired', async () => {

@@ -4,6 +4,8 @@ const { generatePlan, validateMealPlanRequest } = require('../services/meal-plan
 const { createMealEntryRouter } = require('./meal-entries');
 const { createShoppingListRouter } = require('./shopping-lists');
 const { createCurrentUserRouter } = require('./current-user');
+const { createProfileRouter } = require('./profiles');
+const { createConsentRouter } = require('./consent');
 
 function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
@@ -17,7 +19,11 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
     req.demoContext = demoContext;
     return next();
   });
-  if (authMiddleware) router.use('/me', createCurrentUserRouter(authMiddleware));
+  if (authMiddleware) {
+    router.use('/me', createCurrentUserRouter(authMiddleware));
+    router.use('/me/consent', authMiddleware, createConsentRouter());
+    router.use('/me/profile', authMiddleware, createProfileRouter());
+  }
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
     const category = String(req.query.category || '').trim().toLocaleLowerCase('vi');

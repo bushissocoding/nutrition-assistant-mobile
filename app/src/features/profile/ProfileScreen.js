@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacit
 import { colors, radius } from '../../theme/tokens';
 import { calculateAdultBmi, normalizeProfile } from './profile-model.cjs';
 
-export default function ProfileScreen({ profile, consentRecord, onEdit, onDeleted, onWithdrawConsent, onReviewConsent, onNavigate, onExitDemo }) {
+export default function ProfileScreen({ profile, account, consentRecord, onEdit, onDeleted, onWithdrawConsent, onReviewConsent, onNavigate, onExitDemo }) {
   const [busy, setBusy] = useState(false);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const normalized = normalizeProfile(profile);
@@ -11,16 +11,16 @@ export default function ProfileScreen({ profile, consentRecord, onEdit, onDelete
   useEffect(() => { setBusy(false); }, [profile]);
 
   async function deleteData() {
-    const confirmed = await new Promise(resolve => Alert.alert('Xóa hồ sơ trên thiết bị?', 'Nhật ký demo trên máy chủ sẽ được xóa trước, sau đó hồ sơ trên thiết bị và dữ liệu demo trong bộ nhớ sẽ được xóa. Trạng thái đồng ý được giữ lại.', [
+    const confirmed = await new Promise(resolve => Alert.alert('Xóa hồ sơ sức khỏe?', 'Hồ sơ sức khỏe của tài khoản sẽ bị xóa khỏi máy chủ. Biên nhận đồng ý và dữ liệu tính năng khác không bị xóa.', [
       { text: 'Hủy', style: 'cancel', onPress: () => resolve(false) },
-      { text: 'Xóa hồ sơ', style: 'destructive', onPress: () => resolve(true) },
+      { text: 'Xóa hồ sơ sức khỏe', style: 'destructive', onPress: () => resolve(true) },
     ]));
     if (!confirmed) return;
     setBusy(true);
     try { await onDeleted(); }
     catch (error) {
       setBusy(false);
-      Alert.alert('Chưa xóa được', error?.message || 'Không thể xóa nhật ký trên máy chủ hoặc dữ liệu cục bộ. Hãy kiểm tra kết nối rồi thử lại.');
+      Alert.alert('Chưa xóa được', error?.message || 'Máy chủ chưa xác nhận xóa hồ sơ. Hãy kiểm tra kết nối rồi thử lại.');
     }
   }
 
@@ -32,7 +32,7 @@ export default function ProfileScreen({ profile, consentRecord, onEdit, onDelete
     <Text accessibilityRole="header" style={styles.title}>Trang cá nhân</Text>
     <View style={styles.accountCard}>
       <View style={styles.accountAvatar}><Text style={styles.accountAvatarText}>♡</Text></View>
-      <View style={{ flex: 1 }}><Text style={styles.accountName}>Người dùng demo</Text><Text style={styles.small}>Hồ sơ cục bộ · không có tài khoản</Text></View>
+      <View style={{ flex: 1 }}><Text style={styles.accountName}>{account?.username || account?.email || 'Tài khoản'}</Text><Text style={styles.small}>{account?.email || 'Hồ sơ gắn với tài khoản đã đăng nhập'}</Text></View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Chỉnh sửa hồ sơ sức khỏe" onPress={onEdit} style={{ minWidth: 54, minHeight: 54, justifyContent: 'center', alignItems: 'center' }}><Text style={styles.accountEdit}>Sửa</Text></TouchableOpacity>
     </View>
     <View style={styles.menuCard}>
@@ -41,9 +41,9 @@ export default function ProfileScreen({ profile, consentRecord, onEdit, onDelete
       <ProfileLink icon="▢" label="Chính sách và quyền riêng tư" onPress={() => onNavigate?.('settings-privacy')} />
       <ProfileLink icon="⚙" label="Cài đặt tài khoản" onPress={() => onNavigate?.('settings')} />
       <ProfileLink icon="?" label="Hỗ trợ" onPress={() => onNavigate?.('settings-help')} />
-      <ProfileLink icon="↪" label="Đăng xuất khỏi bản demo" onPress={exitDemo} />
+      <ProfileLink icon="↪" label="Đăng xuất" onPress={exitDemo} />
     </View>
-    <View style={styles.demoBanner}><View style={styles.demoMark}><Text style={styles.demoMarkText}>♡</Text></View><View style={styles.demoCopy}><Text style={styles.demoTitle}>HỒ SƠ DEMO</Text><Text style={styles.small}>Chỉ dùng dữ liệu tổng hợp. Nội dung lưu trên thiết bị này, không phải dữ liệu tài khoản và không được xác thực.</Text></View></View>
+    <View style={styles.demoBanner}><View style={styles.demoMark}><Text style={styles.demoMarkText}>♡</Text></View><View style={styles.demoCopy}><Text style={styles.demoTitle}>HỒ SƠ TÀI KHOẢN</Text><Text style={styles.small}>Thông tin do bạn tự nhập; chưa được nhân viên y tế xác minh. Bạn có thể xuất hoặc xóa dữ liệu tài khoản theo chức năng đang khả dụng.</Text></View></View>
     <View style={styles.card}>
       <Text style={styles.heading}>Thông tin tham khảo</Text>
       <Text style={styles.value}>{normalized.mode === 'patient' ? 'Theo chỉ tiêu đã được bác sĩ xác nhận' : 'Tham khảo cơ bản'}</Text>
@@ -56,25 +56,25 @@ export default function ProfileScreen({ profile, consentRecord, onEdit, onDelete
       {bmi != null && <View style={styles.bmiRow}><Text style={styles.bmiLabel}>BMI tham khảo</Text><Text style={styles.bmiValue}>{bmi}</Text></View>}
     </View>
     <View style={styles.menuCard}>
-      <ProfileLink icon="▤" label="Hồ sơ y tế demo" onPress={() => onNavigate?.('medical-record')} />
+      <ProfileLink icon="▤" label="Hồ sơ y tế" onPress={() => onNavigate?.('medical-record')} />
       <ProfileLink icon="♡" label="Cá nhân hóa sức khỏe" onPress={() => onNavigate?.('personalization')} />
       <ProfileLink icon="♧" label="Thông báo" onPress={() => onNavigate?.('notifications')} />
     </View>
     <View style={styles.card}><Text accessibilityRole="header" style={styles.heading}>Dị ứng / cần tránh</Text><Text style={styles.small}>{normalized.allergies.length ? normalized.allergies.join(', ') : 'Chưa nhập dị ứng.'}</Text></View>
     {normalized.mode === 'patient' && <View style={styles.card}><Text accessibilityRole="header" style={styles.heading}>Chỉ tiêu nhập thủ công</Text><Text style={styles.small}>{normalized.diagnosisNotes || 'Chưa ghi chú chẩn đoán.'}</Text>{Object.entries(normalized.hardLimits).map(([key, range]) => <Text key={key} style={styles.small}>{key}: {range.min ?? '—'} – {range.max ?? '—'}</Text>)}<Text style={styles.small}>{normalized.medicalLimitsConfirmed ? 'Người dùng xác nhận đã đối chiếu với bác sĩ.' : 'Chưa xác nhận.'}</Text></View>}
     {normalized.mode === 'healthy' && <View style={styles.warning}><Text accessibilityRole="header" style={styles.heading}>Sàng lọc, không chẩn đoán</Text><Text style={styles.small}>{normalized.redFlags.length ? 'Có dấu hiệu đã đánh dấu cần được nhân viên y tế đánh giá. Tạo thực đơn bị khóa.' : normalized.symptomNotes || 'Chưa nhập triệu chứng.'}</Text></View>}
-    <View style={styles.warning}><Text accessibilityRole="header" style={styles.heading}>Giới hạn an toàn</Text><Text style={styles.small}>Hồ sơ này lưu trên thiết bị. Nhật ký bữa ăn demo được lưu trên máy chủ theo namespace do ứng dụng gửi, chưa có xác thực hoặc quyền sở hữu an toàn. Chỉ dùng dữ liệu tổng hợp, không nhập thông tin sức khỏe thật.</Text></View>
-    <View style={styles.card}><Text accessibilityRole="header" style={styles.heading}>Lựa chọn đồng ý trên thiết bị</Text><Text style={styles.small}>{consentRecord?.version || 'Chưa có biên nhận hiện hành'}{consentRecord?.acceptedAt ? ` · Ghi nhận lúc ${new Date(consentRecord.acceptedAt).toLocaleString('vi-VN')}` : ''}</Text><TouchableOpacity accessibilityRole="button" style={styles.reviewButton} onPress={onReviewConsent}><Text style={styles.reviewLink}>Xem lại nội dung và lựa chọn ›</Text></TouchableOpacity><Text style={styles.small}>Đây là biên nhận cục bộ, chưa gắn với tài khoản hay được xác minh bởi máy chủ.</Text></View>
+    <View style={styles.warning}><Text accessibilityRole="header" style={styles.heading}>Giới hạn sử dụng</Text><Text style={styles.small}>Thông tin sức khỏe do bạn tự nhập và chưa được nhân viên y tế xác minh. Gợi ý dinh dưỡng chỉ tham khảo, không dùng để chẩn đoán hoặc điều trị.</Text></View>
+    <View style={styles.card}><Text accessibilityRole="header" style={styles.heading}>Biên nhận đồng ý</Text><Text style={styles.small}>{consentRecord?.version || 'Chưa có biên nhận hiện hành'}{consentRecord?.acceptedAt ? ` · Ghi nhận lúc ${new Date(consentRecord.acceptedAt).toLocaleString('vi-VN')}` : ''}</Text><TouchableOpacity accessibilityRole="button" style={styles.reviewButton} onPress={onReviewConsent}><Text style={styles.reviewLink}>Xem lại nội dung và lựa chọn ›</Text></TouchableOpacity><Text style={styles.small}>Biên nhận này được gắn với tài khoản và thời điểm máy chủ ghi nhận.</Text></View>
     <TouchableOpacity accessibilityRole="button" style={styles.button} onPress={onEdit}><Text style={styles.buttonText}>Chỉnh sửa hồ sơ</Text></TouchableOpacity>
     <TouchableOpacity accessibilityRole="button" style={styles.exitButton} onPress={exitDemo}><Text style={styles.exitText}>Thoát về màn chào mừng</Text></TouchableOpacity>
-    <TouchableOpacity accessibilityRole="button" style={styles.deleteButton} disabled={busy} onPress={deleteData}>{busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.deleteText}>Xóa hồ sơ khỏi thiết bị</Text>}</TouchableOpacity>
-    <TouchableOpacity accessibilityRole="button" style={styles.withdrawButton} disabled={busy} onPress={onWithdrawConsent}><Text style={styles.deleteText}>Thu hồi đồng ý và xóa toàn bộ dữ liệu</Text></TouchableOpacity>
+    <TouchableOpacity accessibilityRole="button" style={styles.deleteButton} disabled={busy} onPress={deleteData}>{busy ? <ActivityIndicator color={colors.danger} /> : <Text style={styles.deleteText}>Xóa hồ sơ sức khỏe</Text>}</TouchableOpacity>
+    <TouchableOpacity accessibilityRole="button" style={styles.withdrawButton} disabled={busy} onPress={onWithdrawConsent}><Text style={styles.deleteText}>Thu hồi quyền xử lý dữ liệu</Text></TouchableOpacity>
   </ScrollView>{showExitConfirm && <View accessibilityRole="alert" style={styles.exitOverlay}>
     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Đóng xác nhận đăng xuất" style={styles.exitBackdrop} onPress={() => setShowExitConfirm(false)} />
     <View style={styles.exitSheet}>
       <Text accessibilityRole="header" style={styles.exitHeading}>Đăng xuất</Text>
       <Text style={styles.exitMessage}>Bạn có chắc chắn muốn đăng xuất không?</Text>
-      <Text style={styles.exitHint}>Hồ sơ demo và biên nhận đồng ý trên thiết bị vẫn được giữ nguyên.</Text>
+      <Text style={styles.exitHint}>Dữ liệu tài khoản trên máy chủ vẫn được giữ nguyên cho lần đăng nhập sau.</Text>
       <View style={styles.exitActions}>
         <TouchableOpacity accessibilityRole="button" style={styles.stayButton} onPress={() => setShowExitConfirm(false)}><Text style={styles.stayText}>Ở lại</Text></TouchableOpacity>
         <TouchableOpacity accessibilityRole="button" style={styles.confirmExitButton} onPress={() => { setShowExitConfirm(false); onExitDemo?.(); }}><Text style={styles.confirmExitText}>Đăng xuất</Text></TouchableOpacity>
