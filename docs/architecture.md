@@ -54,12 +54,15 @@ server/
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
 │       ├── meal-planner.js          # Deterministic demo planner
 │       └── server-shutdown.js       # Bounded SIGINT/SIGTERM shutdown
+│   ├── services/supabase/
+│   │   ├── user-client.js           # Request-scoped publishable client with caller JWT
+│   │   └── privileged-client.js     # Separate server-secret client for internal operations
 ├── data/                            # Versioned demonstration catalogs, source registry and synthetic fixture
 ├── tests/                            # Unit tests for domain, config and lifecycle rules
 └── server.test.js                   # HTTP smoke tests (needs Express installed)
 ```
 
-Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. If a persistent database is introduced, add repositories for profiles, meal plans, diary entries, and shopping lists; do not put SQL or document-store access inside route handlers.
+Keep HTTP concerns in routes, calculations/rules in services, and storage access behind repositories. Supabase Auth/Postgres have been selected for full-app identity and persistence. The current SDK constructors and strict production configuration are scaffolding only: no API route has identity middleware or account-owned database persistence yet. Private feature records must use request-scoped clients and repositories; do not put SQL or document-store access inside route handlers.
 
 Startup configuration is read and validated before opening the listener. `npm run api` optionally loads `server/.env`; runtime environment values take precedence. The root `.env` is for Expo `EXPO_PUBLIC_*` settings only. Signal handling belongs in the server lifecycle service, not feature routes.
 
@@ -72,12 +75,12 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `/api/v1/shopping-lists` — demo-only current grocery list created from a planner snapshot; item quantity/unit/purchased CRUD, idempotent create, and namespace purge. The caller-provided demo namespace is not authentication or account ownership.
 - `GET /health` — service health.
 
-The current client stores consent, a minimal profile, and synthetic notification read flags locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+The current client stores consent, a minimal profile, and synthetic notification read flags locally with `expo-secure-store`; consent, profile fields, and derived health information are sent to the demo API. Diary entries and the current grocery list use a namespaced local JSON demo store and survive restarts while that file is retained, but the API has no verified server identity, retention service or audited compliance. A grocery list is a snapshot of the client-submitted planner response; the API validates food IDs/amounts but cannot prove the snapshot came from a prior server plan. Grocery edits do not recalculate the plan or nutrients. Do not enter real patient information. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 
-1. Replace demo JSON storage with production-grade persistence and authenticated ownership only after the team chooses a provider and documents a safe data lifecycle.
+1. Replace demo JSON storage with Supabase persistence and authenticated ownership only after the data lifecycle and RLS policies are implemented and verified.
 2. The profile prototype now supports manually entered Patient-mode nutrient ranges with explicit confirmation and Healthy-mode basic measurements/symptom flags; continue with clinician-reviewed target schema and distinguish hard limits from soft preferences and budget.
 3. Add prescription/photo/OCR as a separate pipeline that produces editable *candidate* values; require user confirmation before using results.
-4. Before replacing any preview with a production flow, select the services and operators, provide credentials through protected server configuration, and document ownership, consent, retention/deletion, and security review. See [`spec/SPEC-app-completion-v2.md`](../spec/SPEC-app-completion-v2.md) for the per-capability readiness list.
+4. Before enabling real data or production use, provide credentials through protected server configuration, verify ownership, consent, retention/deletion and security controls, and complete qualified reviews. See [`spec/SPEC-app-completion-v2.md`](../spec/SPEC-app-completion-v2.md) for the prior demo-readiness list and [`spec/SPEC-full-app-v1.md`](../spec/SPEC-full-app-v1.md) for the full-app contract.
 5. Continue with independently reviewed mobile end-to-end and production API integration tests before a release; preserve nutrient/source, allergy, infeasible-plan, and error-state gates.

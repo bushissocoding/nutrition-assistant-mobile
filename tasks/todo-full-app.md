@@ -19,7 +19,7 @@ Each implementation task is to be expanded into a module-specific spec and focus
   - Acceptance: Invalid production configuration stops startup; production requires HTTPS origins and current Supabase keys; examples contain names only.
   - Verify: Focused config/client tests and `npm run test:unit`.
   - Files: `server/src/config/`, `server/tests/`, `.env.example`, `server/.env.example`.
-- [ ] Task 1.2: Add user-scoped and privileged Supabase client seams.
+- [x] Task 1.2: Add user-scoped and privileged Supabase client seams.
   - Acceptance: User requests carry their verified token through the publishable client; privileged key construction is distinct and only internal code can access it.
   - Verify: Client composition tests and `npm run test:unit`.
   - Files: `server/src/services/supabase/`, `server/tests/`, dependency manifest.
