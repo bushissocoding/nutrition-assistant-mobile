@@ -65,8 +65,34 @@ async function exportAccount({ db, user }) {
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
   if (pantryError) throw pantryError;
+  const { data: appointments, error: appointmentError } = await db.from('appointments')
+    .select('id,provider_id,slot_id,provider_name,provider_specialty,starts_at,ends_at,fee_vnd,currency,status,patient_name,patient_phone,symptom_note,provider_sharing_version,provider_sharing_accepted_at,hold_expires_at,cancellation_reason,cancellation_note,created_at,updated_at')
+    .eq('patient_user_id', user.id)
+    .order('starts_at', { ascending: true })
+    .order('id', { ascending: true });
+  if (appointmentError) throw appointmentError;
+  const { data: providerProfile, error: providerError } = await db.from('care_providers')
+    .select('id,display_name,specialty,bio,experience_years,fee_vnd,verification_status,verified_at,created_at,updated_at')
+    .eq('user_id', user.id).maybeSingle();
+  if (providerError) throw providerError;
+  let providerCredentials = null;
+  let providerAvailability = [];
+  if (providerProfile) {
+    const { data: credentials, error: credentialError } = await db.from('care_provider_credentials')
+      .select('license_number,region,review_status,reviewed_at,created_at,updated_at')
+      .eq('user_id', user.id).maybeSingle();
+    if (credentialError) throw credentialError;
+    providerCredentials = credentials || null;
+    const { data: slots, error: slotError } = await db.from('provider_availability')
+      .select('id,starts_at,ends_at,status,created_at,updated_at')
+      .eq('provider_id', providerProfile.id)
+      .order('starts_at', { ascending: true })
+      .order('id', { ascending: true });
+    if (slotError) throw slotError;
+    providerAvailability = slots || [];
+  }
   return {
-    exportVersion: 1,
+    exportVersion: 2,
     exportedAt: new Date().toISOString(),
     identity: { id: user.id, email: user.email },
     profile: toProfileDto(profile),
@@ -119,6 +145,41 @@ async function exportAccount({ db, user }) {
       createdAt: item.created_at,
       updatedAt: item.updated_at,
     })),
+    appointments: (appointments || []).map(item => ({
+      id: item.id,
+      providerId: item.provider_id,
+      slotId: item.slot_id,
+      provider: { name: item.provider_name, specialty: item.provider_specialty },
+      startsAt: item.starts_at,
+      endsAt: item.ends_at,
+      amount: { value: Number(item.fee_vnd), currency: item.currency },
+      status: item.status,
+      patient: { name: item.patient_name, phone: item.patient_phone, preliminarySymptoms: item.symptom_note },
+      providerSharing: { version: item.provider_sharing_version, acceptedAt: item.provider_sharing_accepted_at },
+      holdExpiresAt: item.hold_expires_at,
+      cancellation: item.cancellation_reason ? { reason: item.cancellation_reason, note: item.cancellation_note } : null,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    })),
+    providerApplication: providerProfile ? {
+      id: providerProfile.id,
+      displayName: providerProfile.display_name,
+      specialty: providerProfile.specialty,
+      bio: providerProfile.bio,
+      experienceYears: Number(providerProfile.experience_years),
+      feeVnd: Number(providerProfile.fee_vnd),
+      verificationStatus: providerProfile.verification_status,
+      verifiedAt: providerProfile.verified_at,
+      credentials: providerCredentials ? {
+        licenseNumber: providerCredentials.license_number,
+        region: providerCredentials.region,
+        reviewStatus: providerCredentials.review_status,
+        reviewedAt: providerCredentials.reviewed_at,
+      } : null,
+      availability: providerAvailability.map(slot => ({ id: slot.id, startsAt: slot.starts_at, endsAt: slot.ends_at, status: slot.status, createdAt: slot.created_at, updatedAt: slot.updated_at })),
+      createdAt: providerProfile.created_at,
+      updatedAt: providerProfile.updated_at,
+    } : null,
   };
 }
 

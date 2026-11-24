@@ -50,10 +50,10 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 
 ### Phase 4: Care and payment
 
-- [ ] Task 4.0: Specify, plan, and task `care-bookings` before implementation
-- [ ] Task 4.1: Provider profile/directory, verification status and schedule operations
-- [ ] Task 4.2: Availability query and idempotent appointment lifecycle
-- [ ] Task 4.3: Specify, plan, and task `payments` before implementation
+- [x] Task 4.0: Specify, plan, and task `care-bookings` before implementation
+- [x] Task 4.1: Provider profile/directory, verification status and schedule operations
+- [x] Task 4.2: Availability query and idempotent appointment lifecycle
+- [x] Task 4.3: Specify, plan, and task `payments` before implementation
 - [ ] Task 4.4: PayOS checkout and signed webhook state machine
 - [ ] Task 4.5: Patient and provider appointment screens, cancellation and receipts
 - [ ] Checkpoint: End-to-end booking shows paid only after a verified provider event

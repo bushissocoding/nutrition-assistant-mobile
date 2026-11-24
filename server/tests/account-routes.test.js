@@ -7,13 +7,18 @@ async function withServer(router, run) {
   const app = express();
   app.use('/api/v1/me', (req, _res, next) => {
     req.auth = { user: { id: 'synthetic-user', email: 'person@example.test' } };
-    req.userDatabase = { from: table => ({
-      select: () => table === 'profiles'
-        ? { eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }
-        : table === 'meal_entries'
-          ? { eq: () => ({ is: () => ({ order: () => ({ order: async () => ({ data: [], error: null }) }) }) }) }
-          : { eq: () => ({ order: () => ({ order: async () => ({ data: [], error: null }) }) }) },
-    }) };
+    req.userDatabase = { from: table => {
+      const query = {
+        select() { return this; },
+        eq() { return this; },
+        is() { return this; },
+        in() { return this; },
+        order() { return this; },
+        maybeSingle: async () => ({ data: null, error: null }),
+        then(resolve, reject) { return Promise.resolve({ data: [], error: null }).then(resolve, reject); },
+      };
+      return query;
+    } };
     next();
   }, router);
   const server = await new Promise(resolve => {

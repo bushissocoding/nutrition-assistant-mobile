@@ -300,6 +300,40 @@ test('account pantry and shopping-list methods use authenticated /me routes with
   assert.deepEqual(JSON.parse(calls[1].options.body), { savedPlanId: '82b4fefe-81fd-44f1-8be0-905e33f10b16' });
 });
 
+test('care booking and provider workspace methods use authenticated account routes and stable booking idempotency', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  await api.getMyProviders({ query: 'Nguyễn An', limit: 10, offset: 0 });
+  await api.getMyProviderAvailability('provider-1', { from: '2026-11-25T00:00:00.000Z', to: '2026-12-02T00:00:00.000Z' });
+  await api.getMyProviderProfile();
+  await api.saveMyProviderApplication({ profile: {}, credentials: {} });
+  await api.getMyProviderAvailabilitySlots({ from: '2026-11-25T00:00:00.000Z', to: '2026-12-02T00:00:00.000Z' });
+  await api.createMyProviderAvailabilitySlot({ startsAt: '2026-11-25T09:00:00.000Z', endsAt: '2026-11-25T09:30:00.000Z' });
+  await api.deleteMyProviderAvailabilitySlot('slot-1');
+  await api.getMyAppointments();
+  await api.createMyAppointment({ patientName: 'An' }, 'appointment-intent-1');
+  await api.getMyAppointment('appointment-1');
+  await api.cancelMyAppointment('appointment-1', { reason: 'illness', note: '' });
+  await api.getMyProviderAppointments();
+  await api.completeMyProviderAppointment('appointment-1');
+  await api.cancelMyProviderAppointment('appointment-1', { reason: 'other', note: '' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/care/providers', '/api/v1/me/care/providers/provider-1/availability',
+    '/api/v1/me/care/provider-profile', '/api/v1/me/care/provider-profile',
+    '/api/v1/me/care/provider/availability', '/api/v1/me/care/provider/availability',
+    '/api/v1/me/care/provider/availability/slot-1', '/api/v1/me/care/appointments',
+    '/api/v1/me/care/appointments', '/api/v1/me/care/appointments/appointment-1',
+    '/api/v1/me/care/appointments/appointment-1/cancel', '/api/v1/me/care/provider/appointments',
+    '/api/v1/me/care/provider/appointments/appointment-1/complete', '/api/v1/me/care/provider/appointments/appointment-1/cancel',
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+  assert.equal(calls[8].options.headers['Idempotency-Key'], 'appointment-intent-1');
+});
+
 test('caller abort settles even when fetch ignores abort', async () => {
   const client = createClient(() => new Promise(() => {}));
   const controller = new AbortController();

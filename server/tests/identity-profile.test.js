@@ -120,6 +120,8 @@ test('identity routes require auth, require current consent for profile, and ign
   const { request, pool } = await withTestApi(t);
   assert.equal((await request('/me/profile', { token: null })).status, 401);
   assert.equal((await request('/me/profile')).status, 403);
+  assert.equal((await request('/me/care/providers', { token: null })).status, 401);
+  assert.equal((await request('/me/care/providers')).status, 403);
 
   const consentResponse = await request('/me/consent', { method: 'PUT', body: { choices: consentInput } });
   assert.equal(consentResponse.status, 201);

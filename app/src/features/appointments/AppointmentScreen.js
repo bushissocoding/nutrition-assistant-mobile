@@ -1,110 +1,481 @@
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
 
-const doctors = [
-  { id: 'tran', name: 'PGS.TS. Trương Lê Quân', specialty: 'Chuyên gia dinh dưỡng', years: '12 năm kinh nghiệm', fee: 200000, rating: '4.9', accent: '#D9E6FF', avatar: 'TQ' },
-  { id: 'nguyen', name: 'PGS.TS. Nguyễn Tuấn Nghĩa', specialty: 'Dinh dưỡng lâm sàng', years: '10 năm kinh nghiệm', fee: 180000, rating: '4.8', accent: '#EFE5FF', avatar: 'NN' },
-  { id: 'tran-gia', name: 'Bác sĩ CKI. Trần Gia Huy', specialty: 'Dinh dưỡng người lớn', years: '8 năm kinh nghiệm', fee: 200000, rating: '4.9', accent: '#E4F3F1', avatar: 'TH' },
-  { id: 'nguyen-gia', name: 'Bác sĩ Nguyễn Gia Khang', specialty: 'Tư vấn dinh dưỡng', years: '6 năm kinh nghiệm', fee: 150000, rating: '4.7', accent: '#FFE8E2', avatar: 'GK' },
-];
-const timeSlots = ['09:00', '10:00', '11:00', '13:30', '14:30', '15:00', '16:00'];
-const methodRows = [['card', '▣', 'Thẻ tín dụng/ghi nợ'], ['apple', '●', 'Apple Pay'], ['paypal', 'P', 'PayPal'], ['google', 'G', 'Google Pay']];
+const DAY_MS = 24 * 60 * 60 * 1000;
+const STATUS_LABELS = {
+  awaiting_payment: 'Chờ thanh toán', confirmed: 'Đã xác nhận', completed: 'Đã hoàn tất',
+  cancelled: 'Đã hủy', expired: 'Đã hết hạn',
+};
+const CANCELLATION_NOTICE_MS = 24 * DAY_MS;
 
-function nextDates() {
+function makeIntentKey() {
+  return `appointment-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+}
+
+function getNextSevenDayRange() {
+  const from = new Date();
+  const to = new Date(from.getTime() + 7 * DAY_MS);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
+
+function localDateKey(value) {
+  const date = new Date(value);
+  const pad = number => String(number).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function formatDate(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return 'Thời gian không hợp lệ';
+  return new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(date);
+}
+
+function formatTime(value) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return '--:--';
+  return new Intl.DateTimeFormat('vi-VN', { hour: '2-digit', minute: '2-digit' }).format(date);
+}
+
+function makeDateChoices() {
+  const today = new Date();
   return Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(); date.setDate(date.getDate() + index + 1);
-    const pad = value => String(value).padStart(2, '0');
-    return { key: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`, day: date.getDate(), weekday: new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(date), month: new Intl.DateTimeFormat('vi-VN', { month: 'short' }).format(date) };
+    const date = new Date(today.getFullYear(), today.getMonth(), today.getDate() + index, 12);
+    return {
+      key: localDateKey(date),
+      day: date.getDate(),
+      weekday: new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(date),
+      month: new Intl.DateTimeFormat('vi-VN', { month: 'short' }).format(date),
+    };
   });
 }
-function dateTitle(iso) { return new Intl.DateTimeFormat('vi-VN', { day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(`${iso}T12:00:00`)); }
 
-export default function AppointmentScreen({ initialView = 'doctors', request, onRequestCreate, onRequestClear, onOpenDoctorChat, onNavigate, onBack }) {
-  const [page, setPage] = useState(initialView === 'appointments-list' ? 'appointments' : initialView === 'payment-methods' ? 'payment-methods' : 'doctors');
-  const [filter, setFilter] = useState('Tất cả');
-  const [sort, setSort] = useState('Đề xuất');
-  const [query, setQuery] = useState('');
-  const [appointmentTab, setAppointmentTab] = useState('Sắp tới');
-  const [favoriteIds, setFavoriteIds] = useState([]);
-  const [doctor, setDoctor] = useState(doctors[0]);
-  const [selectedDate, setSelectedDate] = useState(nextDates()[0].key);
-  const [selectedTime, setSelectedTime] = useState('10:00');
-  const [paymentMethod, setPaymentMethod] = useState('card');
-  const [patientName, setPatientName] = useState('Người dùng demo');
-  const [symptomNote, setSymptomNote] = useState('');
-  const [localRequest, setLocalRequest] = useState(null);
-  const [requestDismissed, setRequestDismissed] = useState(false);
-  const [cancelReason, setCancelReason] = useState('Đổi lịch');
-  const [cancelNote, setCancelNote] = useState('');
-  const [cancelNotice, setCancelNotice] = useState('');
-  const dates = useMemo(nextDates, []);
-  const orderedDoctors = useMemo(() => {
-    const filtered = doctors.filter(item => (filter !== 'Yêu thích' || favoriteIds.includes(item.id))
-      && (!query.trim() || `${item.name} ${item.specialty}`.toLocaleLowerCase('vi').includes(query.trim().toLocaleLowerCase('vi'))));
-    if (sort === 'A–Z') return [...filtered].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
-    if (sort === 'Đánh giá') return [...filtered].sort((a, b) => Number(b.rating) - Number(a.rating));
-    if (sort === 'Chi phí') return [...filtered].sort((a, b) => a.fee - b.fee);
-    return filtered;
-  }, [favoriteIds, filter, query, sort]);
+function statusLabel(status) { return STATUS_LABELS[status] || 'Trạng thái chưa xác định'; }
 
-  function toggleFavorite(id) { setFavoriteIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id]); }
-  function confirmDemoRequest() {
-    const next = { doctor: doctor.name, date: selectedDate, time: selectedTime, fee: doctor.fee, method: paymentMethod, patientName, symptomNote };
-    setLocalRequest(next); setRequestDismissed(false); onRequestCreate?.(next); setCancelNotice(''); setPage('success');
-  }
-
-  const activeRequest = localRequest || (requestDismissed ? null : request);
-  const canOpenDoctorChat = activeRequest?.doctor === doctor.name;
-
-  const header = (title, onPress = () => setPage('doctors')) => <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onPress}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.headerTitle}>{title}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Thông tin demo" onPress={() => setPage('appointments')} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.headerAction}>ⓘ</Text></TouchableOpacity></View>;
-  const demoNotice = <View style={styles.demoNotice}><Text style={styles.demoNoticeTitle}>GIAO DIỆN MINH HỌA</Text><Text style={styles.demoNoticeText}>Bản demo không kết nối bác sĩ, không gửi yêu cầu đặt khám và không xử lý thanh toán.</Text></View>;
-
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    {page === 'doctors' && <>
-      <View style={styles.blueHeader}><View style={styles.blueTop}><TouchableOpacity accessibilityRole="button" onPress={onBack} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.lightBack}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.blueTitle}>Bác sĩ dinh dưỡng</Text><TouchableOpacity accessibilityRole="button" onPress={() => setPage('appointments')} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.lightBack}>▣</Text></TouchableOpacity></View>
-        <View style={styles.searchBox}><Text style={styles.searchIcon}>⌕</Text><TextInput accessibilityLabel="Tìm bác sĩ, chuyên khoa" value={query} onChangeText={setQuery} placeholder="Tìm bác sĩ, chuyên khoa…" placeholderTextColor="#8A96AA" style={styles.searchInput} /></View>
-      </View>
-      {demoNotice}
-      <View style={styles.sortRow}><Text style={styles.sortLabel}>Sắp xếp</Text>{[['Đề xuất', 'Gợi ý'], ['A–Z', 'A–Z'], ['Đánh giá', '★'], ['Chi phí', '₫']].map(([value, label]) => <TouchableOpacity key={value} accessibilityRole="button" accessibilityState={{ selected: sort === value }} style={[styles.sortChip, sort === value && styles.sortChipOn]} onPress={() => setSort(value)}><Text style={[styles.sortText, sort === value && styles.sortTextOn]}>{label}</Text></TouchableOpacity>)}</View>
-      <View style={styles.filterRow}>{['Tất cả', 'Bác sĩ', 'Dịch vụ', 'Yêu thích'].map(value => <TouchableOpacity key={value} accessibilityRole="button" accessibilityState={{ selected: filter === value }} style={[styles.filterChip, filter === value && styles.filterChipOn]} onPress={() => setFilter(value)}><Text style={[styles.filterText, filter === value && styles.filterTextOn]}>{value}</Text></TouchableOpacity>)}</View>
-      {filter === 'Dịch vụ' ? <View style={styles.doctorCard}><Text style={styles.doctorName}>Tư vấn dinh dưỡng · bản xem trước</Text><Text style={styles.specialty}>Giao diện dịch vụ mẫu, chưa kết nối người cung cấp dịch vụ.</Text><TouchableOpacity accessibilityRole="button" style={styles.bookButton} onPress={() => { setDoctor(doctors[2]); setPage('detail'); }}><Text style={styles.bookText}>Xem dịch vụ</Text></TouchableOpacity></View> : orderedDoctors.map(item => <View key={item.id} style={styles.doctorCard}><TouchableOpacity style={styles.doctorMain} onPress={() => { setDoctor(item); setPage('detail'); }} accessibilityRole="button" accessibilityLabel={`Xem chi tiết ${item.name}`}><View style={[styles.avatar, { backgroundColor: item.accent }]}><Text style={styles.avatarText}>{item.avatar}</Text></View><View style={styles.doctorCopy}><Text style={styles.doctorName}>{item.name}</Text><Text style={styles.specialty}>{item.specialty}</Text><Text style={styles.meta}>★ {item.rating}　·　{item.years}</Text><Text style={styles.fee}>{item.fee.toLocaleString('vi-VN')}đ / lượt · giá minh họa</Text></View></TouchableOpacity><View style={styles.cardActions}><TouchableOpacity accessibilityRole="button" accessibilityLabel={favoriteIds.includes(item.id) ? 'Bỏ yêu thích' : 'Thêm yêu thích'} onPress={() => toggleFavorite(item.id)} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.favorite}>{favoriteIds.includes(item.id) ? '♥' : '♡'}</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.bookButton} onPress={() => { setDoctor(item); setPage('schedule'); }}><Text style={styles.bookText}>Xem lịch</Text></TouchableOpacity></View></View>)}
-      {filter !== 'Dịch vụ' && orderedDoctors.length === 0 && <Text style={styles.empty}>{query ? 'Không tìm thấy bác sĩ phù hợp.' : 'Chưa có bác sĩ được đánh dấu yêu thích.'}</Text>}
-    </>}
-
-    {page === 'detail' && <>{header('Thông tin bác sĩ')}<View style={styles.detailHero}><View style={[styles.avatarLarge, { backgroundColor: doctor.accent }]}><Text style={styles.avatarLargeText}>{doctor.avatar}</Text></View><Text style={styles.doctorNameLarge}>{doctor.name}</Text><Text style={styles.specialty}>{doctor.specialty}</Text><Text style={styles.meta}>★ {doctor.rating}　·　{doctor.years}　·　Giá tham khảo {doctor.fee.toLocaleString('vi-VN')}đ</Text></View>{demoNotice}<Section title="Giới thiệu">Thông tin bác sĩ chỉ là dữ liệu tổng hợp để xem trước giao diện. Danh sách này chưa xác minh danh tính, bằng cấp hoặc lịch làm việc.</Section><Section title="Chuyên môn">Tư vấn thói quen ăn uống và theo dõi dinh dưỡng ở mức tham khảo.</Section><Section title="Lịch trống">Các khung giờ bên dưới là dữ liệu minh họa, không phải lịch đặt thật.</Section><View style={styles.calendar}>{dates.slice(0, 4).map(date => <DateChip key={date.key} date={date} selected={selectedDate === date.key} onPress={() => setSelectedDate(date.key)} />)}</View>{canOpenDoctorChat && <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => onOpenDoctorChat?.(doctor)}><Text style={styles.secondaryText}>Xem trước giao diện trò chuyện</Text></TouchableOpacity>}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setPage('schedule')}><Text style={styles.primaryText}>Chọn lịch hẹn demo</Text></TouchableOpacity></>}
-
-    {page === 'schedule' && <>{header('Lịch hẹn', () => setPage('detail'))}<View style={styles.doctorMini}><View style={[styles.avatar, { backgroundColor: doctor.accent }]}><Text style={styles.avatarText}>{doctor.avatar}</Text></View><View style={{ flex: 1 }}><Text style={styles.doctorName}>{doctor.name}</Text><Text style={styles.specialty}>{doctor.specialty}</Text></View><Text style={styles.favorite}>♡</Text></View>{demoNotice}<Text style={styles.sectionTitle}>Chọn ngày</Text><View style={styles.calendar}>{dates.map(date => <DateChip key={date.key} date={date} selected={selectedDate === date.key} onPress={() => setSelectedDate(date.key)} />)}</View><Text style={styles.sectionTitle}>Khung giờ trống</Text><View style={styles.timeGrid}>{timeSlots.map(time => <TouchableOpacity key={time} accessibilityRole="button" accessibilityState={{ selected: selectedTime === time }} style={[styles.timeChip, selectedTime === time && styles.timeChipOn]} onPress={() => setSelectedTime(time)}><Text style={[styles.timeText, selectedTime === time && styles.timeTextOn]}>{time}</Text></TouchableOpacity>)}</View><View style={styles.detailSummary}><Text style={styles.sectionTitle}>Thông tin bệnh nhân demo</Text><TextInput accessibilityLabel="Tên bệnh nhân demo" value={patientName} onChangeText={setPatientName} placeholder="Tên mẫu" maxLength={80} style={styles.formInput} /><TextInput accessibilityLabel="Triệu chứng sơ bộ demo" value={symptomNote} onChangeText={setSymptomNote} placeholder="Ghi chú triệu chứng mẫu · không nhập thông tin thật" maxLength={300} multiline style={[styles.formInput, styles.symptomInput]} /><Text style={styles.detailLine}>Thời gian　{dateTitle(selectedDate)} · {selectedTime}</Text><Text style={styles.detailLine}>Phí minh họa　{doctor.fee.toLocaleString('vi-VN')}đ</Text></View><TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setPage('payment-methods')}><Text style={styles.primaryText}>Tiếp tục xem phương thức thanh toán</Text></TouchableOpacity><Text style={styles.privacyNote}>Thông tin chỉ tồn tại trong phiên demo; không gửi cho bác sĩ.</Text></>}
-
-    {page === 'payment-methods' && <>{header(initialView === 'payment-methods' ? 'Phương thức thanh toán demo' : 'Thanh toán', initialView === 'payment-methods' ? onBack : () => setPage('schedule'))}<Text style={styles.sectionTitle}>Thẻ tín dụng/ghi nợ</Text><TouchableOpacity accessibilityRole="button" style={styles.paymentAdd} onPress={() => setPage('add-card')}><Text style={styles.paymentIcon}>▣</Text><Text style={styles.paymentText}>Thêm thẻ mới</Text><Text style={styles.radio}>◯</Text></TouchableOpacity><Text style={styles.sectionTitle}>Thanh toán khác</Text>{methodRows.slice(1).map(([key, icon, title]) => <TouchableOpacity key={key} accessibilityRole="radio" accessibilityState={{ selected: paymentMethod === key }} style={styles.paymentRow} onPress={() => setPaymentMethod(key)}><Text style={styles.paymentIcon}>{icon}</Text><Text style={styles.paymentText}>{title}</Text><Text style={[styles.radio, paymentMethod === key && styles.radioOn]}>{paymentMethod === key ? '◉' : '◯'}</Text></TouchableOpacity>)}{demoNotice}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => initialView === 'payment-methods' ? onBack?.() : setPage('summary')}><Text style={styles.primaryText}>{initialView === 'payment-methods' ? 'Quay lại hồ sơ' : 'Xem lại yêu cầu'}</Text></TouchableOpacity><Text style={styles.privacyNote}>Không lưu thẻ, tạo giao dịch hoặc thu tiền.</Text></>}
-
-    {page === 'add-card' && <>{header('Thêm thẻ', () => setPage('payment-methods'))}<View style={styles.cardPreview}><Text style={styles.cardSample}>BẢN XEM TRƯỚC · KHÔNG CÓ THẺ THẬT</Text><Text style={styles.cardNumber}>••••　••••　••••　••••</Text><Text style={styles.cardName}>TÊN CHỦ THẺ　　　　　　　 MM/YY</Text></View>{[['Tên chủ thẻ', 'Tên mẫu'], ['Số thẻ', 'Không nhập số thẻ thật'], ['Hạn dùng', 'MM/YY'], ['CVV', '•••']].map(([label, value]) => <View key={label} style={styles.mockField}><Text style={styles.fieldLabel}>{label}</Text><Text style={styles.mockValue}>{value}</Text></View>)}{demoNotice}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setPage('payment-methods')}><Text style={styles.primaryText}>Quay lại phương thức</Text></TouchableOpacity></>}
-
-    {page === 'summary' && <>{header('Xác nhận yêu cầu', () => setPage('payment-methods'))}<View style={styles.bluePrice}><Text style={styles.priceValue}>{doctor.fee.toLocaleString('vi-VN')} VNĐ</Text><Text style={styles.priceLabel}>Số tiền minh họa · chưa thu</Text></View><View style={styles.detailSummary}><Text style={styles.sectionTitle}>{doctor.name}</Text><Text style={styles.detailLine}>{doctor.specialty}</Text><Text style={styles.detailLine}>Người bệnh demo: {patientName || 'Chưa nhập'}</Text><Text style={styles.detailLine}>Ghi chú sơ bộ: {symptomNote ? 'Đã nhập trong phiên demo' : 'Chưa nhập'}</Text><Text style={styles.detailLine}>{dateTitle(selectedDate)} · {selectedTime}</Text><Text style={styles.detailLine}>Phương thức xem trước: {methodRows.find(([key]) => key === paymentMethod)?.[2] || 'Thẻ mới (mẫu)'}</Text></View>{demoNotice}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={confirmDemoRequest}><Text style={styles.primaryText}>Hoàn tất xem trước</Text></TouchableOpacity></>}
-
-    {page === 'success' && <View style={styles.successPage}><View style={styles.checkCircle}><Text style={styles.checkMark}>✓</Text></View><Text accessibilityRole="header" style={styles.successTitle}>Đã hoàn tất bản xem trước</Text><Text style={styles.successCopy}>Không có lịch hẹn nào được gửi, không có bác sĩ được liên hệ và không có khoản thanh toán nào được thực hiện.</Text><View style={styles.requestCard}><Text style={styles.doctorName}>{localRequest?.doctor}</Text><Text style={styles.detailLine}>{localRequest?.date ? dateTitle(localRequest.date) : ''} · {localRequest?.time}</Text><Text style={styles.detailLine}>Trạng thái: Yêu cầu mẫu · chưa gửi</Text></View><TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setPage('appointments')}><Text style={styles.primaryText}>Xem lịch hẹn</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => setPage('doctors')}><Text style={styles.secondaryText}>Quay lại danh sách bác sĩ</Text></TouchableOpacity></View>}
-
-    {page === 'appointments' && <>{header('Lịch hẹn', () => onBack?.())}<View style={styles.filterRow}>{['Đã khám', 'Sắp tới', 'Đã hủy'].map(label => <TouchableOpacity key={label} accessibilityRole="button" accessibilityState={{ selected: appointmentTab === label }} style={[styles.filterChip, appointmentTab === label && styles.filterChipOn]} onPress={() => setAppointmentTab(label)}><Text style={[styles.filterText, appointmentTab === label && styles.filterTextOn]}>{label}</Text></TouchableOpacity>)}</View>{activeRequest && appointmentTab === 'Sắp tới' ? <View style={styles.doctorCard}><View style={styles.doctorMini}><View style={[styles.avatar, { backgroundColor: doctor.accent }]}><Text style={styles.avatarText}>{doctor.avatar}</Text></View><View style={{ flex: 1 }}><Text style={styles.doctorName}>{activeRequest.doctor}</Text><Text style={styles.specialty}>Yêu cầu demo · chưa gửi</Text></View></View><Text style={styles.detailLine}>{activeRequest.date} · {activeRequest.time}</Text><Text style={styles.noticeSmall}>Yêu cầu chỉ tồn tại trong phiên demo này; chưa có lịch khám xác nhận.</Text><TouchableOpacity accessibilityRole="button" style={styles.cancelPreview} onPress={() => setPage('cancel')}><Text style={styles.cancelPreviewText}>Xóa yêu cầu demo</Text></TouchableOpacity></View> : <View style={styles.emptyState}><Text style={styles.emptyIcon}>▣</Text><Text style={styles.sectionTitle}>{appointmentTab === 'Sắp tới' ? 'Chưa có lịch hẹn' : `Không có mục ${appointmentTab.toLocaleLowerCase('vi')}`}</Text><Text style={styles.specialty}>Các trạng thái lịch hẹn chỉ là giao diện minh họa.</Text></View>}{!!cancelNotice && <Text accessibilityLiveRegion="polite" style={styles.cancelNotice}>{cancelNotice}</Text>}{demoNotice}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => setPage('doctors')}><Text style={styles.primaryText}>Tìm bác sĩ (demo)</Text></TouchableOpacity></>}
-
-    {page === 'cancel' && <>{header('Xóa yêu cầu demo', () => setPage('appointments'))}<Text style={styles.copy}>Yêu cầu chưa được gửi đi. Chọn lý do để xóa bản xem trước.</Text>{['Đổi lịch', 'Do thời tiết', 'Có việc đột xuất', 'Khác'].map(reason => <TouchableOpacity key={reason} accessibilityRole="radio" accessibilityState={{ selected: cancelReason === reason }} style={styles.reasonRow} onPress={() => setCancelReason(reason)}><Text style={[styles.radio, cancelReason === reason && styles.radioOn]}>{cancelReason === reason ? '◉' : '◯'}</Text><Text style={styles.paymentText}>{reason}</Text></TouchableOpacity>)}<TextInput accessibilityLabel="Ghi chú hủy (tùy chọn)" value={cancelNote} onChangeText={setCancelNote} placeholder="Ghi chú tùy chọn · không nhập thông tin cá nhân" maxLength={200} style={styles.cancelInput} multiline />{demoNotice}<TouchableOpacity accessibilityRole="button" style={styles.primary} onPress={() => { onRequestClear?.(); setLocalRequest(null); setRequestDismissed(true); setCancelNotice(`Đã xóa yêu cầu demo (${cancelReason}). Không có lịch hẹn thật bị hủy.${cancelNote ? ' Ghi chú chưa được gửi hoặc lưu.' : ''}`); setCancelNote(''); setPage('appointments'); }}><Text style={styles.primaryText}>Xóa yêu cầu xem trước</Text></TouchableOpacity></>}
-  </ScrollView>;
+function getVisibleAppointments(items, tab) {
+  const now = Date.now();
+  if (tab === 'Sắp tới') return items.filter(item => ['awaiting_payment', 'confirmed'].includes(item.status) && new Date(item.startsAt).getTime() >= now);
+  if (tab === 'Đã hủy') return items.filter(item => ['cancelled', 'expired'].includes(item.status));
+  return items.filter(item => item.status === 'completed' || new Date(item.startsAt).getTime() < now);
 }
 
-function Section({ title, children }) { return <View style={styles.section}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.specialty}>{children}</Text></View>; }
-function DateChip({ date, selected, onPress }) { return <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${date.weekday}, ngày ${date.day} ${date.month}`} accessibilityState={{ selected }} style={[styles.dateChip, selected && styles.dateChipOn]} onPress={onPress}><Text style={[styles.dateWeek, selected && styles.dateSelected]}>{date.weekday}</Text><Text style={[styles.dateNumber, selected && styles.dateSelected]}>{date.day}</Text><Text style={[styles.dateWeek, selected && styles.dateSelected]}>{date.month}</Text></TouchableOpacity>; }
+function ScreenHeader({ title, onBack, rightLabel, onRight }) {
+  return <View style={styles.header}>
+    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.backButton} onPress={onBack}><Text style={styles.backGlyph}>‹</Text></TouchableOpacity>
+    <Text accessibilityRole="header" style={styles.title}>{title}</Text>
+    {rightLabel ? <TouchableOpacity accessibilityRole="button" style={styles.headerAction} onPress={onRight}><Text style={styles.headerActionText}>{rightLabel}</Text></TouchableOpacity> : <View style={styles.headerSpacer} />}
+  </View>;
+}
+
+function PrimaryButton({ title, onPress, disabled, loading, secondary = false, accessibilityLabel }) {
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel} style={[styles.button, secondary && styles.secondaryButton, disabled && styles.buttonDisabled]} onPress={onPress} disabled={disabled || loading}>
+    {loading ? <ActivityIndicator color={secondary ? colors.primary : 'white'} /> : <Text style={[styles.buttonText, secondary && styles.secondaryButtonText]}>{title}</Text>}
+  </TouchableOpacity>;
+}
+
+function InlineMessage({ error, success }) {
+  return <>
+    {!!error && <Text accessibilityRole="alert" style={styles.errorText}>{error}</Text>}
+    {!!success && <Text accessibilityLiveRegion="polite" style={styles.successText}>{success}</Text>}
+  </>;
+}
+
+export default function AppointmentScreen({ initialView = 'doctors', account, onOpenDoctorChat, onNavigate, onBack }) {
+  const initialPage = initialView === 'appointments-list' ? 'appointments' : initialView === 'provider-workspace' ? 'provider' : 'providers';
+  const [page, setPage] = useState(initialPage);
+  const [providers, setProviders] = useState([]);
+  const [providersLoading, setProvidersLoading] = useState(true);
+  const [providersError, setProvidersError] = useState('');
+  const [query, setQuery] = useState('');
+  const [appliedQuery, setAppliedQuery] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [selectedProvider, setSelectedProvider] = useState(null);
+  const [availability, setAvailability] = useState([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState('');
+  const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()));
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [patientName, setPatientName] = useState('');
+  const [patientPhone, setPatientPhone] = useState(account?.phone || '');
+  const [symptomNote, setSymptomNote] = useState('');
+  const [sharingAccepted, setSharingAccepted] = useState(false);
+  const [bookingError, setBookingError] = useState('');
+  const [bookingBusy, setBookingBusy] = useState(false);
+  const [bookingAppointment, setBookingAppointment] = useState(null);
+  const bookingIntent = useRef(null);
+  const [appointments, setAppointments] = useState([]);
+  const [appointmentsLoading, setAppointmentsLoading] = useState(false);
+  const [appointmentsError, setAppointmentsError] = useState('');
+  const [appointmentTab, setAppointmentTab] = useState('Sắp tới');
+  const [appointmentsPage, setAppointmentsPage] = useState({ total: 0, offset: 0, hasMore: false });
+  const [actionError, setActionError] = useState('');
+  const [actionBusyId, setActionBusyId] = useState('');
+  const [provider, setProvider] = useState(null);
+  const [providerLoading, setProviderLoading] = useState(false);
+  const [providerError, setProviderError] = useState('');
+  const [providerAppointments, setProviderAppointments] = useState([]);
+  const [providerSlots, setProviderSlots] = useState([]);
+  const [profileName, setProfileName] = useState('');
+  const [profileSpecialty, setProfileSpecialty] = useState('');
+  const [profileBio, setProfileBio] = useState('');
+  const [profileExperience, setProfileExperience] = useState('0');
+  const [profileFee, setProfileFee] = useState('0');
+  const [licenseNumber, setLicenseNumber] = useState('');
+  const [licenseRegion, setLicenseRegion] = useState('Việt Nam');
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaved, setProfileSaved] = useState('');
+  const [slotDateInput, setSlotDateInput] = useState(() => {
+    const date = new Date(Date.now() + DAY_MS);
+    return localDateKey(date);
+  });
+  const [slotTimeInput, setSlotTimeInput] = useState('09:00');
+  const [slotBusy, setSlotBusy] = useState(false);
+  const [slotError, setSlotError] = useState('');
+  const [dataVersion, setDataVersion] = useState(0);
+  const dates = useMemo(makeDateChoices, []);
+  const visibleAppointments = useMemo(() => getVisibleAppointments(appointments, appointmentTab), [appointments, appointmentTab]);
+  const daySlots = useMemo(() => availability.filter(slot => localDateKey(slot.startsAt) === selectedDate), [availability, selectedDate]);
+
+  useEffect(() => {
+    if (page !== 'providers') return undefined;
+    let active = true;
+    setProvidersLoading(true); setProvidersError('');
+    api.getMyProviders({ query: appliedQuery, specialty, limit: 25, offset: 0 }).then(result => {
+      if (active) setProviders(Array.isArray(result?.items) ? result.items : []);
+    }).catch(error => { if (active) setProvidersError(error?.message || 'Không tải được danh sách bác sĩ.'); })
+      .finally(() => { if (active) setProvidersLoading(false); });
+    return () => { active = false; };
+  }, [page, appliedQuery, specialty, dataVersion]);
+
+  useEffect(() => {
+    if (page !== 'schedule' || !selectedProvider) return undefined;
+    let active = true;
+    const range = getNextSevenDayRange();
+    setAvailabilityLoading(true); setAvailabilityError(''); setAvailability([]); setSelectedSlot(null);
+    api.getMyProviderAvailability(selectedProvider.id, range).then(result => {
+      if (active) setAvailability(Array.isArray(result?.items) ? result.items : []);
+    }).catch(error => { if (active) setAvailabilityError(error?.message || 'Không tải được lịch trống.'); })
+      .finally(() => { if (active) setAvailabilityLoading(false); });
+    return () => { active = false; };
+  }, [page, selectedProvider, dataVersion]);
+
+  useEffect(() => {
+    if (page !== 'appointments') return undefined;
+    let active = true;
+    setAppointmentsLoading(true); setAppointmentsError('');
+    api.getMyAppointments({ limit: 25, offset: 0 }).then(result => {
+      if (!active) return;
+      setAppointments(Array.isArray(result?.items) ? result.items : []);
+      setAppointmentsPage({ total: Number.isSafeInteger(result?.total) ? result.total : 0, offset: Array.isArray(result?.items) ? result.items.length : 0, hasMore: result?.hasMore === true });
+    }).catch(error => { if (active) setAppointmentsError(error?.message || 'Không tải được lịch hẹn.'); })
+      .finally(() => { if (active) setAppointmentsLoading(false); });
+    return () => { active = false; };
+  }, [page, dataVersion]);
+
+  useEffect(() => {
+    if (page !== 'provider') return undefined;
+    let active = true;
+    setProviderLoading(true); setProviderError(''); setProfileSaved('');
+    api.getMyProviderProfile().then(async result => {
+      if (!active) return;
+      const current = result?.provider || null;
+      setProvider(current);
+      if (current) {
+        setProfileName(current.displayName || ''); setProfileSpecialty(current.specialty || ''); setProfileBio(current.bio || '');
+        setProfileExperience(String(current.experienceYears ?? 0)); setProfileFee(String(current.feeVnd ?? 0));
+        setLicenseNumber(current.credentials?.licenseNumber || ''); setLicenseRegion(current.credentials?.region || 'Việt Nam');
+      }
+      if (current?.verificationStatus === 'verified') {
+        const range = getNextSevenDayRange();
+        const [slotResult, appointmentResult] = await Promise.all([api.getMyProviderAvailabilitySlots(range), api.getMyProviderAppointments({ limit: 25, offset: 0 })]);
+        if (!active) return;
+        setProviderSlots(Array.isArray(slotResult?.items) ? slotResult.items : []);
+        setProviderAppointments(Array.isArray(appointmentResult?.items) ? appointmentResult.items : []);
+      } else { setProviderSlots([]); setProviderAppointments([]); }
+    }).catch(error => { if (active) setProviderError(error?.message || 'Không tải được không gian nhà cung cấp.'); })
+      .finally(() => { if (active) setProviderLoading(false); });
+    return () => { active = false; };
+  }, [page, dataVersion]);
+
+  async function saveProviderApplication() {
+    setProfileSaving(true); setProviderError(''); setProfileSaved('');
+    try {
+      const result = await api.saveMyProviderApplication({
+        profile: { displayName: profileName, specialty: profileSpecialty, bio: profileBio, experienceYears: Number(profileExperience), feeVnd: Number(profileFee) },
+        credentials: { licenseNumber, region: licenseRegion },
+      });
+      setProvider(result?.provider || null); setProfileSaved('Đã gửi hồ sơ để nhà vận hành xác minh.');
+    } catch (error) { setProviderError(error?.message || 'Không lưu được hồ sơ nhà cung cấp.'); }
+    finally { setProfileSaving(false); }
+  }
+
+  async function createBooking() {
+    if (!selectedProvider || !selectedSlot) return;
+    const payload = {
+      providerId: selectedProvider.id,
+      slotId: selectedSlot.id,
+      patientName: patientName.trim().replace(/\s+/g, ' '),
+      phone: patientPhone.trim(),
+      symptomNote: symptomNote.trim().replace(/\s+/g, ' '),
+      providerSharingAccepted: sharingAccepted,
+    };
+    const signature = JSON.stringify(payload);
+    if (!bookingIntent.current || bookingIntent.current.signature !== signature) bookingIntent.current = { signature, key: makeIntentKey() };
+    setBookingBusy(true); setBookingError('');
+    try {
+      const result = await api.createMyAppointment(payload, bookingIntent.current.key);
+      if (!result?.appointment?.id) throw new Error('Máy chủ chưa xác nhận giữ chỗ. Hãy tải lịch hẹn để đối chiếu trước khi thử lại.');
+      setBookingAppointment(result.appointment); setPage('booking-pending');
+    } catch (error) { setBookingError(error?.message || 'Không tạo được yêu cầu đặt lịch.'); }
+    finally { setBookingBusy(false); }
+  }
+
+  async function loadMoreAppointments() {
+    if (appointmentsLoading || !appointmentsPage.hasMore) return;
+    setAppointmentsLoading(true); setAppointmentsError('');
+    try {
+      const result = await api.getMyAppointments({ limit: 25, offset: appointmentsPage.offset });
+      const next = Array.isArray(result?.items) ? result.items : [];
+      setAppointments(current => [...current, ...next.filter(item => !current.some(existing => existing.id === item.id))]);
+      setAppointmentsPage({ total: result.total, offset: appointmentsPage.offset + next.length, hasMore: result.hasMore === true });
+    } catch (error) { setAppointmentsError(error?.message || 'Không tải thêm được lịch hẹn.'); }
+    finally { setAppointmentsLoading(false); }
+  }
+
+  async function cancelAppointment(appointment, actor = 'patient') {
+    setActionBusyId(appointment.id); setActionError('');
+    const payload = { reason: 'schedule-change', note: '' };
+    try {
+      const result = actor === 'provider'
+        ? await api.cancelMyProviderAppointment(appointment.id, payload)
+        : await api.cancelMyAppointment(appointment.id, payload);
+      const updated = result?.appointment;
+      if (!updated?.id) throw new Error('Máy chủ chưa xác nhận thay đổi lịch hẹn.');
+      if (actor === 'provider') setProviderAppointments(current => current.map(row => row.id === updated.id ? updated : row));
+      else setAppointments(current => current.map(row => row.id === updated.id ? updated : row));
+    } catch (error) { setActionError(error?.message || 'Không cập nhật được lịch hẹn.'); }
+    finally { setActionBusyId(''); }
+  }
+
+  async function completeAppointment(appointment) {
+    setActionBusyId(appointment.id); setActionError('');
+    try {
+      const result = await api.completeMyProviderAppointment(appointment.id);
+      if (!result?.appointment?.id) throw new Error('Máy chủ chưa xác nhận hoàn tất lịch hẹn.');
+      setProviderAppointments(current => current.map(row => row.id === appointment.id ? result.appointment : row));
+    } catch (error) { setActionError(error?.message || 'Không hoàn tất được lịch hẹn.'); }
+    finally { setActionBusyId(''); }
+  }
+
+  async function createProviderSlot() {
+    setSlotBusy(true); setSlotError('');
+    try {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(slotDateInput) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(slotTimeInput)) throw new Error('Nhập ngày YYYY-MM-DD và giờ HH:mm hợp lệ.');
+      const start = new Date(`${slotDateInput}T${slotTimeInput}:00`);
+      if (!Number.isFinite(start.getTime())) throw new Error('Ngày giờ không hợp lệ trên thiết bị.');
+      const result = await api.createMyProviderAvailabilitySlot({ startsAt: start.toISOString(), endsAt: new Date(start.getTime() + 30 * 60 * 1000).toISOString() });
+      if (!result?.slot?.id) throw new Error('Máy chủ chưa xác nhận khung giờ.');
+      setProviderSlots(current => [...current.filter(slot => slot.id !== result.slot.id), result.slot].sort((left, right) => left.startsAt.localeCompare(right.startsAt)));
+      setProfileSaved('Đã mở khung giờ 30 phút.');
+    } catch (error) { setSlotError(error?.message || 'Không mở được khung giờ.'); }
+    finally { setSlotBusy(false); }
+  }
+
+  function confirmCancelAppointment(appointment, actor = 'patient') {
+    Alert.alert('Hủy lịch hẹn?', actor === 'patient' && appointment.status === 'confirmed'
+      ? 'Bạn có thể tự hủy trước giờ hẹn ít nhất 24 giờ. Khoản hoàn tiền (nếu có) cần được xác nhận riêng.'
+      : 'Lịch hẹn sẽ chuyển sang trạng thái đã hủy và khung giờ phù hợp có thể được mở lại.', [
+      { text: 'Giữ lịch', style: 'cancel' },
+      { text: 'Hủy lịch', style: 'destructive', onPress: () => cancelAppointment(appointment, actor) },
+    ]);
+  }
+
+  function renderProviderList() {
+    return <>
+      <ScreenHeader title="Bác sĩ dinh dưỡng" onBack={onBack} rightLabel="Lịch hẹn" onRight={() => setPage('appointments')} />
+      <View style={styles.searchRow}><TextInput accessibilityLabel="Tìm bác sĩ hoặc chuyên khoa" value={query} onChangeText={setQuery} onSubmitEditing={() => setAppliedQuery(query.trim())} placeholder="Tìm theo tên hoặc chuyên khoa…" style={[styles.input, styles.searchRowInput]} returnKeyType="search" maxLength={100} /><PrimaryButton title="Tìm" onPress={() => setAppliedQuery(query.trim())} /></View>
+      <View style={styles.filterRow}>{[['', 'Tất cả'], ['Dinh dưỡng', 'Dinh dưỡng'], ['Dinh dưỡng lâm sàng', 'Lâm sàng']].map(([value, label]) => <TouchableOpacity key={value} accessibilityRole="button" accessibilityState={{ selected: specialty === value }} style={[styles.chip, specialty === value && styles.chipOn]} onPress={() => setSpecialty(value)}><Text style={[styles.chipText, specialty === value && styles.chipTextOn]}>{label}</Text></TouchableOpacity>)}</View>
+      <Text style={styles.notice}>Chỉ hiển thị nhà cung cấp đã được nhà vận hành xác minh. Thông tin này không thay thế đánh giá y tế.</Text>
+      {providersLoading ? <Loading label="Đang tải danh bạ nhà cung cấp…" /> : providersError ? <ErrorState error={providersError} onRetry={() => setDataVersion(value => value + 1)} /> : providers.length ? providers.map(item => <View key={item.id} style={styles.card}>
+        <Text style={styles.providerName}>{item.displayName}</Text><Text style={styles.body}>{item.specialty} · {item.experienceYears} năm kinh nghiệm</Text>
+        <Text style={styles.verified}>✓ Đã xác minh</Text>
+        {!!item.bio && <Text style={styles.body}>{item.bio}</Text>}
+        <Text style={styles.fee}>{Number(item.feeVnd).toLocaleString('vi-VN')} ₫ / lượt · do nhà cung cấp khai báo</Text>
+        <View style={styles.buttonRow}><PrimaryButton title={`Xem chi tiết ${item.displayName}`} onPress={() => { setSelectedProvider(item); setPage('detail'); }} secondary /><PrimaryButton title={`Chọn lịch của ${item.displayName}`} onPress={() => { setSelectedProvider(item); setSelectedDate(localDateKey(new Date())); setPage('schedule'); }} /></View>
+      </View>) : <EmptyState title="Chưa có nhà cung cấp đã xác minh." detail="Danh bạ sẽ có nội dung sau khi nhà vận hành kiểm tra và phê duyệt hồ sơ thật." />}
+      <PrimaryButton title="Đăng ký cung cấp dịch vụ" secondary onPress={() => setPage('provider')} />
+      <PrimaryButton title="Xem lịch hẹn của tôi" secondary onPress={() => setPage('appointments')} />
+    </>;
+  }
+
+  function renderProviderDetail() {
+    if (!selectedProvider) return <ErrorState error="Không tìm thấy nhà cung cấp đã chọn." onRetry={() => setPage('providers')} />;
+    return <>
+      <ScreenHeader title="Thông tin nhà cung cấp" onBack={() => setPage('providers')} rightLabel="Lịch hẹn" onRight={() => setPage('appointments')} />
+      <View style={styles.hero}><Text style={styles.providerName}>{selectedProvider.displayName}</Text><Text style={styles.body}>{selectedProvider.specialty}</Text><Text style={styles.verified}>✓ Đã xác minh</Text></View>
+      <View style={styles.card}><Text style={styles.sectionTitle}>Kinh nghiệm</Text><Text style={styles.body}>{selectedProvider.experienceYears} năm kinh nghiệm</Text><Text style={styles.sectionTitle}>Giới thiệu</Text><Text style={styles.body}>{selectedProvider.bio || 'Nhà cung cấp chưa thêm phần giới thiệu.'}</Text><Text style={styles.sectionTitle}>Chi phí</Text><Text style={styles.fee}>{Number(selectedProvider.feeVnd).toLocaleString('vi-VN')} ₫ / lượt · do nhà cung cấp khai báo</Text></View>
+      <PrimaryButton title="Chọn lịch trống" onPress={() => { setSelectedDate(localDateKey(new Date())); setPage('schedule'); }} />
+      <Text style={styles.notice}>Lịch chỉ được giữ sau khi máy chủ xác nhận và cần thanh toán trong thời hạn hiển thị.</Text>
+    </>;
+  }
+
+  function renderSchedule() {
+    if (!selectedProvider) return <ErrorState error="Không tìm thấy nhà cung cấp đã chọn." onRetry={() => setPage('providers')} />;
+    return <>
+      <ScreenHeader title="Lịch còn trống" onBack={() => setPage('detail')} />
+      <Text style={styles.providerName}>{selectedProvider.displayName}</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateRow}>{dates.map(date => <TouchableOpacity key={date.key} accessibilityRole="button" accessibilityLabel={`${date.weekday}, ngày ${date.day} ${date.month}`} accessibilityState={{ selected: selectedDate === date.key }} style={[styles.dateChip, selectedDate === date.key && styles.dateChipOn]} onPress={() => { setSelectedDate(date.key); setSelectedSlot(null); }}><Text style={[styles.dateLabel, selectedDate === date.key && styles.dateLabelOn]}>{date.weekday}</Text><Text style={[styles.dateNumber, selectedDate === date.key && styles.dateLabelOn]}>{date.day}</Text><Text style={[styles.dateLabel, selectedDate === date.key && styles.dateLabelOn]}>{date.month}</Text></TouchableOpacity>)}</ScrollView>
+      {availabilityLoading ? <Loading label="Đang kiểm tra lịch trống…" /> : availabilityError ? <ErrorState error={availabilityError} onRetry={() => setDataVersion(value => value + 1)} /> : daySlots.length ? <>
+        <Text style={styles.sectionTitle}>Chọn một khung giờ còn trống do nhà cung cấp công bố.</Text>
+        <View style={styles.slotGrid}>{daySlots.map(slot => <TouchableOpacity key={slot.id} accessibilityRole="button" accessibilityState={{ selected: selectedSlot?.id === slot.id }} style={[styles.slotChip, selectedSlot?.id === slot.id && styles.slotChipOn]} onPress={() => setSelectedSlot(slot)}><Text style={[styles.slotText, selectedSlot?.id === slot.id && styles.slotTextOn]}>{formatTime(slot.startsAt)}</Text></TouchableOpacity>)}</View>
+      </> : <EmptyState title="Không có khung giờ còn trống trong ngày này." detail="Thử ngày khác hoặc quay lại sau khi nhà cung cấp mở thêm lịch." />}
+      <PrimaryButton title="Tiếp tục" onPress={() => setPage('booking-form')} disabled={!selectedSlot || availabilityLoading || !!availabilityError} />
+    </>;
+  }
+
+  function renderBookingForm() {
+    return <>
+      <ScreenHeader title="Thông tin người khám" onBack={() => setPage('schedule')} />
+      <View style={styles.card}><Text style={styles.providerName}>{selectedProvider?.displayName}</Text><Text style={styles.body}>{selectedProvider?.specialty}</Text><Text style={styles.body}>{selectedSlot ? `${formatDate(selectedSlot.startsAt)} · ${formatTime(selectedSlot.startsAt)}` : ''}</Text><Text style={styles.fee}>{Number(selectedProvider?.feeVnd || 0).toLocaleString('vi-VN')} ₫</Text></View>
+      <Text style={styles.inputLabel}>Tên người khám</Text><TextInput accessibilityLabel="Tên người khám" value={patientName} onChangeText={setPatientName} maxLength={100} placeholder="Họ và tên" style={styles.input} />
+      <Text style={styles.inputLabel}>Số điện thoại có mã quốc gia</Text><TextInput accessibilityLabel="Số điện thoại có mã quốc gia" value={patientPhone} onChangeText={setPatientPhone} maxLength={16} keyboardType="phone-pad" placeholder="+84901234567" style={styles.input} />
+      <Text style={styles.inputLabel}>Triệu chứng sơ bộ (tùy chọn)</Text><TextInput accessibilityLabel="Triệu chứng sơ bộ (tùy chọn)" value={symptomNote} onChangeText={setSymptomNote} maxLength={1000} multiline placeholder="Chỉ ghi thông tin cần thiết cho lần đặt lịch này" style={[styles.input, styles.multiline]} />
+      <TouchableOpacity accessibilityRole="checkbox" accessibilityLabel="Đồng ý chia sẻ thông tin đặt lịch với bác sĩ đã chọn" accessibilityState={{ checked: sharingAccepted }} style={styles.consentRow} onPress={() => setSharingAccepted(value => !value)}><Text style={styles.checkbox}>{sharingAccepted ? '☑' : '□'}</Text><Text style={styles.body}>Tôi đồng ý chia sẻ tên, số điện thoại và ghi chú đặt lịch này với nhà cung cấp đã chọn.</Text></TouchableOpacity>
+      <Text style={styles.notice}>Chỉ các thông tin trên được gửi kèm lịch hẹn. Hồ sơ dinh dưỡng và hồ sơ y tế không được tự động chia sẻ.</Text>
+      <InlineMessage error={bookingError} />
+      <PrimaryButton title="Giữ chỗ và tiếp tục" onPress={createBooking} disabled={!patientName.trim() || !patientPhone.trim() || !sharingAccepted || !selectedSlot} loading={bookingBusy} />
+      {!!bookingError && <PrimaryButton title="Thử lại đặt lịch" onPress={createBooking} disabled={!sharingAccepted} secondary />}
+    </>;
+  }
+
+  function renderPendingBooking() {
+    const appointment = bookingAppointment;
+    if (!appointment) return <ErrorState error="Không có giữ chỗ để hiển thị." onRetry={() => setPage('appointments')} />;
+    return <>
+      <ScreenHeader title="Giữ chỗ lịch hẹn" onBack={() => setPage('appointments')} rightLabel="Lịch của tôi" onRight={() => setPage('appointments')} />
+      <View style={styles.statusHero}><Text style={styles.statusTitle}>Giữ chỗ đang chờ thanh toán</Text><Text style={styles.body}>Máy chủ đã giữ chỗ. Lịch chỉ được xác nhận sau khi nhà cung cấp thanh toán báo thành công.</Text></View>
+      <AppointmentCard appointment={appointment} />
+      {!!appointment.holdExpiresAt && <Text style={styles.notice}>Hạn giữ chỗ: {formatDate(appointment.holdExpiresAt)} · {formatTime(appointment.holdExpiresAt)}.</Text>}
+      <PrimaryButton title="Tiếp tục thanh toán an toàn" onPress={() => setPage('checkout')} />
+      <PrimaryButton title="Hủy giữ chỗ" onPress={() => confirmCancelAppointment(appointment)} secondary />
+      <InlineMessage error={actionError} />
+    </>;
+  }
+
+  function renderAppointments() {
+    return <>
+      <ScreenHeader title="Lịch hẹn của tôi" onBack={() => setPage('providers')} rightLabel="Đặt lịch" onRight={() => setPage('providers')} />
+      <View style={styles.filterRow}>{['Sắp tới', 'Đã khám', 'Đã hủy'].map(tab => <TouchableOpacity key={tab} accessibilityRole="button" accessibilityState={{ selected: appointmentTab === tab }} style={[styles.chip, appointmentTab === tab && styles.chipOn]} onPress={() => setAppointmentTab(tab)}><Text style={[styles.chipText, appointmentTab === tab && styles.chipTextOn]}>{tab}</Text></TouchableOpacity>)}</View>
+      {appointmentsLoading && appointments.length === 0 ? <Loading label="Đang tải lịch hẹn…" /> : appointmentsError ? <ErrorState error={appointmentsError} onRetry={() => setDataVersion(value => value + 1)} /> : visibleAppointments.length ? visibleAppointments.map(appointment => <View key={appointment.id}>
+        <AppointmentCard appointment={appointment} />
+        <View style={styles.buttonRow}>
+          {appointment.status === 'awaiting_payment' && <PrimaryButton title="Tiếp tục thanh toán" onPress={() => { setBookingAppointment(appointment); setPage('checkout'); }} />}
+          {appointment.status === 'confirmed' && appointment.providerId && onOpenDoctorChat && <PrimaryButton title="Nhắn nhà cung cấp" secondary onPress={() => onOpenDoctorChat(appointment)} />}
+          {['awaiting_payment', 'confirmed'].includes(appointment.status) && (appointment.status !== 'confirmed' || new Date(appointment.startsAt).getTime() - Date.now() >= CANCELLATION_NOTICE_MS) && <PrimaryButton title={appointment.status === 'awaiting_payment' ? 'Hủy giữ chỗ' : 'Hủy lịch'} secondary onPress={() => confirmCancelAppointment(appointment)} loading={actionBusyId === appointment.id} />}
+        </View>
+      </View>) : <EmptyState title={appointmentTab === 'Sắp tới' ? 'Chưa có lịch hẹn sắp tới.' : `Chưa có lịch ở mục “${appointmentTab}”.`} detail="Lịch hẹn được tải từ tài khoản của bạn." />}
+      <InlineMessage error={actionError} />
+      {appointmentsPage.hasMore && <PrimaryButton title="Tải thêm lịch hẹn" onPress={loadMoreAppointments} loading={appointmentsLoading} secondary />}
+      <PrimaryButton title="Tìm nhà cung cấp đã xác minh" onPress={() => setPage('providers')} secondary />
+    </>;
+  }
+
+  function renderProviderApplication(showHeader = true) {
+    return <>
+      {showHeader && <ScreenHeader title="Hồ sơ nhà cung cấp" onBack={() => setPage('providers')} />}
+      <Text style={styles.notice}>Hồ sơ và giấy phép chỉ dùng để nhà vận hành kiểm tra. Bạn không thể tự xác minh tài khoản.</Text>
+      <Text style={styles.inputLabel}>Tên hiển thị</Text><TextInput accessibilityLabel="Tên hiển thị nhà cung cấp" value={profileName} onChangeText={setProfileName} maxLength={100} style={styles.input} />
+      <Text style={styles.inputLabel}>Chuyên khoa</Text><TextInput accessibilityLabel="Chuyên khoa nhà cung cấp" value={profileSpecialty} onChangeText={setProfileSpecialty} maxLength={100} style={styles.input} />
+      <Text style={styles.inputLabel}>Giới thiệu</Text><TextInput accessibilityLabel="Giới thiệu nhà cung cấp" value={profileBio} onChangeText={setProfileBio} maxLength={2000} multiline style={[styles.input, styles.multiline]} />
+      <Text style={styles.inputLabel}>Số năm kinh nghiệm</Text><TextInput accessibilityLabel="Số năm kinh nghiệm" value={profileExperience} onChangeText={setProfileExperience} keyboardType="number-pad" style={styles.input} />
+      <Text style={styles.inputLabel}>Phí dịch vụ (VND)</Text><TextInput accessibilityLabel="Phí dịch vụ VND" value={profileFee} onChangeText={setProfileFee} keyboardType="number-pad" style={styles.input} />
+      <Text style={styles.inputLabel}>Số giấy phép hành nghề</Text><TextInput accessibilityLabel="Số giấy phép hành nghề" value={licenseNumber} onChangeText={setLicenseNumber} maxLength={100} style={styles.input} />
+      <Text style={styles.inputLabel}>Nơi cấp giấy phép</Text><TextInput accessibilityLabel="Nơi cấp giấy phép" value={licenseRegion} onChangeText={setLicenseRegion} maxLength={100} style={styles.input} />
+      <InlineMessage error={providerError} success={profileSaved} />
+      <PrimaryButton title="Gửi hồ sơ để xác minh" onPress={saveProviderApplication} loading={profileSaving} disabled={!profileName.trim() || !profileSpecialty.trim() || !licenseNumber.trim()} />
+    </>;
+  }
+
+  function renderProviderWorkspace() {
+    if (providerLoading) return <><ScreenHeader title="Không gian nhà cung cấp" onBack={() => setPage('providers')} /><Loading label="Đang tải hồ sơ nhà cung cấp…" /></>;
+    if (providerError && !provider) return <><ScreenHeader title="Không gian nhà cung cấp" onBack={() => setPage('providers')} /><ErrorState error={providerError} onRetry={() => setDataVersion(value => value + 1)} /></>;
+    if (!provider || provider.verificationStatus !== 'verified') return <>
+      <ScreenHeader title="Không gian nhà cung cấp" onBack={() => setPage('providers')} />
+      {provider?.verificationStatus === 'pending' ? <EmptyState title="Hồ sơ đang chờ xác minh" detail="Bạn chưa thể công bố lịch hoặc nhận bệnh nhân. Nhà vận hành sẽ kiểm tra hồ sơ và giấy phép." /> : provider?.verificationStatus === 'suspended' ? <EmptyState title="Hồ sơ chưa được phê duyệt" detail="Cập nhật hồ sơ và giấy phép để gửi lại yêu cầu xác minh." /> : <EmptyState title="Chưa có hồ sơ nhà cung cấp" detail="Đăng ký bằng thông tin thật. Chỉ tài khoản được nhà vận hành xác minh mới được công bố lịch." />}
+      {provider?.verificationStatus !== 'pending' && <View style={styles.applicationPanel}>{renderProviderApplication(false)}</View>}
+    </>;
+    return <>
+      <ScreenHeader title="Không gian nhà cung cấp" onBack={() => setPage('providers')} rightLabel="Hồ sơ" onRight={() => setPage('provider-edit')} />
+      <View style={styles.hero}><Text style={styles.providerName}>{provider.displayName}</Text><Text style={styles.verified}>✓ Tài khoản đã xác minh</Text></View>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>Mở một khung giờ 30 phút</Text>
+      <TextInput accessibilityLabel="Ngày bắt đầu lịch YYYY-MM-DD" value={slotDateInput} onChangeText={setSlotDateInput} placeholder="YYYY-MM-DD" style={styles.input} autoCapitalize="none" />
+      <TextInput accessibilityLabel="Giờ bắt đầu lịch HH:mm" value={slotTimeInput} onChangeText={setSlotTimeInput} placeholder="HH:mm" style={styles.input} autoCapitalize="none" />
+      <InlineMessage error={slotError} success={profileSaved} />
+      <PrimaryButton title="Mở khung giờ 30 phút" onPress={createProviderSlot} loading={slotBusy} />
+      <Text accessibilityRole="header" style={styles.sectionTitle}>Lịch trống 7 ngày tới</Text>
+      {providerSlots.length ? providerSlots.map(slot => <View key={slot.id} style={styles.card}>
+        <Text style={styles.providerName}>{formatDate(slot.startsAt)} · {formatTime(slot.startsAt)}</Text>
+        <Text style={styles.body}>{slot.status === 'open' ? 'Còn trống' : slot.status === 'reserved' ? 'Đang giữ chỗ' : slot.status === 'booked' ? 'Đã đặt' : 'Đã khóa'}</Text>
+        {slot.status === 'open' && <PrimaryButton title="Gỡ khung giờ" secondary onPress={async () => {
+          try { await api.deleteMyProviderAvailabilitySlot(slot.id); setProviderSlots(current => current.filter(row => row.id !== slot.id)); }
+          catch (error) { setSlotError(error?.message || 'Không gỡ được khung giờ.'); }
+        }} />}
+      </View>) : <Text style={styles.body}>Chưa có khung giờ trong khoảng hiển thị.</Text>}
+      <Text accessibilityRole="header" style={styles.sectionTitle}>Lịch hẹn được xác nhận</Text>
+      {providerAppointments.length ? providerAppointments.map(appointment => <View key={appointment.id}>
+        <AppointmentCard appointment={appointment} showPatient />
+        <View style={styles.buttonRow}>
+          {appointment.status === 'confirmed' && <PrimaryButton title="Đánh dấu hoàn tất" disabled={new Date(appointment.startsAt).getTime() > Date.now()} loading={actionBusyId === appointment.id} onPress={() => completeAppointment(appointment)} />}
+          {appointment.status === 'confirmed' && <PrimaryButton title="Hủy lịch" secondary loading={actionBusyId === appointment.id} onPress={() => confirmCancelAppointment(appointment, 'provider')} />}
+        </View>
+      </View>) : <EmptyState title="Chưa có lịch hẹn được xác nhận." detail="Lịch chỉ xuất hiện sau khi phía thanh toán xác nhận giao dịch." />}
+      <InlineMessage error={actionError} />
+    </>;
+  }
+
+  function renderCheckout() {
+    return <><ScreenHeader title="Thanh toán lịch hẹn" onBack={() => setPage('booking-pending')} /><EmptyState title="Đang chuẩn bị thanh toán an toàn" detail="Thanh toán sẽ mở trang do nhà cung cấp xử lý. Không nhập hoặc lưu số thẻ trong ứng dụng." /><PrimaryButton title="Quay lại giữ chỗ" onPress={() => setPage('booking-pending')} secondary /></>;
+  }
+
+  let content;
+  if (page === 'providers') content = renderProviderList();
+  else if (page === 'detail') content = renderProviderDetail();
+  else if (page === 'schedule') content = renderSchedule();
+  else if (page === 'booking-form') content = renderBookingForm();
+  else if (page === 'booking-pending') content = renderPendingBooking();
+  else if (page === 'checkout') content = renderCheckout();
+  else if (page === 'appointments') content = renderAppointments();
+  else if (page === 'provider-edit') content = renderProviderApplication();
+  else if (page === 'provider') content = renderProviderWorkspace();
+  else content = renderProviderList();
+
+  return <ScrollView style={styles.screen} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">{content}</ScrollView>;
+}
+
+function Loading({ label }) { return <View style={styles.state}><ActivityIndicator color={colors.primary} /><Text style={styles.body}>{label}</Text></View>; }
+function ErrorState({ error, onRetry }) { return <View style={styles.state}><Text accessibilityRole="alert" style={styles.errorText}>{error}</Text><PrimaryButton title="Thử tải lại" onPress={onRetry} secondary /></View>; }
+function EmptyState({ title, detail }) { return <View style={styles.state}><Text accessibilityRole="header" style={styles.emptyTitle}>{title}</Text><Text style={styles.body}>{detail}</Text></View>; }
+function AppointmentCard({ appointment, showPatient = false }) {
+  return <View style={styles.card}>
+    <Text style={styles.providerName}>{appointment.provider?.name || 'Nhà cung cấp'}</Text>
+    <Text style={styles.body}>{appointment.provider?.specialty || ''}</Text>
+    <Text style={styles.body}>{formatDate(appointment.startsAt)} · {formatTime(appointment.startsAt)}</Text>
+    <Text style={styles.status}>{statusLabel(appointment.status)}</Text>
+    <Text style={styles.fee}>{Number(appointment.amount?.value || 0).toLocaleString('vi-VN')} {appointment.amount?.currency || 'VND'}</Text>
+    {showPatient && <View style={styles.patientDetails}><Text style={styles.body}>Người khám: {appointment.patient?.name}</Text><Text style={styles.body}>Liên hệ: {appointment.patient?.phone}</Text><Text style={styles.body}>Ghi chú đặt lịch: {appointment.patient?.preliminarySymptoms || 'Không có ghi chú'}</Text></View>}
+  </View>;
+}
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: '#F8FAFF' }, content: { paddingBottom: 115 },
-  blueHeader: { backgroundColor: 'white', paddingHorizontal: 17, paddingBottom: 12 }, blueTop: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, blueTitle: { color: colors.primary, fontSize: 20, fontWeight: '800' }, lightBack: { color: colors.primary, fontSize: 32, minWidth: 35 }, searchBox: { height: 54, borderRadius: 18, backgroundColor: '#EEF3FF', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginTop: 5 }, searchIcon: { color: colors.primary, fontSize: 24, marginRight: 9 }, searchInput: { flex: 1, height: 54, color: colors.text, fontSize: 15 },
-  demoNotice: { backgroundColor: '#FFF7E6', borderRadius: 11, marginHorizontal: 15, marginTop: 12, padding: 10 }, demoNoticeTitle: { color: colors.warning, fontSize: 14, fontWeight: '900', letterSpacing: 0.4 }, demoNoticeText: { color: colors.warning, fontSize: 13, lineHeight: 16, marginTop: 3 },
-  sortRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 15, paddingTop: 13 }, sortLabel: { color: colors.muted, fontSize: 13 }, sortChip: { minWidth: 48, minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: '#E6ECFA', paddingHorizontal: 8 }, sortChipOn: { backgroundColor: colors.primary }, sortText: { color: colors.primaryDark, fontSize: 13, fontWeight: '700' }, sortTextOn: { color: 'white' },
-  filterRow: { flexDirection: 'row', gap: 7, paddingHorizontal: 15, paddingVertical: 12, flexWrap: 'wrap' }, filterChip: { minHeight: 54, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 17, backgroundColor: '#E6EBFC' }, filterChipOn: { backgroundColor: colors.primary }, filterText: { color: colors.primaryDark, fontSize: 13, fontWeight: '700' }, filterTextOn: { color: 'white' },
-  doctorCard: { backgroundColor: '#E8EEFF', borderRadius: 17, marginHorizontal: 15, marginBottom: 10, padding: 12 }, doctorMain: { minHeight: 54, flexDirection: 'row', gap: 10 }, avatar: { width: 49, height: 49, borderRadius: 25, alignItems: 'center', justifyContent: 'center' }, avatarText: { color: colors.primaryDark, fontSize: 16, fontWeight: '900' }, doctorCopy: { flex: 1 }, doctorName: { color: colors.primaryDark, fontSize: 14, fontWeight: '800', lineHeight: 17 }, specialty: { color: colors.muted, fontSize: 13, lineHeight: 16, marginTop: 3 }, meta: { color: colors.primaryDark, fontSize: 14, marginTop: 4 }, fee: { color: colors.primary, fontSize: 14, fontWeight: '800', marginTop: 4 }, cardActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }, favorite: { color: colors.primary, fontSize: 23, paddingHorizontal: 3 }, bookButton: { minHeight: 54, minWidth: 88, borderRadius: 17, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, bookText: { color: 'white', fontSize: 13, fontWeight: '800' }, empty: { padding: 24, color: colors.muted, fontSize: 13 },
-  header: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 }, back: { width: 48, height: 48, justifyContent: 'center' }, backText: { color: colors.primary, fontSize: 31 }, headerTitle: { color: colors.primary, fontSize: 16, fontWeight: '800' }, headerAction: { color: colors.primary, fontSize: 20 }, detailHero: { alignItems: 'center', padding: 18, backgroundColor: '#E8EEFF', marginHorizontal: 15, borderRadius: 17 }, avatarLarge: { width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center' }, avatarLargeText: { color: colors.primaryDark, fontSize: 24, fontWeight: '900' }, doctorNameLarge: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 12, textAlign: 'center' },
-  section: { padding: 14, marginHorizontal: 15, marginTop: 10, backgroundColor: 'white', borderRadius: 14 }, sectionTitle: { color: colors.text, fontSize: 13, fontWeight: '800', marginTop: 14 }, calendar: { flexDirection: 'row', gap: 7, paddingHorizontal: 15, paddingVertical: 10 }, dateChip: { flex: 1, minHeight: 66, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', borderRadius: 12, borderWidth: 1, borderColor: colors.border }, dateChipOn: { backgroundColor: colors.primary, borderColor: colors.primary }, dateWeek: { color: colors.muted, fontSize: 14 }, dateNumber: { color: colors.text, fontSize: 17, fontWeight: '900', marginVertical: 2 }, dateSelected: { color: 'white' },
-  doctorMini: { flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 15, marginTop: 10, padding: 10, borderRadius: 14, backgroundColor: '#E8EEFF' }, timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 15, marginTop: 10 }, timeChip: { width: '22%', minHeight: 54, alignItems: 'center', justifyContent: 'center', borderRadius: 9, backgroundColor: 'white', borderWidth: 1, borderColor: colors.border }, timeChipOn: { backgroundColor: colors.primary, borderColor: colors.primary }, timeText: { color: colors.primaryDark, fontSize: 13, fontWeight: '700' }, timeTextOn: { color: 'white' }, detailSummary: { margin: 15, padding: 14, borderRadius: 14, backgroundColor: 'white' }, detailLine: { color: colors.muted, fontSize: 14, lineHeight: 18, marginTop: 6 },
-  primary: { minHeight: 54, marginHorizontal: 15, marginTop: 14, borderRadius: radius.pill, backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, primaryText: { color: 'white', fontSize: 14, fontWeight: '800' }, secondary: { minHeight: 54, marginHorizontal: 15, alignItems: 'center', justifyContent: 'center' }, secondaryText: { color: colors.primary, fontSize: 14, fontWeight: '800' }, privacyNote: { color: colors.muted, fontSize: 14, textAlign: 'center', marginTop: 7 },
-  paymentAdd: { flexDirection: 'row', minHeight: 55, alignItems: 'center', paddingHorizontal: 16, marginHorizontal: 15, backgroundColor: '#E8EEFF', borderRadius: 13 }, paymentRow: { flexDirection: 'row', minHeight: 52, alignItems: 'center', paddingHorizontal: 16, marginHorizontal: 15, borderBottomWidth: 1, borderColor: colors.border }, paymentIcon: { color: colors.primary, fontSize: 19, width: 32 }, paymentText: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '700' }, radio: { color: '#A7B2C5', fontSize: 18 }, radioOn: { color: colors.primary }, cardPreview: { margin: 15, height: 150, borderRadius: 16, padding: 17, backgroundColor: '#4779F7', justifyContent: 'space-between' }, cardSample: { color: '#DCE7FF', fontSize: 14, fontWeight: '900' }, cardNumber: { color: 'white', fontSize: 19, letterSpacing: 1 }, cardName: { color: 'white', fontSize: 14 }, mockField: { marginHorizontal: 15, marginBottom: 8, padding: 11, borderRadius: 10, backgroundColor: '#EEF2FC' }, fieldLabel: { color: colors.muted, fontSize: 14 }, mockValue: { color: colors.muted, fontSize: 13, marginTop: 5 },
-  cancelPreview: { minHeight: 54, justifyContent: 'center', alignItems: 'flex-end', marginTop: 3 }, cancelPreviewText: { color: colors.danger, fontSize: 13, fontWeight: '800' }, cancelNotice: { color: colors.success, backgroundColor: '#E7F5EC', borderRadius: 10, padding: 11, marginHorizontal: 15, fontSize: 13, lineHeight: 16 }, reasonRow: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 10, borderBottomWidth: 1, borderColor: colors.border, paddingHorizontal: 15 }, cancelInput: { minHeight: 90, borderRadius: 12, backgroundColor: '#EEF2FC', padding: 12, marginHorizontal: 15, marginTop: 13, color: colors.text, fontSize: 14, textAlignVertical: 'top' },
-  bluePrice: { backgroundColor: colors.primary, padding: 23, alignItems: 'center', borderBottomLeftRadius: 22, borderBottomRightRadius: 22 }, priceValue: { color: 'white', fontSize: 26, fontWeight: '900' }, priceLabel: { color: '#E8EEFF', fontSize: 13, marginTop: 5 }, successPage: { flex: 1, justifyContent: 'center', paddingTop: 45 }, checkCircle: { alignSelf: 'center', width: 90, height: 90, borderRadius: 45, borderWidth: 5, borderColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, checkMark: { color: colors.primary, fontSize: 49 }, successTitle: { color: colors.primary, fontSize: 20, fontWeight: '900', textAlign: 'center', marginTop: 17 }, successCopy: { color: colors.muted, fontSize: 14, lineHeight: 18, textAlign: 'center', paddingHorizontal: 25, marginTop: 10 }, requestCard: { margin: 18, padding: 14, borderRadius: 14, backgroundColor: '#E8EEFF' }, emptyState: { minHeight: 240, alignItems: 'center', justifyContent: 'center' }, emptyIcon: { color: colors.primary, fontSize: 36 }, noticeSmall: { color: colors.warning, fontSize: 14, lineHeight: 15, marginTop: 6 }, formInput: { minHeight: 54, backgroundColor: '#EEF3FF', borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12, color: colors.text, fontSize: 15, marginTop: 9 }, symptomInput: { minHeight: 84, textAlignVertical: 'top' },
+  screen: { flex: 1, backgroundColor: '#F8FAFF' }, content: { paddingHorizontal: 15, paddingBottom: 110 }, applicationPanel: { marginTop: 8 },
+  header: { minHeight: 60, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, backButton: { width: 42, minHeight: 48, justifyContent: 'center' }, backGlyph: { color: colors.primary, fontSize: 32 }, title: { flex: 1, color: colors.primary, fontSize: 18, fontWeight: '900', textAlign: 'center' }, headerSpacer: { width: 72 }, headerAction: { minWidth: 72, minHeight: 48, justifyContent: 'center', alignItems: 'flex-end' }, headerActionText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8 }, input: { minHeight: 52, borderRadius: 12, paddingHorizontal: 12, backgroundColor: 'white', borderWidth: 1, borderColor: colors.border, color: colors.text, fontSize: 15, marginTop: 7 }, searchRowInput: { flex: 1 },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }, chip: { minHeight: 42, justifyContent: 'center', paddingHorizontal: 13, borderRadius: radius.pill, backgroundColor: '#E8EDF8' }, chipOn: { backgroundColor: colors.primary }, chipText: { color: colors.primaryDark, fontSize: 13, fontWeight: '700' }, chipTextOn: { color: 'white' },
+  notice: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 12, marginBottom: 8 }, card: { backgroundColor: 'white', borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14, marginTop: 10 }, hero: { padding: 18, borderRadius: 16, backgroundColor: '#EAF0FF', marginTop: 8 }, providerName: { color: colors.text, fontSize: 16, fontWeight: '900', lineHeight: 21, marginTop: 4 }, body: { color: colors.muted, fontSize: 14, lineHeight: 19, marginTop: 5 }, verified: { color: colors.success, fontSize: 13, fontWeight: '800', marginTop: 7 }, fee: { color: colors.primaryDark, fontSize: 15, fontWeight: '900', marginTop: 9 }, sectionTitle: { color: colors.text, fontSize: 15, fontWeight: '900', marginTop: 15 }, buttonRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 8 },
+  button: { minHeight: 48, justifyContent: 'center', alignItems: 'center', borderRadius: radius.pill, backgroundColor: colors.primary, paddingHorizontal: 15, marginTop: 10, flexGrow: 1 }, secondaryButton: { backgroundColor: '#EAF0FF' }, buttonDisabled: { opacity: 0.45 }, buttonText: { color: 'white', fontWeight: '800', fontSize: 14 }, secondaryButtonText: { color: colors.primaryDark },
+  state: { minHeight: 130, justifyContent: 'center', alignItems: 'center', padding: 22, borderRadius: 16, backgroundColor: 'white', marginTop: 14 }, emptyTitle: { color: colors.text, textAlign: 'center', fontSize: 16, fontWeight: '900' }, errorText: { color: colors.danger, fontSize: 14, lineHeight: 18, textAlign: 'center', marginTop: 8 }, successText: { color: colors.success, fontSize: 14, lineHeight: 18, marginTop: 9 },
+  dateRow: { gap: 8, paddingVertical: 12 }, dateChip: { width: 60, minHeight: 72, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', borderRadius: 13, borderWidth: 1, borderColor: colors.border }, dateChipOn: { backgroundColor: colors.primary, borderColor: colors.primary }, dateLabel: { color: colors.muted, fontSize: 11 }, dateNumber: { color: colors.text, fontSize: 18, fontWeight: '900', marginVertical: 2 }, dateLabelOn: { color: 'white' }, slotGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9, marginTop: 8 }, slotChip: { minWidth: 78, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: 'white', borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10 }, slotChipOn: { borderColor: colors.primary, backgroundColor: colors.primary }, slotText: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' }, slotTextOn: { color: 'white' },
+  inputLabel: { color: colors.text, fontSize: 13, fontWeight: '800', marginTop: 11 }, multiline: { minHeight: 100, textAlignVertical: 'top', paddingTop: 12 }, consentRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14, padding: 12, borderRadius: 12, backgroundColor: 'white' }, checkbox: { color: colors.primary, fontSize: 22, lineHeight: 24 },
+  statusHero: { backgroundColor: '#FFF6E8', borderRadius: 15, padding: 15, marginTop: 10 }, statusTitle: { color: colors.warning, fontSize: 17, fontWeight: '900' }, status: { color: colors.primary, fontSize: 13, fontWeight: '900', marginTop: 8 }, patientDetails: { borderTopWidth: 1, borderTopColor: colors.border, marginTop: 10, paddingTop: 8 },
 });

@@ -240,6 +240,20 @@ function createApiMethods(apiClient) {
     createMyPantryItem: payload => request('/api/v1/me/grocery/pantry', { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
     updateMyPantryItem: (id, payload) => request(`/api/v1/me/grocery/pantry/${encodeURIComponent(id)}`, { method: 'PATCH', authenticated: true, body: JSON.stringify(payload) }),
     deleteMyPantryItem: id => request(`/api/v1/me/grocery/pantry/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyProviders: ({ query = '', specialty = '', limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/providers?${new URLSearchParams({ ...(query ? { q: query } : {}), ...(specialty ? { specialty } : {}), limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyProviderAvailability: (providerId, { from, to }) => request(`/api/v1/me/care/providers/${encodeURIComponent(providerId)}/availability?${new URLSearchParams({ from, to })}`, { authenticated: true }),
+    getMyProviderProfile: () => request('/api/v1/me/care/provider-profile', { authenticated: true }),
+    saveMyProviderApplication: ({ profile, credentials }) => request('/api/v1/me/care/provider-profile', { method: 'PUT', authenticated: true, body: JSON.stringify({ profile, credentials }) }),
+    getMyProviderAvailabilitySlots: ({ from, to }) => request(`/api/v1/me/care/provider/availability?${new URLSearchParams({ from, to })}`, { authenticated: true }),
+    createMyProviderAvailabilitySlot: payload => request('/api/v1/me/care/provider/availability', { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    deleteMyProviderAvailabilitySlot: id => request(`/api/v1/me/care/provider/availability/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    createMyAppointment: (payload, idempotencyKey) => request('/api/v1/me/care/appointments', { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) }),
+    getMyAppointment: id => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}`, { authenticated: true }),
+    cancelMyAppointment: (id, payload) => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    getMyProviderAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/provider/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    completeMyProviderAppointment: id => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/complete`, { method: 'POST', authenticated: true, body: '{}' }),
+    cancelMyProviderAppointment: (id, payload) => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
   };
 }
 

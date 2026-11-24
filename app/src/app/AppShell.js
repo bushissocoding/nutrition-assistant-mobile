@@ -64,7 +64,6 @@ export default function AppShell() {
   const [notificationStorageError, setNotificationStorageError] = useState('');
   const [notificationStateReady, setNotificationStateReady] = useState(false);
   const [notificationSaveVersion, setNotificationSaveVersion] = useState(0);
-  const [bookingRequest, setBookingRequest] = useState(null);
   const [medicalRecordReturn, setMedicalRecordReturn] = useState('profile');
   const [settingsReturn, setSettingsReturn] = useState('profile');
   const [personalizationReturn, setPersonalizationReturn] = useState('profile');
@@ -81,7 +80,7 @@ export default function AppShell() {
     authAccountId.current = null;
     setAccount(null); setConsentRecord(null); setConsented(false); setProfile(null); setPlan(null);
     setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setDiaryHydrationError(''); setDiaryLoading(false);
-    setGroceryPlanId(null); setBookingRequest(null); setChatContact(null); setNotifications(initialNotificationItems);
+    setGroceryPlanId(null); setChatContact(null); setNotifications(initialNotificationItems);
     setScreen('welcome');
   }, []);
 
@@ -91,7 +90,7 @@ export default function AppShell() {
     authAccountId.current = user.id;
     setAccount(user);
     setStorageError('');
-    setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setGroceryPlanId(null); setBookingRequest(null);
+    setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setGroceryPlanId(null);
     try {
       const currentUser = await api.getCurrentUser();
       if (currentUser?.user?.id !== user.id || epoch !== authEpoch.current) return;
@@ -358,7 +357,7 @@ export default function AppShell() {
     if (target === 'settings' || (target.startsWith('settings-') && !screen.startsWith('settings'))) setSettingsReturn(screen);
     if (target === 'personalization') setPersonalizationReturn(screen);
     if (target === 'profile-setup') setProfileSetupReturn(screen);
-    if (target === 'appointments' || target === 'appointments-list' || target === 'payment-methods') setAppointmentReturn(screen);
+    if (target === 'appointments' || target === 'appointments-list' || target === 'payment-methods' || target === 'provider-workspace') setAppointmentReturn(screen);
     if (target === 'grocery') setGroceryReturn(screen);
     if (target === 'planner' && hasUrgentRedFlags(profile)) {
       setScreen('profile');
@@ -384,7 +383,7 @@ export default function AppShell() {
   else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;
   else if (screen === 'notifications') content = <NotificationsScreen items={notifications} onItemsChange={setNotifications} onNavigate={navigate} persistenceError={notificationStorageError} onRetryPersistence={() => setNotificationSaveVersion(value => value + 1)} />;
   else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
-  else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods') content = <AppointmentScreen initialView={screen} request={bookingRequest} onRequestCreate={setBookingRequest} onRequestClear={() => setBookingRequest(null)} onOpenDoctorChat={doctor => { setChatContact(doctor); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
+  else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods' || screen === 'provider-workspace') content = <AppointmentScreen initialView={screen} account={account} onOpenDoctorChat={appointment => { setChatContact({ id: appointment.providerId, name: appointment.provider?.name, appointmentId: appointment.id }); setScreen('doctor-chat'); }} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
   else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
   else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
   else content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} plan={plan} />;
@@ -393,7 +392,7 @@ export default function AppShell() {
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}
     <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
       const selected = screen === tab.key
-        || (tab.key === 'appointments' && ['appointments-list', 'payment-methods'].includes(screen))
+        || (tab.key === 'appointments' && ['appointments-list', 'payment-methods', 'provider-workspace'].includes(screen))
         || (tab.key === 'chat' && screen === 'doctor-chat')
         || (tab.key === 'profile' && (screen.startsWith('settings') || ['medical-record', 'personalization', 'profile-setup'].includes(screen)));
       return <TouchableOpacity
