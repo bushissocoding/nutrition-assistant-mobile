@@ -13,6 +13,7 @@ const validProductionEnv = {
 test('server config keeps local defaults and disables demo persistence', () => {
   assert.deepEqual(readServerConfig({}), {
     port: 4000,
+    bindAddress: '0.0.0.0',
     corsOrigin: '*',
     demoDataEnabled: false,
     environment: 'development',
@@ -28,6 +29,7 @@ test('server config keeps local defaults and disables demo persistence', () => {
 test('server config accepts an explicit port, CORS value, and demo setting', () => {
   assert.deepEqual(readServerConfig({ PORT: '4401', CORS_ORIGIN: 'http://localhost', DEMO_DATA_ENABLED: 'true' }), {
     port: 4401,
+    bindAddress: '0.0.0.0',
     corsOrigin: 'http://localhost',
     demoDataEnabled: true,
     environment: 'development',
@@ -43,6 +45,7 @@ test('server config accepts an explicit port, CORS value, and demo setting', () 
 test('production requires current Supabase credentials and an explicit HTTPS origin', () => {
   assert.deepEqual(readServerConfig(validProductionEnv), {
     port: 4000,
+    bindAddress: '0.0.0.0',
     corsOrigin: 'https://app.example.test',
     demoDataEnabled: false,
     environment: 'production',
@@ -104,6 +107,14 @@ test('server config rejects malformed ports without echoing values', () => {
         && error.message.includes('PORT')
         && (!value.trim() || !error.message.includes(value)),
     );
+  }
+});
+
+test('server config supports an explicit IP bind address and rejects hostnames', () => {
+  assert.equal(readServerConfig({ API_HOST: '127.0.0.1' }).bindAddress, '127.0.0.1');
+  assert.equal(readServerConfig({ API_HOST: '::1' }).bindAddress, '::1');
+  for (const value of ['localhost', 'not-an-ip', '  ']) {
+    assert.throws(() => readServerConfig({ API_HOST: value }), error => error.code === 'INVALID_SERVER_CONFIG' && (!value.trim() || !error.message.includes(value.trim())));
   }
 });
 

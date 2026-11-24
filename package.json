@@ -16,6 +16,7 @@
     "api:dev": "node --env-file-if-exists=server/.env --watch server/server.js",
     "push:worker": "node --env-file-if-exists=server/.env server/push-worker.js",
     "test:api": "node server/server.test.js",
+    "test:supabase-api": "node server/integration/account-flow.js",
     "test:unit": "node --test server/tests/*.test.js app/src/features/profile/profile-model.test.cjs app/src/features/onboarding/consent-model.test.cjs app/src/features/diary/diary-history.test.cjs app/src/services/health-record-ocr.test.cjs app/src/services/push-device-storage.test.cjs app/src/services/auth-session-storage.test.cjs app/src/services/identity-model.test.cjs app/src/services/auth-service.test.cjs app/src/services/api-config.test.cjs app/src/services/demo-namespace-storage.test.cjs app/src/services/api-client.test.cjs app/src/app/purge-before-local-delete.test.cjs",
     "test:ui": "jest --runInBand",
     "catalog:validate": "node server/scripts/import-food-catalog.js --input server/data/foods.json --check --allow-legacy",

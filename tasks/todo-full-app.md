@@ -45,3 +45,9 @@ Current execution status is tracked in [`plan-full-app.md`](plan-full-app.md); m
 See [`supabase-ci-integration.md`](supabase-ci-integration.md) and [`SPEC-delta-supabase-ci-rls-v1.md`](../spec/SPEC-delta-supabase-ci-rls-v1.md).
 
 - [ ] Run the migration and pgTAP suite against Supabase local from GitHub Actions; local Docker/Supabase CLI are unavailable in the current environment.
+
+## Phase 8 — Authenticated API end-to-end
+
+See [`authenticated-api-e2e.md`](authenticated-api-e2e.md) and [`SPEC-delta-authenticated-api-e2e-v1.md`](../spec/SPEC-delta-authenticated-api-e2e-v1.md).
+
+- [ ] Confirm the first hosted run of the real-auth API journey against local Supabase passes; local Docker/Supabase CLI runtime prerequisites are unavailable in the current environment.

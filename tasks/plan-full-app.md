@@ -87,6 +87,15 @@ Delta spec: [`SPEC-delta-supabase-ci-rls-v1.md`](../spec/SPEC-delta-supabase-ci-
 - [x] Task 7.3: Update capability/release docs and run all repository checks; report local and hosted-runtime verification separately.
 - [x] Checkpoint: Workflow contract and repository checks pass locally; migration/RLS runtime behavior remains pending the first hosted Supabase job result.
 
+### Phase 8: Authenticated API integration journey
+
+Delta spec: [`SPEC-delta-authenticated-api-e2e-v1.md`](../spec/SPEC-delta-authenticated-api-e2e-v1.md); focused tasks: [`authenticated-api-e2e.md`](authenticated-api-e2e.md).
+
+- [x] Task 8.1: Add a local-only runner that obtains Supabase CLI JSON settings without logging keys and rejects non-loopback project URLs.
+- [x] Task 8.2: Use real synthetic Supabase Auth accounts and the Expo shared API client to test consent/profile, persistent account data, isolation, export/deletion and explicit provider unavailability.
+- [x] Task 8.3: Add the integration command to Supabase CI and document local run steps and verification boundaries.
+- [x] Checkpoint: The integration contract and repo checks pass locally; hosted authenticated API/database runtime proof remains pending the first CI run.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

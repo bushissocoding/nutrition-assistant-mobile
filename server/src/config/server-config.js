@@ -1,5 +1,6 @@
 const DEFAULT_PORT = 4000;
 const ENVIRONMENTS = new Set(['development', 'test', 'production']);
+const { isIP } = require('node:net');
 
 function invalidConfig(setting, requirement) {
   const error = new Error(`${setting} ${requirement}`);
@@ -21,6 +22,13 @@ function readPort(value) {
   }
 
   return port;
+}
+
+function readBindAddress(value) {
+  if (value === undefined || value === null || value === '') return '0.0.0.0';
+  const address = String(value).trim();
+  if (!address || !isIP(address)) throw invalidConfig('API_HOST', 'must be a valid IP address.');
+  return address;
 }
 
 function readDemoDataEnabled(value) {
@@ -142,6 +150,7 @@ function readServerConfig(env = process.env) {
   const corsOrigins = readCorsOrigins(env.CORS_ORIGIN, environment);
   return {
     port: readPort(env.PORT),
+    bindAddress: readBindAddress(env.API_HOST),
     corsOrigin: env.CORS_ORIGIN || '*',
     corsOrigins,
     demoDataEnabled,
@@ -154,4 +163,4 @@ function readServerConfig(env = process.env) {
   };
 }
 
-module.exports = { readServerConfig };
+module.exports = { readBindAddress, readServerConfig };

@@ -73,5 +73,5 @@ app.use((err, req, res, _next) => {
   }
   return res.status(500).json({ error: 'Lỗi nội bộ.' });
 });
-const server = app.listen(config.port, '0.0.0.0', () => console.log(JSON.stringify({ event: 'api_listening', entryPoint: 'http_api', port: config.port })));
+const server = app.listen(config.port, config.bindAddress, () => console.log(JSON.stringify({ event: 'api_listening', entryPoint: 'http_api', port: config.port })));
 registerGracefulShutdown(server);

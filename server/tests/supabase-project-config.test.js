@@ -33,8 +33,13 @@ test('runs local Supabase migrations and pgTAP in a dedicated CI job', () => {
   const workflow = fs.readFileSync(path.join(repositoryRoot, '.github/workflows/ci.yml'), 'utf8');
   assert.match(workflow, /^  supabase-integration:$/m);
   assert.match(workflow, /uses: supabase\/setup-cli@v3/);
-  assert.match(workflow, /version: 2\.84\.2/);
+  assert.match(workflow, /version: 2\.122\.1/);
   assert.match(workflow, /^\s+run: supabase start$/m);
   assert.match(workflow, /^\s+run: supabase db reset$/m);
   assert.match(workflow, /^\s+run: supabase test db$/m);
+  assert.match(workflow, /node-version: 22/);
+  assert.match(workflow, /^\s+run: npm ci$/m);
+  assert.match(workflow, /^\s+run: npm run test:supabase-api$/m);
+  const packageJson = JSON.parse(fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8'));
+  assert.equal(packageJson.scripts['test:supabase-api'], 'node server/integration/account-flow.js');
 });
