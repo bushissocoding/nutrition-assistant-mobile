@@ -15,6 +15,7 @@ Expo mobile app + Node.js/Express API. The `codex/app-100-percent` branch contai
 - [`spec/SPEC-full-app-v1.md`](spec/SPEC-full-app-v1.md) and [`spec/capability-map-full-app.md`](spec/capability-map-full-app.md) — complete patient/provider feature contract and module map.
 - [`spec/SPEC-release-operations-v1.md`](spec/SPEC-release-operations-v1.md) — release, rollback, backup, support and external gate requirements.
 - [`docs/security-and-operations.md`](docs/security-and-operations.md) — implemented controls, current risk review and deployment blockers.
+- [`docs/setup-windows-android.md`](docs/setup-windows-android.md) — Windows setup for Docker, local Supabase, Android SDK/emulator, API and app.
 - [`docs/runbooks/release-operations.md`](docs/runbooks/release-operations.md) — staged deployment, rollback, restore drill and incident response steps.
 - `assets/design/ui-reference/` — supplied UI PNG references; implemented meal and dashboard screens use their visual direction.
 - `docs/` — project presentation/requirements material.
