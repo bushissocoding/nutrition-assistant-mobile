@@ -35,5 +35,6 @@ Each implementation task is to be expanded into a module-specific spec and focus
 
 ## Phase 2 — Identity/profile; Phase 3 — nutrition/tracking; Phase 4 — care/payment; Phase 5 — chat/records/notifications; Phase 6 — release
 
-- [ ] Before each module implementation, write and self-review that module's own spec and focused checklist in capability dependency order.
+- [x] `identity-profile`: write and self-review the module spec and focused checklist before implementation.
+- [ ] Before every later module implementation, write and self-review that module's own spec and focused checklist in capability dependency order.
 - [ ] Do not mark external credentials, provider accounts, data rights, reviews, or deployment checks complete from code alone.

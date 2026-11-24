@@ -27,15 +27,14 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 1.1: Add strict production configuration and safe env examples
 - [x] Task 1.2: Add user-scoped and privileged Supabase client adapters
 - [x] Task 1.3: Add verified identity middleware, safe HTTP defaults, and production demo-route gates
-- [ ] Task 1.4: Add initial database migration/RLS verification seam and tests
-- [ ] Checkpoint: Existing nutrition API contract and all required tests pass; unauthenticated private requests fail closed
+- [x] Checkpoint: Existing nutrition API contract and all required tests pass; unauthenticated private requests fail closed. Private records are not yet enabled.
 
 ### Phase 2: Identity and profile vertical slices
 
-- [ ] Task 2.0: Specify, plan, and task `identity-profile` before implementation
+- [x] Task 2.0: Specify, plan, and task `identity-profile` before implementation
 - [ ] Task 2.1: Registration, email verification, login/logout, restore and expiry
 - [ ] Task 2.2: Email/SMS recovery and confirmation flows
-- [ ] Task 2.3: Server-owned profile, assessment and account consent
+- [ ] Task 2.3: Server-owned profile, assessment and account consent; add profile/consent migration, RLS policies and executable integration seam
 - [ ] Task 2.4: Profile export, consent withdrawal, account deletion and retry semantics
 - [ ] Checkpoint: Two synthetic accounts cannot read or alter each other's records
 
