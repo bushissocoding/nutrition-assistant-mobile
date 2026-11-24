@@ -8,9 +8,11 @@ import GroceryScreen from '../features/grocery/GroceryScreen';
 import HomeScreen from '../features/home/HomeScreen';
 import MealPlanScreen from '../features/meal-planning/MealPlanScreen';
 import ProfileScreen from '../features/profile/ProfileScreen';
-import { loadConsent, loadProfile, revokeConsentAndClear, saveConsent, saveProfile } from '../services/profile-storage';
+import { clearStoredProfile, loadConsent, loadProfile, revokeConsentAndClear, saveConsent, saveProfile } from '../services/profile-storage';
+import { api } from '../services/api';
 import { colors } from '../theme/tokens';
 import { hasUrgentRedFlags, validateProfile } from '../features/profile/profile-model.cjs';
+import { purgeBeforeLocalDelete } from './purge-before-local-delete.cjs';
 
 const tabs = [
   { key: 'home', icon: '⌂', title: 'Trang chủ' },
@@ -19,23 +21,42 @@ const tabs = [
   { key: 'diary', icon: '▣', title: 'Nhật ký' },
 ];
 
+const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
+
+function getCurrentLocalDay() {
+  const now = new Date();
+  const pad = value => String(value).padStart(2, '0');
+  return {
+    date: `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`,
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+  };
+}
+
 export default function AppShell() {
   const [ready, setReady] = useState(false);
   const [consented, setConsented] = useState(false);
+  const [consentRecord, setConsentRecord] = useState(null);
+  const [consentSaving, setConsentSaving] = useState(false);
+  const [consentReturnScreen, setConsentReturnScreen] = useState('profile-setup');
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState('home');
-  const [groceryItems, setGroceryItems] = useState([]);
+  const [groceryItems, setGroceryItems] = useState(null);
   const [plan, setPlan] = useState(null);
   const [diary, setDiary] = useState([]);
+  const [diaryTotals, setDiaryTotals] = useState(emptyTotals);
+  const [diaryHydrationError, setDiaryHydrationError] = useState('');
+  const [diaryLoading, setDiaryLoading] = useState(false);
+  const [diaryHydrationVersion, setDiaryHydrationVersion] = useState(0);
   const [storageError, setStorageError] = useState('');
 
   useEffect(() => {
     let active = true;
     Promise.all([loadConsent(), loadProfile()]).then(([accepted, savedProfile]) => {
       if (!active) return;
-      setConsented(accepted);
+      setConsentRecord(accepted);
+      setConsented(Boolean(accepted));
       setProfile(savedProfile);
-      setScreen(savedProfile ? 'home' : 'profile-setup');
+      setScreen(savedProfile ? 'home' : accepted ? 'profile-setup' : 'consent');
     }).catch(() => {
       if (!active) return;
       setStorageError('Không thể truy cập vùng lưu trữ an toàn. Chưa thể lưu hồ sơ trên thiết bị này.');
@@ -43,13 +64,45 @@ export default function AppShell() {
     return () => { active = false; };
   }, []);
 
-  async function acceptConsent() {
+  useEffect(() => {
+    if (!ready || !consented || !profile) return undefined;
+    let active = true;
+    const day = getCurrentLocalDay();
+    setDiaryLoading(true);
+    setDiaryHydrationError('');
+    api.getMealEntries(day).then(result => {
+      if (!active) return;
+      setDiary(Array.isArray(result?.items) ? result.items : []);
+      setDiaryTotals(result?.totals || emptyTotals);
+    }).catch(error => {
+      if (active) setDiaryHydrationError(error?.message || 'Không tải được nhật ký hôm nay.');
+    }).finally(() => {
+      if (active) setDiaryLoading(false);
+    });
+    return () => { active = false; };
+  }, [ready, consented, profile, diaryHydrationVersion]);
+
+  async function acceptConsent(choices) {
+    setConsentSaving(true);
     try {
-      await saveConsent();
+      const record = await saveConsent(choices);
+      setConsentRecord(record);
       setConsented(true);
-      setScreen(profile ? 'home' : 'profile-setup');
+      setScreen(screen === 'consent-review' ? consentReturnScreen : profile ? 'home' : 'profile-setup');
       setStorageError('');
-    } catch { setStorageError('Không lưu được sự đồng ý trên thiết bị. Hãy thử lại.'); }
+    } catch { setStorageError('Không lưu được lựa chọn trên thiết bị. Chưa thể tiếp tục; hãy thử lại.'); }
+    finally { setConsentSaving(false); }
+  }
+
+  function reviewConsent(returnTo) {
+    setConsentReturnScreen(returnTo);
+    setScreen('consent-review');
+    setStorageError('');
+  }
+
+  function backFromProfileSetup() {
+    if (profile) setScreen('profile');
+    else reviewConsent('profile-setup');
   }
 
   async function completeProfile(nextProfile) {
@@ -62,23 +115,46 @@ export default function AppShell() {
     } catch { setStorageError('Không lưu được hồ sơ vào SecureStore. Không tiếp tục với dữ liệu chưa lưu.'); }
   }
 
+  async function purgeRemoteDemoData() {
+    await api.purgeMealEntries();
+    await api.purgeShoppingLists();
+  }
+
   async function withdrawConsentAndDelete() {
-    Alert.alert('Thu hồi sự đồng ý?', 'Hồ sơ và trạng thái đồng ý trên thiết bị sẽ bị xóa. Nhật ký và thực đơn tạm thời trong bộ nhớ cũng sẽ bị xóa.', [
+    Alert.alert('Thu hồi sự đồng ý?', 'Nhật ký và danh sách đi chợ demo trên máy chủ sẽ được xóa trước. Nếu máy chủ chưa xác nhận, hồ sơ và trạng thái đồng ý trên thiết bị vẫn được giữ lại.', [
       { text: 'Hủy', style: 'cancel' },
       { text: 'Thu hồi và xóa', style: 'destructive', onPress: async () => {
         try {
-          await revokeConsentAndClear();
-          setProfile(null); setPlan(null); setDiary([]); setGroceryItems([]); setConsented(false); setScreen('profile-setup'); setStorageError('');
-        } catch { setStorageError('Không xóa được dữ liệu an toàn. Hãy thử lại.'); }
+          await purgeBeforeLocalDelete(purgeRemoteDemoData, () => revokeConsentAndClear());
+          setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setConsentRecord(null); setConsented(false); setScreen('consent'); setStorageError('');
+          Alert.alert('Đã rút đồng ý và xóa dữ liệu demo', 'API đã xác nhận xóa nhật ký và danh sách đi chợ. Hồ sơ và lựa chọn đồng ý trên thiết bị đã được xóa.');
+        } catch (error) { setStorageError(error?.message || 'Không xóa được nhật ký trên máy chủ. Hãy kiểm tra kết nối rồi thử lại.'); }
       } },
     ]);
   }
 
-  if (!ready) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor={colors.canvas} /><View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.placeholderCopy}>Đang mở hồ sơ cục bộ…</Text></View></SafeAreaView>;
-  if (!consented) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor={colors.canvas} /><ConsentScreen onContinue={acceptConsent} onWithdraw={profile ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
-  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor={colors.canvas} /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile} onComplete={completeProfile} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (!ready) return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View style={styles.loading}><ActivityIndicator color={colors.primary} /><Text style={styles.placeholderCopy}>Đang mở hồ sơ cục bộ…</Text></View></SafeAreaView>;
+  if (!consented || screen === 'consent-review') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ConsentScreen onContinue={acceptConsent} busy={consentSaving} initialChoices={consentRecord?.choices} onBack={screen === 'consent-review' ? () => setScreen(consentReturnScreen) : undefined} onWithdraw={profile || consentRecord ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
+  if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
 
-  function openGrocery(items) { setGroceryItems(items || []); setScreen('grocery'); }
+  function openGrocery(items) { setGroceryItems(Array.isArray(items) ? items : null); setScreen('grocery'); }
+  async function deleteProfileData() {
+    await purgeBeforeLocalDelete(purgeRemoteDemoData, () => clearStoredProfile());
+    setProfile(null);
+    setPlan(null);
+    setDiary([]);
+    setDiaryTotals(emptyTotals);
+    setGroceryItems(null);
+    setScreen('profile-setup');
+    Alert.alert('Đã xóa hồ sơ demo', 'Nhật ký và danh sách đi chợ trên API, hồ sơ trên thiết bị và dữ liệu trong bộ nhớ đã được xóa. Biên nhận đồng ý vẫn được giữ lại.');
+  }
+  function updateTodayDiary(date, entries, totals) {
+    if (date !== getCurrentLocalDay().date) return;
+    setDiary(entries);
+    setDiaryTotals(totals || emptyTotals);
+    setDiaryHydrationError('');
+    setDiaryLoading(false);
+  }
   function navigate(target) {
     if (target === 'planner' && hasUrgentRedFlags(profile)) {
       setScreen('profile');
@@ -94,15 +170,15 @@ export default function AppShell() {
   }
 
   let content;
-  if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} plan={plan} />;
+  if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'planner') content = <MealPlanScreen profile={profile} onOpenProfile={() => setScreen('profile-setup')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
-  else if (screen === 'grocery') content = <GroceryScreen items={groceryItems} />;
-  else if (screen === 'diary') content = <DiaryScreen diary={diary} onAddMeal={item => setDiary(current => [item, ...current])} />;
-  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} plan={plan} />;
-  else if (screen === 'profile') content = <ProfileScreen profile={profile} onEdit={() => setScreen('profile-setup')} onDeleted={() => { setProfile(null); setPlan(null); setDiary([]); setGroceryItems([]); setScreen('profile-setup'); }} onWithdrawConsent={withdrawConsentAndDelete} />;
+  else if (screen === 'grocery') content = <GroceryScreen sourceItems={groceryItems || []} />;
+  else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
+  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} plan={plan} />;
+  else if (screen === 'profile') content = <ProfileScreen profile={profile} consentRecord={consentRecord} onEdit={() => setScreen('profile-setup')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} />;
   else content = <PlaceholderScreen title={screen === 'appointments' ? 'Đặt khám & lịch hẹn' : 'Tính năng'} />;
 
-  return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" backgroundColor={colors.canvas} />{content}
+  return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" />{content}
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}
     <View style={styles.nav}>{tabs.map(tab => <TouchableOpacity key={tab.key} style={styles.navItem} onPress={() => navigate(tab.key)}><Text style={[styles.navIcon, { color: screen === tab.key ? 'white' : '#C9D6FF' }]}>{tab.icon}</Text><Text style={[styles.navLabel, { color: screen === tab.key ? 'white' : '#C9D6FF' }]}>{tab.title}</Text></TouchableOpacity>)}</View>
   </SafeAreaView>;

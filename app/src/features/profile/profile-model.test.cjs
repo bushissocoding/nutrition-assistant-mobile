@@ -29,3 +29,18 @@ test('profile normalizer removes unsupported red-flag and malformed allergy valu
   assert.deepEqual(result.redFlags, ['chestPain']);
   assert.deepEqual(result.allergies, ['cá']);
 });
+
+test('validates activity values and bounds profile notes and allergy entries', () => {
+  const valid = { ...createEmptyProfile(), age: '30', heightCm: '170', weightKg: '65', allergies: ['cá'] };
+  const errors = validateProfile({
+    ...valid,
+    activityLevel: 'extreme',
+    symptomNotes: 'x'.repeat(501),
+    allergies: ['x'.repeat(81)],
+  });
+
+  assert.ok(errors.activityLevel);
+  assert.ok(errors.symptomNotes);
+  assert.ok(errors.allergies);
+  assert.equal(validateProfile({ ...valid, activityLevel: 'moderate' }).activityLevel, undefined);
+});

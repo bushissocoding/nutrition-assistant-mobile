@@ -1,17 +1,11 @@
-const API_URL = (process.env.EXPO_PUBLIC_API_URL || 'http://localhost:4000').replace(/\/$/, '');
+import * as SecureStore from 'expo-secure-store';
+import { createApiClient, createApiMethods } from './api-client.cjs';
+import { createDemoNamespaceStore } from './demo-namespace-storage.cjs';
 
-async function request(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || `Yêu cầu thất bại (${response.status}).`);
-  return data;
-}
+const namespaceStore = createDemoNamespaceStore({ storage: SecureStore });
+const client = createApiClient({
+  baseUrl: process.env.EXPO_PUBLIC_API_URL,
+  namespaceStore,
+});
 
-export const api = {
-  generateMealPlan: payload => request('/api/v1/meal-plans/generate', { method: 'POST', body: JSON.stringify(payload) }),
-  calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
-  getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
-};
+export const api = createApiMethods(client);
