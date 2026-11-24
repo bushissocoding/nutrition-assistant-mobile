@@ -53,10 +53,15 @@ select set_config('request.jwt.claim.sub', '11110000-0000-4000-8000-000000000001
 select set_config('request.jwt.claims', '{"sub":"11110000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
-select is((with changed as (
+with changed as (
   update public.profiles set username = 'stolen-profile'
   where id = '11110000-0000-4000-8000-000000000002' returning id
-) select count(*)::integer from changed), 0, 'account one cannot update account two profile');
+)
+select is(
+  (select count(*)::integer from changed),
+  0,
+  'account one cannot update account two profile'
+);
 select throws_ok($query$
   insert into public.profiles (id, username, mode, gender, age, height_cm, weight_kg, activity_level, condition_type)
   values ('11110000-0000-4000-8000-000000000002', 'stolen-profile', 'healthy', 'unspecified', 30, 170, 65, 'moderate', 'unspecified')
