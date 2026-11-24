@@ -81,14 +81,14 @@ test('account settings update the password only in a live session', async () => 
   assert.deepEqual(auth.calls[0][1], { password: 'secure-pass' });
 });
 
-test('auth user DTO exposes only a verified phone for account recovery settings', async () => {
+test('auth user DTO preserves verified phone and account creation time', async () => {
   const auth = fakeAuth({
     async getSession() { return { data: { session: { access_token: 'synthetic-token' } }, error: null }; },
-    async getUser() { return { data: { user: { id: 'synthetic-user', email: 'person@example.test', phone: '+84900123456', phone_confirmed_at: 'synthetic-time', user_metadata: { username: 'patient_1', private: 'ignored' } } }, error: null }; },
+    async getUser() { return { data: { user: { id: 'synthetic-user', email: 'person@example.test', created_at: '2024-03-18T08:30:00.000Z', phone: '+84900123456', phone_confirmed_at: 'synthetic-time', user_metadata: { username: 'patient_1', private: 'ignored' } } }, error: null }; },
   });
   const service = createAuthService({ client: { auth } });
   const result = await service.restoreSession();
-  assert.deepEqual(result.user, { id: 'synthetic-user', email: 'person@example.test', username: 'patient_1', phone: '+84900123456' });
+  assert.deepEqual(result.user, { id: 'synthetic-user', email: 'person@example.test', username: 'patient_1', phone: '+84900123456', createdAt: '2024-03-18T08:30:00.000Z' });
 });
 
 test('recovery callback exchanges PKCE code and rejects malformed callback', async () => {

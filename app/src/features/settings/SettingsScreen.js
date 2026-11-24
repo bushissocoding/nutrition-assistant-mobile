@@ -6,6 +6,20 @@ import { registerPushDevice } from '../../services/push-notifications';
 
 const defaultNotificationPreferences = { inAppAppointments: true, inAppPayments: true, inAppMessages: true, pushEnabled: false, pushAppointments: true, pushPayments: true, pushMessages: true };
 const notificationPreferenceKeys = Object.keys(defaultNotificationPreferences);
+const helpCategories = [['popular', 'Phổ biến'], ['common', 'Chung'], ['services', 'Dịch vụ']];
+const helpQuestions = [
+  { category: 'popular', question: 'Ứng dụng gợi ý thực đơn dựa trên những tiêu chí nào?', answer: 'Ứng dụng dùng lựa chọn và thông tin bạn nhập để đưa ra gợi ý tham khảo. Giá trị dinh dưỡng là ước tính, không phải chỉ định điều trị.' },
+  { category: 'popular', question: 'Ứng dụng có tư vấn y tế không?', answer: 'Không. Ứng dụng theo dõi thông tin do bạn nhập và cung cấp gợi ý tham khảo; không chẩn đoán hoặc điều trị.' },
+  { category: 'popular', question: 'Trợ lý ảo AI có thể thay thế hoàn toàn bác sĩ dinh dưỡng không?', answer: 'Không. Trợ lý AI không thay thế bác sĩ hoặc chuyên gia dinh dưỡng. Hãy trao đổi với nhân viên y tế về quyết định chăm sóc sức khỏe.' },
+  { category: 'popular', question: 'Dữ liệu sức khỏe và nhật ký bữa ăn của tôi có được bảo mật không?', answer: 'Đây là bản mẫu thử nghiệm, chưa được phê duyệt cho dữ liệu sức khỏe thật và chưa có kiểm toán bảo mật. Chỉ sử dụng dữ liệu tổng hợp.' },
+  { category: 'common', question: 'Dữ liệu nhật ký được lưu ở đâu?', answer: 'Khi dịch vụ tài khoản được cấu hình, nhật ký được lưu theo tài khoản qua API và cơ sở dữ liệu của đơn vị vận hành.' },
+  { category: 'common', question: 'Dữ liệu thực phẩm có chính thức không?', answer: 'Không. Tra cứu có thể dùng nguồn USDA FoodData Central khi được cấu hình; dữ liệu không đại diện cho cơ sở dữ liệu chính thức của Viện Dinh dưỡng Việt Nam.' },
+  { category: 'common', question: 'Làm thế nào để xuất hoặc xóa dữ liệu?', answer: 'Mở Cài đặt tài khoản, chọn xuất dữ liệu hoặc yêu cầu xóa. API chỉ xác nhận xóa sau khi các bước dọn dữ liệu hoàn tất.' },
+  { category: 'common', question: 'Làm sao cập nhật tình trạng bệnh lý hoặc dị ứng thực phẩm?', answer: 'Mở hồ sơ cá nhân và chọn chỉnh sửa hồ sơ để cập nhật thông tin bạn đã nhập.' },
+  { category: 'services', question: 'Tôi có thể đặt lịch với nhà cung cấp không?', answer: 'Có, nếu có nhà cung cấp đã xác minh và dịch vụ được cấu hình. Lịch chỉ xác nhận sau khi máy chủ nhận webhook thanh toán hợp lệ.' },
+  { category: 'services', question: 'Tôi có thể đổi món khác nếu không thích hoặc không mua được nguyên liệu không?', answer: 'Bạn có thể thay đổi lựa chọn và tạo lại gợi ý. Hãy tự kiểm tra thành phần, nguồn thực phẩm và dị ứng trước khi sử dụng.' },
+  { category: 'services', question: 'Tôi có thể chụp ảnh kết quả xét nghiệm không?', answer: 'Ứng dụng có thể nhận ảnh để trích xuất văn bản trên thiết bị khi tính năng được hỗ trợ, nhưng không diễn giải hoặc đánh giá kết quả.' },
+];
 
 const settingsRows = [
   ['♧', 'Cài đặt thông báo', 'settings-notifications', ''],
@@ -28,7 +42,15 @@ export default function SettingsScreen({ screen = 'settings', account, phone, bu
   const [feedback, setFeedback] = useState('');
   const [faq, setFaq] = useState(-1);
   const [tab, setTab] = useState('faq');
+  const [faqCategory, setFaqCategory] = useState('popular');
+  const [faqSearch, setFaqSearch] = useState('');
+  const [expandedContact, setExpandedContact] = useState('');
   const title = ({ settings: 'Cài đặt', 'settings-notifications': 'Cài đặt thông báo', 'settings-password': 'Quản lý mật khẩu', 'settings-phone': 'Số điện thoại khôi phục', 'settings-delete': 'Xóa tài khoản', 'settings-privacy': 'Chính sách và quyền riêng tư', 'settings-help': 'Trung tâm hỗ trợ' })[screen] || 'Cài đặt';
+  const visibleHelpQuestions = helpQuestions.filter(item => {
+    const matchesCategory = faqCategory === 'popular' ? item.category === 'popular' : item.category === faqCategory;
+    const searchContent = `${item.question} ${item.answer}`.toLocaleLowerCase('vi');
+    return matchesCategory && searchContent.includes(faqSearch.trim().toLocaleLowerCase('vi'));
+  });
 
   useEffect(() => {
     if (screen !== 'settings-notifications' || !account?.id) return undefined;
@@ -92,8 +114,11 @@ export default function SettingsScreen({ screen = 'settings', account, phone, bu
     ]);
   }
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.title}>{title}</Text><View style={styles.headerSpace} /></View>
+  return <ScrollView style={styles.screen} contentContainerStyle={screen === 'settings-help' ? styles.helpContent : styles.content} keyboardShouldPersistTaps="handled">
+    {screen === 'settings-help' ? <View style={styles.helpHero}>
+      <View style={styles.helpHeroTop}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.helpBack} onPress={onBack}><Text style={styles.helpBackText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.helpTitle}>Trung Tâm Hỗ Trợ</Text><View style={styles.helpHeaderSpace} /></View>
+      <View style={styles.helpSearch}><Text style={styles.helpSearchIcon}>⌕</Text><TextInput accessibilityLabel="Tìm kiếm trợ giúp" value={faqSearch} onChangeText={setFaqSearch} placeholder="Tìm kiếm..." placeholderTextColor="#B5C9FF" style={styles.helpSearchInput} returnKeyType="search" /></View>
+    </View> : <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.title}>{title}</Text><View style={styles.headerSpace} /></View>}
     {screen === 'settings' && <>
       {settingsRows.map(([icon, label, route]) => <TouchableOpacity accessibilityRole="button" key={route} style={styles.menuRow} onPress={() => onNavigate?.(route)}><Text style={styles.menuIcon}>{icon}</Text><View style={styles.menuCopy}><Text style={styles.menuTitle}>{label}</Text></View><Text style={styles.arrow}>›</Text></TouchableOpacity>)}
       <View style={styles.demoBox}><Text style={styles.demoTitle}>TÀI KHOẢN</Text><Text style={styles.copy}>{account?.email || 'Đã đăng nhập'}</Text><Text style={styles.copy}>Hồ sơ cá nhân được tải từ API theo phiên đăng nhập hiện tại.</Text></View>
@@ -153,14 +178,19 @@ export default function SettingsScreen({ screen = 'settings', account, phone, bu
     </View>}
     {screen === 'settings-help' && <>
       <View accessibilityRole="tablist" style={styles.helpTabs}>{[['faq', 'Hỏi đáp'], ['contact', 'Liên hệ']].map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="tab" accessibilityState={{ selected: tab === key }} style={[styles.helpTab, tab === key && styles.helpTabActive]} onPress={() => setTab(key)}><Text style={[styles.helpTabText, tab === key && styles.helpTabTextActive]}>{label}</Text></TouchableOpacity>)}</View>
-      {tab === 'faq' ? ['Ứng dụng có tư vấn y tế không?', 'Dữ liệu nhật ký được lưu ở đâu?', 'Dữ liệu thực phẩm có chính thức không?', 'Làm thế nào để xuất hoặc xóa dữ liệu?', 'Tôi có thể đặt lịch với nhà cung cấp không?'].map((question, index) => <TouchableOpacity key={question} accessibilityRole="button" accessibilityState={{ expanded: faq === index }} style={styles.faqRow} onPress={() => setFaq(faq === index ? -1 : index)}><View style={styles.faqTop}><Text style={styles.faqQuestion}>{question}</Text><Text style={styles.faqArrow}>{faq === index ? '−' : '⌄'}</Text></View>{faq === index && <Text style={styles.copy}>{[
-        'Không. Ứng dụng theo dõi thông tin do bạn nhập và cung cấp gợi ý tham khảo; không chẩn đoán hoặc điều trị.',
-        'Nhật ký được lưu theo tài khoản trên API/cơ sở dữ liệu của đơn vị vận hành đã cấu hình.',
-        'Không. Tra cứu có nguồn USDA FoodData Central khi được cấu hình; một số công thức do dự án biên soạn và chưa được thẩm định chuyên môn.',
-        'Mở Cài đặt tài khoản, chọn xuất dữ liệu hoặc yêu cầu xóa. API thông báo kết quả sau khi hoàn tất.',
-        'Có, nếu có nhà cung cấp đã xác minh và dịch vụ thanh toán được cấu hình. Lịch chỉ xác nhận sau khi máy chủ nhận webhook thanh toán hợp lệ.',
-      ][index]}</Text>}</TouchableOpacity>) : <View style={styles.contactCard}><Text style={styles.menuTitle}>Liên hệ hỗ trợ</Text><Text style={styles.copy}>Đầu mối hỗ trợ chưa được đơn vị vận hành cấu hình. Khi phát hành, đơn vị vận hành cần cung cấp kênh liên hệ và thời gian phản hồi tại đây.</Text></View>}
-      <View style={styles.demoBox}><Text style={styles.demoTitle}>CHỈ DÙNG DỮ LIỆU TỔNG HỢP</Text><Text style={styles.copy}>Chỉ nhập dữ liệu tổng hợp trong giai đoạn thử nghiệm. Ứng dụng chưa được phê duyệt cho dữ liệu sức khỏe thật.</Text></View>
+      {tab === 'faq' ? <>
+        <View accessibilityRole="tablist" accessibilityLabel="Danh mục câu hỏi" style={styles.faqCategories}>{helpCategories.map(([key, label]) => <TouchableOpacity key={key} accessibilityRole="button" accessibilityState={{ selected: faqCategory === key }} style={[styles.faqCategory, faqCategory === key && styles.faqCategoryActive]} onPress={() => setFaqCategory(key)}><Text style={[styles.faqCategoryText, faqCategory === key && styles.faqCategoryTextActive]}>{label}</Text></TouchableOpacity>)}</View>
+        {visibleHelpQuestions.map(item => <TouchableOpacity key={item.question} accessibilityRole="button" accessibilityState={{ expanded: faq === item.question }} style={styles.faqRow} onPress={() => setFaq(faq === item.question ? -1 : item.question)}><View style={styles.faqTop}><Text style={styles.faqQuestion}>{item.question}</Text><Text style={styles.faqArrow}>{faq === item.question ? '−' : '⌄'}</Text></View>{faq === item.question && <Text style={styles.copy}>{item.answer}</Text>}</TouchableOpacity>)}
+        {!visibleHelpQuestions.length && <Text style={styles.helpEmpty}>Không tìm thấy câu hỏi phù hợp.</Text>}
+      </> : <View style={styles.contactList}>
+        {[
+          ['Website', '◎', 'Website hỗ trợ chưa được cấu hình.'],
+          ['Facebook', 'f', 'Trang Facebook hỗ trợ chưa được cấu hình.'],
+        ].map(([label, icon, description]) => <View key={label}>
+          <TouchableOpacity accessibilityRole="button" accessibilityState={{ expanded: expandedContact === label }} style={styles.contactRow} onPress={() => setExpandedContact(expandedContact === label ? '' : label)}><View style={styles.contactIcon}><Text style={styles.contactIconText}>{icon}</Text></View><Text style={styles.contactLabel}>{label}</Text><Text style={styles.contactArrow}>{expandedContact === label ? '−' : '⌄'}</Text></TouchableOpacity>
+          {expandedContact === label && <Text style={styles.contactDescription}>{description}</Text>}
+        </View>)}
+      </View>}
     </>}
   </ScrollView>;
 }
@@ -173,13 +203,15 @@ function Input({ label, value, setValue, placeholder, secureTextEntry }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface }, content: { paddingHorizontal: 17, paddingTop: 12, paddingBottom: 112 },
+  screen: { flex: 1, backgroundColor: colors.surface }, content: { paddingHorizontal: 17, paddingTop: 12, paddingBottom: 112 }, helpContent: { paddingBottom: 112 },
   header: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }, back: { width: 48, height: 48, justifyContent: 'center' }, backText: { color: colors.primary, fontSize: 31 }, title: { color: colors.primary, fontSize: 20, fontWeight: '800' }, headerSpace: { width: 38 },
   menuRow: { minHeight: 78, flexDirection: 'row', alignItems: 'center', gap: 14, borderBottomWidth: 1, borderBottomColor: colors.border }, menuIcon: { width: 34, color: colors.primary, textAlign: 'center', fontSize: 25 }, menuCopy: { flex: 1 }, menuTitle: { color: colors.text, fontSize: 16, fontWeight: '700' }, menuHint: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 }, arrow: { color: colors.primary, fontSize: 27 },
   demoBox: { marginTop: 20, borderRadius: 13, padding: 16, backgroundColor: '#F2F5FD' }, demoTitle: { color: colors.primaryDark, fontSize: 13, fontWeight: '900', letterSpacing: 0.5 }, copy: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 8 }, sectionHeading: { color: colors.primaryDark, fontSize: 14, fontWeight: '900', marginTop: 16 },
   toggleRow: { minHeight: 82, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderColor: colors.border }, toggleCopy: { flex: 1, paddingRight: 14 }, track: { width: 51, height: 30, borderRadius: 16, justifyContent: 'center', padding: 4, backgroundColor: '#D8DFEE' }, trackOn: { backgroundColor: colors.primary }, thumb: { width: 22, height: 22, borderRadius: 12, backgroundColor: 'white' }, thumbOn: { alignSelf: 'flex-end' }, notice: { backgroundColor: '#FFF7E6', color: colors.warning, borderRadius: 11, padding: 14, marginTop: 17, fontSize: 14, lineHeight: 21 },
   field: { marginTop: 16 }, label: { color: colors.text, fontSize: 15, fontWeight: '800', marginBottom: 8 }, input: { minHeight: 56, backgroundColor: '#EAF0FF', borderRadius: 13, paddingHorizontal: 15, color: colors.text, fontSize: 16 }, forgotButton: { minHeight: 48, alignSelf: 'flex-end', justifyContent: 'center', paddingHorizontal: 4 }, forgotText: { color: colors.primary, textDecorationLine: 'underline', fontSize: 14, fontWeight: '700' }, feedback: { color: colors.warning, fontSize: 14, lineHeight: 20, marginTop: 12 }, primary: { minHeight: 56, backgroundColor: colors.primary, borderRadius: radius.pill, alignItems: 'center', justifyContent: 'center', marginTop: 22 }, primaryText: { color: 'white', fontSize: 16, fontWeight: '800' },
   policy: { padding: 16, backgroundColor: '#FBFCFF', borderRadius: 13 }, policyDate: { color: colors.muted, fontSize: 12, fontWeight: '800' }, policyHeading: { color: colors.primaryDark, fontSize: 17, fontWeight: '800', marginTop: 18 }, policyCopy: { color: colors.text, fontSize: 14, lineHeight: 21, marginTop: 8 },
-  helpTabs: { flexDirection: 'row', gap: 8, marginBottom: 16 }, helpTab: { minHeight: 52, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: '#E7EBF9' }, helpTabActive: { backgroundColor: colors.primary }, helpTabText: { color: colors.primaryDark, fontSize: 15, fontWeight: '700' }, helpTabTextActive: { color: 'white' }, faqRow: { minHeight: 56, paddingVertical: 15, borderBottomWidth: 1, borderColor: colors.border }, faqTop: { flexDirection: 'row', alignItems: 'center' }, faqQuestion: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700', lineHeight: 21 }, faqArrow: { color: colors.primary, fontSize: 24 }, contactCard: { padding: 16, backgroundColor: '#F5F7FC', borderRadius: 13 },
+  helpHero: { paddingHorizontal: 30, paddingTop: 8, paddingBottom: 18, backgroundColor: colors.primary }, helpHeroTop: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, helpBack: { width: 42, minHeight: 48, justifyContent: 'center' }, helpBackText: { color: 'white', fontSize: 32 }, helpTitle: { flex: 1, color: 'white', fontSize: 20, fontWeight: '800', textAlign: 'center' }, helpHeaderSpace: { width: 42 }, helpSearch: { height: 44, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, marginTop: 18, borderRadius: radius.pill, backgroundColor: 'white' }, helpSearchIcon: { color: colors.primary, fontSize: 24 }, helpSearchInput: { flex: 1, minWidth: 0, paddingHorizontal: 9, color: colors.text, fontSize: 14 },
+  helpTabs: { flexDirection: 'row', gap: 8, marginTop: 14, marginBottom: 15 }, helpTab: { minHeight: 46, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: '#CCD8FF' }, helpTabActive: { backgroundColor: colors.primary }, helpTabText: { color: colors.primaryDark, fontSize: 15, fontWeight: '700' }, helpTabTextActive: { color: 'white' }, faqCategories: { flexDirection: 'row', gap: 8, marginBottom: 12 }, faqCategory: { minHeight: 32, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: '#CCD8FF' }, faqCategoryActive: { backgroundColor: colors.primary }, faqCategoryText: { color: colors.primaryDark, fontSize: 12, fontWeight: '700' }, faqCategoryTextActive: { color: 'white' }, faqRow: { minHeight: 48, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 7, borderRadius: 14, backgroundColor: '#EEF2FF' }, faqTop: { flexDirection: 'row', alignItems: 'center' }, faqQuestion: { flex: 1, color: colors.text, fontSize: 13, fontWeight: '600', lineHeight: 18 }, faqArrow: { color: colors.primary, fontSize: 22, marginLeft: 8 }, helpEmpty: { color: colors.muted, fontSize: 14, lineHeight: 20, paddingVertical: 12 },
+  contactList: { marginTop: 24 }, contactRow: { minHeight: 66, flexDirection: 'row', alignItems: 'center', gap: 12 }, contactIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: '#CCD8FF' }, contactIconText: { color: colors.primary, fontSize: 22, fontWeight: '800' }, contactLabel: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' }, contactArrow: { color: colors.primary, fontSize: 24, paddingHorizontal: 3 }, contactDescription: { color: colors.muted, fontSize: 13, lineHeight: 19, paddingLeft: 52, paddingBottom: 12 }, contactCard: { padding: 16, backgroundColor: '#F5F7FC', borderRadius: 13 },
   deleteCard: { alignItems: 'center', padding: 20, marginTop: 16, backgroundColor: '#FFFFFF', borderRadius: 18 }, deleteIcon: { width: 58, height: 58, borderRadius: 29, backgroundColor: '#FFF1F0', alignItems: 'center', justifyContent: 'center' }, deleteIconText: { color: colors.danger, fontSize: 30, fontWeight: '900' }, deleteHeading: { color: colors.text, textAlign: 'center', fontSize: 20, fontWeight: '800', marginTop: 18 },
 });

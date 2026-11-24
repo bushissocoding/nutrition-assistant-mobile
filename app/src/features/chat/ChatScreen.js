@@ -27,7 +27,7 @@ function appointmentItems(result, userId) {
   }));
 }
 
-export default function ChatScreen({ onNavigate, contact, account }) {
+export default function ChatScreen({ onNavigate, onBack, contact, account }) {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState('');
   const [aiConsent, setAiConsent] = useState(false);
@@ -109,7 +109,7 @@ export default function ChatScreen({ onNavigate, contact, account }) {
 
   return <View style={styles.screen}>
     <View style={styles.header}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.backButton} onPress={() => onNavigate?.(contact ? 'appointments-list' : 'home')}><Text style={styles.backGlyph}>‹</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.backButton} onPress={() => (onBack ? onBack() : onNavigate?.(contact ? 'appointments-list' : 'home'))}><Text style={styles.backGlyph}>‹</Text></TouchableOpacity>
       <View style={styles.headerCopy}><Text accessibilityRole="header" style={styles.title}>{contact?.name || 'Trợ lý ảo ViCi'}</Text><Text style={styles.online}>{contact ? 'Tin nhắn trong lịch hẹn đã xác nhận' : 'Trợ lý dinh dưỡng · dữ liệu tài khoản'}</Text></View>
     </View>
     {!contact && <View style={styles.consentCard}>

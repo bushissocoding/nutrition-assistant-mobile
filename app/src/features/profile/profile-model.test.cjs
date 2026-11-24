@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, hasUrgentRedFlags, normalizeProfile, validateProfile } = require('./profile-model.cjs');
+const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, hasUrgentRedFlags, isValidProfileName, normalizeProfile, normalizeProfileName, validateProfile } = require('./profile-model.cjs');
 
 test('healthy profile calculates BMI for adult and does not diagnose', () => {
   assert.equal(calculateAdultBmi({ age: '25', heightCm: '170', weightKg: '62' }), 21.5);
@@ -54,4 +54,11 @@ test('validates activity values and bounds profile notes and allergy entries', (
   assert.ok(errors.symptomNotes);
   assert.ok(errors.allergies);
   assert.equal(validateProfile({ ...valid, activityLevel: 'moderate' }).activityLevel, undefined);
+});
+
+test('normalizes and validates Unicode profile display names with spaces', () => {
+  assert.equal(normalizeProfileName('  Nguy\u0065\u0302\u0303n   Va\u0306n An  '), 'Nguyễn Văn An');
+  assert.equal(isValidProfileName('  Nguyễn   Văn An  '), true);
+  assert.equal(isValidProfileName('A'), false);
+  assert.equal(isValidProfileName('Gia @ Khang'), false);
 });

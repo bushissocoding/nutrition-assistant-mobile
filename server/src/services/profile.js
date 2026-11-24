@@ -9,6 +9,17 @@ const PROFILE_FIELDS = Object.freeze([
   'username', 'mode', 'gender', 'age', 'heightCm', 'weightKg', 'activityLevel', 'conditionType',
   'allergies', 'symptomNotes', 'redFlags', 'diagnosisNotes', 'hardLimits', 'medicalLimitsConfirmed',
 ]);
+const PROFILE_NAME_PATTERN = /^[\p{L}0-9_.-]+(?: [\p{L}0-9_.-]+)*$/u;
+
+function normalizeProfileName(value) {
+  return String(value ?? '').normalize('NFC').trim().replace(/\s+/gu, ' ');
+}
+
+function isValidProfileName(value) {
+  const name = normalizeProfileName(value);
+  const length = Array.from(name).length;
+  return length >= 3 && length <= 30 && PROFILE_NAME_PATTERN.test(name);
+}
 
 function invalidProfile(message = 'Dữ liệu hồ sơ không hợp lệ.') {
   const error = new Error(message);
@@ -21,8 +32,9 @@ function parseProfileInput(input) {
   const unknown = Object.keys(input).filter(key => !PROFILE_FIELDS.includes(key));
   if (unknown.length) throw invalidProfile();
   const value = { ...input };
-  if (typeof value.username !== 'string' || !/^[A-Za-z0-9_.-]{3,30}$/.test(value.username.trim())) throw invalidProfile('Tên người dùng không hợp lệ.');
-  value.username = value.username.trim();
+  if (typeof value.username !== 'string') throw invalidProfile('Tên hiển thị không hợp lệ.');
+  value.username = normalizeProfileName(value.username);
+  if (!isValidProfileName(value.username)) throw invalidProfile('Tên hiển thị không hợp lệ.');
   if (!['healthy', 'patient'].includes(value.mode)) throw invalidProfile();
   if (!['female', 'male', 'unspecified'].includes(value.gender)) throw invalidProfile();
   if (!Number.isInteger(value.age) || value.age < 1 || value.age > 120) throw invalidProfile();

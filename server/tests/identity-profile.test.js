@@ -18,7 +18,7 @@ const consentInput = Object.freeze({
   ai_processing: false, health_record_storage: false,
 });
 
-function createDatabasePool() {
+function createDatabasePool({ profileWriteError } = {}) {
   const rows = { profiles: new Map(), consent_records: new Map() };
   const nextId = () => `synthetic-record-${Math.random().toString(36).slice(2)}`;
   const databaseFor = userId => ({
@@ -46,6 +46,7 @@ function createDatabasePool() {
           }
           if (operation === 'upsert') {
             if (payload.id !== userId) return { data: null, error: { code: '42501' } };
+            if (profileWriteError) return { data: null, error: profileWriteError };
             const row = { ...payload, created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' };
             rows[table].set(userId, row);
             return { data: row, error: null };
@@ -68,11 +69,12 @@ function createTestAuth(pool) {
   };
 }
 
-async function withTestApi(t) {
-  const pool = createDatabasePool();
+async function withTestApi(t, { profileWriteError, onLog } = {}) {
+  const pool = createDatabasePool({ profileWriteError });
   const context = { store: { readCollection() {}, updateCollection() {}, writeCollection() {} }, requireScope() {} };
   const app = express();
   app.use(express.json());
+  app.use((req, res, next) => { req.requestId = 'synthetic-request-id'; req.logApiFailure = onLog; next(); });
   app.use('/api/v1', createApiRouter({ foods: [], mealTemplates: [], catalog: {} }, context, { authMiddleware: createTestAuth(pool) }));
   const server = app.listen(0);
   await once(server, 'listening');
@@ -89,6 +91,8 @@ test('profile parser validates every field, converts storage names and rejects o
   const parsed = parseProfileInput(profileInput);
   assert.equal(parsed.height_cm, 165);
   assert.deepEqual(parsed.allergies, ['peanuts']);
+  assert.equal(parseProfileInput({ ...profileInput, username: '  Nguyễn   Văn An  ' }).username, 'Nguyễn Văn An');
+  assert.throws(() => parseProfileInput({ ...profileInput, username: 'Gia @ Khang' }), { code: 'INVALID_PROFILE' });
   assert.throws(() => parseProfileInput({ ...profileInput, userId: 'other-user' }), { code: 'INVALID_PROFILE' });
   assert.throws(() => parseProfileInput({ ...profileInput, weightKg: 501 }), { code: 'INVALID_PROFILE' });
   assert.throws(() => parseProfileInput({ ...profileInput, allergies: ['milk', 'milk'] }), { code: 'INVALID_PROFILE' });
@@ -114,6 +118,20 @@ test('profile and consent tables have owner RLS, server timestamps, and append-o
   assert.match(migration, /grant insert \(user_id, version, choices\) on public\.consent_records to authenticated/i);
   assert.match(migration, /profiles_delete_own[\s\S]*for delete to authenticated using \(id = \(select auth\.uid\(\)\)\)/i);
   assert.doesNotMatch(migration, /grant\s+(update|delete|all)\s+on\s+public\.consent_records\s+to\s+authenticated/i);
+});
+
+test('profile display-name migration keeps the normalized 3–30 character rule and allows spaces', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/202611240011_profile_display_names.sql'), 'utf8');
+  assert.match(migration, /drop constraint if exists profiles_username_check/i);
+  assert.match(migration, /add constraint profiles_username_check/i);
+  assert.match(migration, /char_length\(username\) between 3 and 30/i);
+  assert.ok(migration.includes("username ~ '^[[:alpha:]0-9_.-]+( [[:alpha:]0-9_.-]+)*$'"));
+});
+
+test('profile upsert grants the conflict-key update required by PostgREST', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/202611240012_profile_upsert_key_privilege.sql'), 'utf8');
+  assert.match(migration, /grant update \(id\) on public\.profiles to authenticated/i);
+  assert.doesNotMatch(migration, /grant update on public\.profiles to authenticated/i);
 });
 
 test('identity routes require auth, require current consent for profile, and ignore body ownership', async t => {
@@ -142,4 +160,18 @@ test('identity routes require auth, require current consent for profile, and ign
   await request('/me/consent', { token: 'synthetic-user-b', method: 'PUT', body: { choices: consentInput } });
   const isolated = await request('/me/profile', { token: 'synthetic-user-b' });
   assert.deepEqual(await isolated.json(), { profile: null });
+});
+
+test('logs a safe database error code when profile persistence fails', async t => {
+  const logged = [];
+  const { request } = await withTestApi(t, {
+    profileWriteError: { code: '42501', message: 'Synthetic database detail must not be exposed.' },
+    onLog: (event, code) => logged.push({ event, code }),
+  });
+  await request('/me/consent', { method: 'PUT', body: { choices: consentInput } });
+
+  const response = await request('/me/profile', { method: 'PUT', body: profileInput });
+  assert.equal(response.status, 503);
+  assert.deepEqual(await response.json(), { error: 'Không thể lưu hồ sơ lúc này.', code: 'PROFILE_UNAVAILABLE' });
+  assert.deepEqual(logged, [{ event: 'profile_save_failed', code: '42501' }]);
 });

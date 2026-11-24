@@ -1,6 +1,13 @@
 import React from 'react';
 import { fireEvent, render } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import ProfileSetupScreen from './ProfileSetupScreen';
+
+test('uses the shared page inset without a duplicate wizard offset', () => {
+  const screen = render(<ProfileSetupScreen initialProfile={{ username: 'patient_1' }} onComplete={jest.fn()} />);
+
+  expect(StyleSheet.flatten(screen.getByTestId('profile-setup-top-bar').props.style).paddingTop).toBe(12);
+});
 
 test('moves through the assessment wizard and saves only the completed demo profile', () => {
   const onComplete = jest.fn();
@@ -32,6 +39,23 @@ test('keeps the wizard on the measurement step when a required value is invalid'
 
   expect(screen.getByText('Nhập cân nặng từ 2 đến 500 kg.')).toBeTruthy();
   expect(screen.getByLabelText('Cân nặng tính bằng kilogram')).toBeTruthy();
+});
+
+test('saves a complete profile with a Vietnamese display name containing spaces', () => {
+  const onComplete = jest.fn();
+  const screen = render(<ProfileSetupScreen initialProfile={{ username: 'Nguyễn Văn An', age: '30', heightCm: '170', weightKg: '65', activityLevel: 'moderate' }} onComplete={onComplete} />);
+
+  fireEvent.press(screen.getByText('Bỏ qua'));
+  fireEvent.press(screen.getByText(/Tiếp tục/));
+  fireEvent.press(screen.getByText(/Tiếp tục/));
+  fireEvent.press(screen.getByText(/Tiếp tục/));
+  fireEvent.press(screen.getByText('Bỏ qua'));
+  fireEvent.press(screen.getByText('Bỏ qua'));
+  fireEvent.press(screen.getByText('Tôi không khai báo dị ứng'));
+  fireEvent.press(screen.getByRole('button', { name: 'Lưu hồ sơ' }));
+
+  expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({ username: 'Nguyễn Văn An', age: '30', heightCm: '170', weightKg: '65' }));
+  expect(screen.queryByText(/Tên người dùng gồm/)).toBeNull();
 });
 
 test('skipping optional steps preserves existing allergy exclusions and safety flags', () => {

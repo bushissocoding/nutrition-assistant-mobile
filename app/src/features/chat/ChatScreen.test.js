@@ -64,3 +64,13 @@ test('loads appointment messages and sends only to the confirmed appointment con
   expect(screen.queryByText(/chưa gửi|mẫu|không có bác sĩ thật/i)).toBeNull();
   expect(api.sendMyAssistantTurn).not.toHaveBeenCalled();
 });
+
+test('uses the caller-provided back target when a conversation was opened from the inbox', async () => {
+  const onBack = jest.fn();
+  const onNavigate = jest.fn();
+  const screen = render(<ChatScreen account={{ id: 'patient-1' }} onBack={onBack} onNavigate={onNavigate} />);
+  await waitFor(() => expect(screen.getByText('Lịch sử hội thoại của bạn sẽ hiển thị tại đây.')).toBeTruthy());
+  fireEvent.press(screen.getByLabelText('Quay lại'));
+  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(onNavigate).not.toHaveBeenCalled();
+});

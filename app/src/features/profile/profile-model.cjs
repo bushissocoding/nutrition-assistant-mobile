@@ -25,6 +25,17 @@ const CONDITION_TYPES = [
   'hypertension',
   'other',
 ];
+const PROFILE_NAME_PATTERN = /^[\p{L}0-9_.-]+(?: [\p{L}0-9_.-]+)*$/u;
+
+function normalizeProfileName(value) {
+  return String(value ?? '').normalize('NFC').trim().replace(/\s+/gu, ' ');
+}
+
+function isValidProfileName(value) {
+  const name = normalizeProfileName(value);
+  const length = Array.from(name).length;
+  return length >= 3 && length <= 30 && PROFILE_NAME_PATTERN.test(name);
+}
 
 function createEmptyProfile() {
   return { version: 1, mode: 'healthy', gender: 'unspecified', conditionType: 'unspecified', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
@@ -71,7 +82,7 @@ function buildProfileDraft(profile, allergyText, limitInputs) {
     if (maxText && Number.isFinite(Number(maxText)) && Number(maxText) >= 0) range.max = Number(maxText);
     if (Object.keys(range).length) hardLimits[nutrient.key] = range;
   }
-  return normalizeProfile({ ...profile, allergies: allergyText.split(',').map(value => value.trim()).filter(Boolean), hardLimits: profile.mode === 'patient' ? hardLimits : {} });
+  return normalizeProfile({ ...profile, username: normalizeProfileName(profile.username), allergies: allergyText.split(',').map(value => value.trim()).filter(Boolean), hardLimits: profile.mode === 'patient' ? hardLimits : {} });
 }
 function hasUrgentRedFlags(profile) {
   return profile?.mode === 'healthy' && Array.isArray(profile.redFlags) && profile.redFlags.length > 0;
@@ -83,4 +94,4 @@ function calculateAdultBmi(profile) {
   if (age < 18 || !Number.isFinite(age) || !Number.isFinite(height) || !Number.isFinite(weight) || height <= 0 || weight <= 0) return null;
   return Math.round((weight / (height * height)) * 10) / 10;
 }
-module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, CONDITION_TYPES, createEmptyProfile, normalizeProfile, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };
+module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, CONDITION_TYPES, createEmptyProfile, normalizeProfile, normalizeProfileName, isValidProfileName, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };

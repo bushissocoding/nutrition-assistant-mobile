@@ -1,6 +1,6 @@
 begin;
 
-select plan(9);
+select plan(10);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -53,6 +53,31 @@ select set_config('request.jwt.claim.sub', '11110000-0000-4000-8000-000000000001
 select set_config('request.jwt.claims', '{"sub":"11110000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
+insert into public.profiles (
+  id, username, mode, gender, age, height_cm, weight_kg, activity_level, condition_type,
+  allergies, symptom_notes, red_flags, diagnosis_notes, hard_limits, medical_limits_confirmed
+)
+values (
+  '11110000-0000-4000-8000-000000000001', 'rls-one-upserted', 'healthy', 'unspecified', 30, 170, 65, 'moderate', 'unspecified',
+  '{}', '', '{}', '', '{}'::jsonb, false
+)
+on conflict (id) do update set
+  id = excluded.id,
+  username = excluded.username,
+  mode = excluded.mode,
+  gender = excluded.gender,
+  age = excluded.age,
+  height_cm = excluded.height_cm,
+  weight_kg = excluded.weight_kg,
+  activity_level = excluded.activity_level,
+  condition_type = excluded.condition_type,
+  allergies = excluded.allergies,
+  symptom_notes = excluded.symptom_notes,
+  red_flags = excluded.red_flags,
+  diagnosis_notes = excluded.diagnosis_notes,
+  hard_limits = excluded.hard_limits,
+  medical_limits_confirmed = excluded.medical_limits_confirmed;
+select is((select username from public.profiles), 'rls-one-upserted', 'account one can upsert its own profile');
 with changed as (
   update public.profiles set username = 'stolen-profile'
   where id = '11110000-0000-4000-8000-000000000002' returning id
