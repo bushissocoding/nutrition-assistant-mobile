@@ -10,7 +10,9 @@ async function withServer(router, run) {
     req.userDatabase = { from: table => ({
       select: () => table === 'profiles'
         ? { eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }) }
-        : { eq: () => ({ order: () => ({ order: async () => ({ data: [], error: null }) }) }) },
+        : table === 'meal_entries'
+          ? { eq: () => ({ is: () => ({ order: () => ({ order: async () => ({ data: [], error: null }) }) }) }) }
+          : { eq: () => ({ order: () => ({ order: async () => ({ data: [], error: null }) }) }) },
     }) };
     next();
   }, router);

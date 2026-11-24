@@ -17,10 +17,10 @@ app/
         ├── onboarding/             # Welcome, account preview, versioned consent and profile assessment
         ├── home/                   # Home shortcuts, selected-date diary, and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
-        ├── grocery/                 # Plan-derived, checkable shopping list
-        ├── diary/                   # Food search, portion entry, nutrition logging, and local-date history helper
-        ├── dashboard/               # Seven-day API totals and daily nutrient progress
-        ├── profile/                 # Synthetic local profile and explicit security gaps
+        ├── grocery/                 # Account-owned pantry and saved-plan shopping list
+        ├── diary/                   # USDA-sourced account diary, edits, local-date history and totals
+        ├── dashboard/               # Account API report and daily nutrient progress
+        ├── profile/                 # Account profile, consent and lifecycle screens
         ├── chat/                    # Local FAQ assistant and non-delivering provider conversation preview
         ├── notifications/           # Synthetic notices with locally persisted read flags; no push service
         ├── settings/                # Device demo preferences, privacy text and help
@@ -29,7 +29,7 @@ app/
         └── appointments/            # Synthetic provider, schedule and payment UI previews
 ```
 
-Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` owns transient cross-screen state, restores Supabase Auth sessions, hydrates account-owned consent/profile, and currently hydrates the current-day diary summary from the demo API. The Home date strip queries another selected local day through the same API. The dashboard uses AppShell's current-day response and fetches the preceding six dates independently so partial failures do not turn into zero totals. Account consent receipts are versioned, timestamped by Postgres, and append-only; health profile rows are account-owned behind RLS. SecureStore contains only the Auth SDK session and the identifiers/read flags for current sample notifications.
+Each feature owns its screen and feature-specific UI/state. Move a component to `shared/components/` only when multiple features genuinely reuse it. `AppShell` restores Supabase Auth sessions and hydrates account-owned consent/profile; current-day diary totals and multi-day dashboard reports come from private account APIs. Account consent receipts are versioned, timestamped by Postgres, and append-only; profile, meal plans, diary, pantry and grocery rows are owner-scoped behind RLS. SecureStore contains only the Auth SDK session and the identifiers/read flags for current sample notifications.
 
 Welcome/login/registration and email/SMS recovery use Supabase Auth when configured. Account settings can change a password, verify a recovery phone, export current identity/profile/consent data and request staged deletion. Chat and personalization still operate only in the current UI session. Notifications use synthetic sample text; read flags persist locally, but there is no push or server notification service. A provider conversation is a non-delivering screen preview and is available only after a matching appointment preview exists; it is not clinician chat. Provider, appointment, and payment screens use synthetic examples and do not contact providers, create bookings, store payment methods, or process transactions. The medical-record screen summarizes the account profile and can create a PDF in the device cache and open the native share sheet; it does not upload the PDF or verify a medical record. The lab-scan screen has an empty state and an optional, editable synthetic sample that remains in session memory. There is no camera capture, image upload, OCR, or lab interpretation service.
 
@@ -49,11 +49,16 @@ server/
 │   ├── routes/api.js                # API composition and existing route mapping
 │   ├── routes/sourced-foods.js      # USDA search/detail and server nutrient calculation
 │   ├── routes/meal-plans.js        # Consent-gated, account-owned plan snapshots
-│   ├── routes/meal-entries.js       # Diary CRUD, boundary validation and response mapping
+│   ├── routes/meal-entries.js       # Namespaced demo diary CRUD
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
+│   ├── routes/account-meal-entries.js # Account-owned diary and timezone summaries
+│   ├── routes/nutrition-report.js   # Bounded account report aggregation
+│   ├── routes/account-grocery.js    # Account-owned pantry and shopping-list API
 │   ├── repositories/catalog.js      # Validate/load catalog and its source registry
 │   ├── repositories/meal-entry-repository.js # Namespaced demo entries and idempotency ledger
-│   ├── repositories/shopping-list-repository.js # Current grocery list and idempotency ledger
+│   ├── repositories/shopping-list-repository.js # Namespaced demo grocery list
+│   ├── repositories/account-meal-entry-repository.js # Account diary snapshots/idempotency
+│   ├── repositories/account-grocery-repository.js # Account pantry and grocery operations
 │   ├── repositories/meal-plan-repository.js # Account-scoped plan snapshots and idempotency
 │   └── services/
 │       ├── supabase/
@@ -87,11 +92,13 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `GET /api/v1/me` — requires a Supabase Auth bearer token and returns only that verified account's ID; it does not load or persist a profile.
 - `GET/PUT /api/v1/me/consent` — reads the latest account receipt or appends explicit choices with a database timestamp.
 - `GET/PUT/DELETE /api/v1/me/profile` — reads, validates, saves or deletes the caller's own health profile after current required consent.
-- `GET /api/v1/me/export` and `DELETE /api/v1/me` — export current identity/profile/consent records and stage account deletion through registered module cleanup handlers before privileged Auth deletion.
+- `GET /api/v1/me/export` and `DELETE /api/v1/me` — export current identity, profile, consent, meal plans, diary, pantry and shopping lists; account deletion cascades owned rows before privileged Auth deletion.
 - `POST/GET /api/v1/me/meal-plans` — create feasible snapshots from exact live FDC records and list owner-scoped history; allergies/hard limits come from the consented account profile. The migration enables owner RLS and per-account idempotency.
+- `/api/v1/me/meal-entries` and `/api/v1/me/nutrition-report` — authenticated diary CRUD and local-timezone daily summaries from server-resolved USDA snapshots.
+- `/api/v1/me/grocery/shopping-list` and `/api/v1/me/grocery/pantry` — account-owned list generation from a saved plan, sourced item creation, quantity/purchased editing and pantry CRUD.
 - `GET /health` — service health.
 
-Auth sessions use a chunked, failure-safe SecureStore adapter. Sign-up, login, email/SMS recovery, password changes, verified-phone linking and profile screens use Supabase Auth when configured. Consent and health profile API routes use verified bearer identity and owner-scoped Supabase RLS; export covers identity, profile, consent and saved meal plans, while account deletion triggers Auth cascades and registered module cleanup handlers. Sourced FDC food lookup/calculation and consent-gated, profile-derived saved meal plans are implemented; they require a server-only `FDC_API_KEY` and exact source matches. Only the Auth SDK session remains local. Account-private routes do not yet cover diary/grocery, appointments, chat, records or other feature workflows. Local RLS integration has not run because Docker/Supabase CLI are unavailable. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+Auth sessions use a chunked, failure-safe SecureStore adapter. Sign-up, login/email recovery, password changes, verified-phone linking and account assessment use Supabase Auth when configured; SMS recovery still needs an operator-configured provider. Consent, profile, saved meal plans, diary/report, pantry and grocery APIs use verified bearer identity, request-scoped Supabase RLS and owner filters. Export includes those records and deletion relies on auth-user cascades. Sourced FDC lookup, nutrition calculation and profile-constrained saved plans require a server-only `FDC_API_KEY` and exact source matches. Appointments/payments, clinician and AI chat, uploaded records/OCR, and server notifications remain to be built. Local RLS integration has not run because Docker/Supabase CLI are unavailable. Do not enter real patient information until the data lifecycle and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
 
 ## Suggested next additions
 

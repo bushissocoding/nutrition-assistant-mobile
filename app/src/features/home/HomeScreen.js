@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
-import { formatLocalDateKey, getLocalWeek, loadDiaryHistory } from '../diary/diary-history.cjs';
+import { formatLocalDateKey, getLocalWeek } from '../diary/diary-history.cjs';
 
 const shortcuts = [
   ['♙', 'Đặt khám', 'appointments'],
@@ -46,10 +46,12 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
     setSelectedDateResult(null);
     setSelectedDateError('');
     setSelectedDateLoading(true);
-    loadDiaryHistory(api, [selectedDate], timeZone).then(result => {
+    api.getMyMealEntries({ date: selectedDate, timeZone }).then(result => {
       if (!active) return;
-      setSelectedDateResult(result.byDate[selectedDate] || null);
-      setSelectedDateError(result.errorsByDate[selectedDate] || '');
+      setSelectedDateResult({ items: Array.isArray(result?.items) ? result.items : [], hasEntries: result?.hasEntries === true });
+      setSelectedDateError('');
+    }).catch(error => {
+      if (active) { setSelectedDateResult(null); setSelectedDateError(error?.message || 'Không tải được nhật ký ngày này.'); }
     }).finally(() => {
       if (active) setSelectedDateLoading(false);
     });

@@ -1,6 +1,6 @@
-# Nutrition Assistant API (MVP)
+# Nutrition Assistant API
 
-Small Express API serving account identity/profile/consent operations, an explicitly attributed demonstration food catalog, deterministic sample meal plans, a demo-only persistent meal diary, and the current demo grocery list. Route handlers, repositories, catalog access, and nutrition/planning services are separated under `server/src/`.
+Express API serving verified account identity/profile/consent, owner-scoped USDA-attributed meal plans, meal diary, nutrition reports, pantry and grocery workflows alongside the existing versioned public contract and development-only demo routes. Route handlers, repositories, catalog access, and nutrition/planning services are separated under `server/src/`.
 
 ## Run
 
@@ -14,7 +14,7 @@ npm run test:ui
 
 Before the first run, copy `server/.env.example` to `server/.env` if that file does not already exist. The API script loads this optional file using Node's built-in `--env-file-if-exists`; shell environment variables take precedence. Node added the option in v22.9.0, before this repository's declared minimums. The feature is marked as active development in the Node 24.3 documentation. See [Node v22.13 CLI environment-file options](https://nodejs.org/download/release/v22.13.0/docs/api/cli.html#--env-file-if-existsconfig) and [Node v24.3 CLI environment-file options](https://nodejs.org/download/release/v24.3.0/docs/api/cli.html#--env-file-if-existsconfig).
 
-API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The sample's `CORS_ORIGIN=*` is for development only; production requires one explicit HTTPS origin plus `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`. Keep the secret key on the server; it bypasses RLS. `FDC_API_KEY` is optional and stays on the server. Demo routes and persistence remain disabled unless `DEMO_DATA_ENABLED=true` is explicitly set, and are always unavailable in production. `/api/v1/me` verifies a confirmed Auth identity; `/api/v1/me/consent` stores account-bound append-only consent receipts; `/api/v1/me/profile` reads, updates, or deletes the caller's profile after current required consent; `/api/v1/me/export` exports current identity/profile/consent/saved plans; `/api/v1/me` DELETE stages module cleanup before Auth deletion; `/api/v1/me/meal-plans` creates and lists account-owned USDA-attributed plan snapshots. The associated migrations enable owner RLS. This environment has not run the migrations against local Supabase because the Supabase CLI and Docker are unavailable; static migration contract tests are not an RLS integration test. The JSON store described below is local development storage only. The built-in rate limiter is per process; a multi-instance deployment needs a shared store.
+API listens on `http://localhost:4000` by default. Set `PORT` and `CORS_ORIGIN` for local deployment. The sample's `CORS_ORIGIN=*` is for development only; production requires one explicit HTTPS origin plus `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, and `SUPABASE_SECRET_KEY`. Keep the secret key on the server; it bypasses RLS. `FDC_API_KEY` is optional and stays on the server. Demo routes and persistence remain disabled unless `DEMO_DATA_ENABLED=true` is explicitly set, and are always unavailable in production. `/api/v1/me` verifies a confirmed Auth identity; consent, profile, saved plans, diary, report, grocery and pantry routes require current consent and use the caller's request-scoped database client. `/api/v1/me/export` includes identity/profile/consent/plans/diary/grocery/pantry; account deletion relies on Auth cascades for owned rows. The associated migrations enable owner RLS. This environment has not run migrations against local Supabase because the Supabase CLI and Docker are unavailable; static migration contract tests are not an RLS integration test. The JSON store described below is local development storage only. The built-in rate limiter is per process; a multi-instance deployment needs a shared store.
 
 CI runs the Android bundle export and a high/critical dependency audit after the required unit, UI and API tests. Bundle export does not verify an installed app or device connectivity. See the [security and operations baseline](../docs/security-and-operations.md) for current controls, residual risks and release prerequisites.
 
@@ -34,10 +34,15 @@ CI runs the Android bundle export and a high/critical dependency audit after the
 - `DELETE /api/v1/meal-entries` — purge all diary entries and idempotency records in the current namespace.
 - `POST /api/v1/shopping-lists` — create/replace the current grocery list from `{ "items": [{ "foodId": "rice-steamed", "amount": 300, "unit": "g" }] }`; requires `X-Demo-Namespace` and `Idempotency-Key`.
 - `GET /api/v1/shopping-lists/current` — read the current list, returning `{ "list": null }` before one has been created.
-- `GET /api/v1/me/export` — export only the caller's current identity, profile, consent receipts and saved meal plans.
+- `GET /api/v1/me/export` — export only the caller's identity, profile, consent receipts, plans, diary, pantry and shopping lists.
 - `DELETE /api/v1/me` — run registered module-owned record/object deletion handlers before deleting the Auth identity. Returns `204` only when all configured steps complete; `503` can be retried.
 - `POST /api/v1/me/meal-plans` — requires current consent and an `Idempotency-Key`; accepts only preferences and reads allergies/hard limits from the caller's profile. A snapshot is saved only when all exact food/source records and every hard constraint are available.
 - `GET /api/v1/me/meal-plans?limit=20&offset=0` — list the caller's saved plans under RLS.
+- `POST/GET /api/v1/me/meal-entries`, `GET/PATCH/DELETE /api/v1/me/meal-entries/:id` — account-owned diary with server-resolved USDA snapshots and local-day totals.
+- `GET /api/v1/me/nutrition-report?date=YYYY-MM-DD&timeZone=Asia/Ho_Chi_Minh&days=7` — account report for 1–31 local dates; unknown values stay null.
+- `GET/POST/DELETE /api/v1/me/grocery/shopping-list` — read, create from an owned saved plan ID (`Idempotency-Key` required), or clear the current list.
+- `POST /api/v1/me/grocery/shopping-list/items`, `PATCH/DELETE /api/v1/me/grocery/shopping-list/items/:id` — add a USDA-resolved item or update amount/unit/purchased state and remove items.
+- `GET/POST /api/v1/me/grocery/pantry`, `PATCH/DELETE /api/v1/me/grocery/pantry/:id` — sourced pantry inventory CRUD; arbitrary client names and source metadata are rejected.
 - `PATCH /api/v1/shopping-lists/current/items/:itemId` — update `amount`, `unit`, and/or `purchased`.
 - `DELETE /api/v1/shopping-lists/current/items/:itemId` — delete one item.
 - `DELETE /api/v1/shopping-lists/current` — remove the current list and retain minimal idempotency tombstones.

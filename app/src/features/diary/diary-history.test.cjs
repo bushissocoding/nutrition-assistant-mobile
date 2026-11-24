@@ -35,29 +35,35 @@ test('steps through the daylight-saving transition without skipping a local date
   }
 });
 
-test('loads each unique date with the supplied timezone and retains successful responses on partial failure', async () => {
+test('loads unique report dates in one authenticated request with the supplied timezone', async () => {
   const totals = { energyKcal: 100, proteinG: 10, carbohydrateG: 20, fatG: 3, fiberG: 4, sodiumMg: 5 };
   const calls = [];
-  const api = { getMealEntries: query => {
+  const api = { getMyNutritionReport: query => {
     calls.push(query);
-    return query.date === '2026-06-01'
-      ? Promise.reject(new Error('API đang ngoại tuyến.'))
-      : Promise.resolve({ date: query.date, items: [{ id: 'entry-1' }], totals });
+    return Promise.resolve({ days: [
+      { date: '2026-05-31', hasEntries: true, totals },
+      { date: '2026-06-01', hasEntries: false, totals: null },
+    ] });
   } };
 
   const history = await loadDiaryHistory(api, ['2026-05-31', '2026-06-01', '2026-05-31'], 'Asia/Ho_Chi_Minh');
 
-  assert.equal(calls.length, 2);
-  assert.ok(calls.some(query => query.date === '2026-05-31' && query.timeZone === 'Asia/Ho_Chi_Minh'));
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0], { date: '2026-06-01', timeZone: 'Asia/Ho_Chi_Minh', days: 2 });
   assert.deepEqual(history.byDate['2026-05-31'].totals, totals);
-  assert.equal(history.errorsByDate['2026-06-01'], 'API đang ngoại tuyến.');
+  assert.deepEqual(history.byDate['2026-06-01'], { hasEntries: false, totals: null });
+  assert.deepEqual(history.errorsByDate, {});
 });
 
-test('treats malformed API totals as unavailable instead of zero intake', async () => {
+test('rejects malformed report totals but preserves legitimate unknown nutrient values', async () => {
   const history = await loadDiaryHistory({
-    getMealEntries: async ({ date }) => ({ date, items: [], totals: { energyKcal: 0 } }),
+    getMyNutritionReport: async () => ({ days: [{ date: '2026-06-01', hasEntries: true, totals: { energyKcal: null } }] }),
   }, ['2026-06-01'], 'UTC');
 
   assert.equal(history.byDate['2026-06-01'], undefined);
   assert.match(history.errorsByDate['2026-06-01'], /không đúng định dạng/i);
+  const unknown = await loadDiaryHistory({
+    getMyNutritionReport: async () => ({ days: [{ date: '2026-06-01', hasEntries: true, totals: { energyKcal: null, proteinG: 2, carbohydrateG: 3, fatG: 1, fiberG: null, sodiumMg: 5 } }] }),
+  }, ['2026-06-01'], 'UTC');
+  assert.equal(unknown.byDate['2026-06-01'].totals.energyKcal, null);
 });

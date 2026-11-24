@@ -54,7 +54,7 @@ test('passes a feasible backend plan to the create-list flow and displays proven
   expect(screen.getAllByText(/USDA FoodData Central/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Chưa có giá có nguồn/).length).toBeGreaterThan(0);
   fireEvent.press(screen.getByText('Tạo danh sách đi chợ'));
-  expect(onOpenGrocery).toHaveBeenCalledWith(generatedPlan.grocery);
+  expect(onOpenGrocery).toHaveBeenCalledWith(persistedPlan.savedPlan.id);
   expect(api.createMyMealPlan).toHaveBeenCalledWith({ contractVersion: 1, preferences: '' }, expect.stringMatching(/^plan-/));
   expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('allergies');
   expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('hardLimits');

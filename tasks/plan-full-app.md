@@ -44,9 +44,9 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - [x] Task 3.1: FoodData Central adapter, source metadata and attribution UI/API
 - [x] Task 3.2: Owner-scoped, idempotent meal-plan snapshots with profile-derived hard-limit rules; report depends on account-owned diary below
 - [x] Task 3.3: Specify, plan, and task `diary-grocery-analytics` before implementation
-- [ ] Task 3.4: Authenticated diary CRUD, local timezone summaries and meal statistics
-- [ ] Task 3.5: Pantry inventory, shopping list and grocery editing
-- [ ] Checkpoint: Plan → meals → diary → report/grocery data remains consistent and API-derived
+- [x] Task 3.4: Authenticated diary CRUD, local timezone summaries and meal statistics
+- [x] Task 3.5: Pantry inventory, shopping list and grocery editing
+- [x] Checkpoint: Plan → meals → diary → report/grocery data remains consistent and API-derived
 
 ### Phase 4: Care and payment
 

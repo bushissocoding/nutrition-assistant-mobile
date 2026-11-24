@@ -56,34 +56,41 @@ function getLocalWeek(referenceDate = new Date()) {
 }
 
 function validateDiaryResponse(result, date) {
-  if (!result || result.date !== date || !Array.isArray(result.items)
-    || !result.totals || typeof result.totals !== 'object'
-    || !nutrientKeys.every(key => Number.isFinite(result.totals[key]))) {
-    throw new Error('Dữ liệu nhật ký trả về không đúng định dạng.');
+  if (!result || result.date !== date || typeof result.hasEntries !== 'boolean') {
+    throw new Error('Dữ liệu báo cáo dinh dưỡng trả về không đúng định dạng.');
   }
-  return { items: result.items, totals: result.totals };
+  if (!result.hasEntries) {
+    if (result.totals !== null) throw new Error('Ngày chưa có món phải giữ tổng dinh dưỡng là null.');
+    return { hasEntries: false, totals: null };
+  }
+  if (!result.totals || typeof result.totals !== 'object'
+    || !nutrientKeys.every(key => result.totals[key] === null || Number.isFinite(result.totals[key]))) {
+    throw new Error('Dữ liệu tổng dinh dưỡng trả về không đúng định dạng.');
+  }
+  return { hasEntries: true, totals: result.totals };
 }
 
 async function loadDiaryHistory(api, dates, timeZone) {
-  if (!api || typeof api.getMealEntries !== 'function' || !Array.isArray(dates) || typeof timeZone !== 'string' || !timeZone) {
+  if (!api || typeof api.getMyNutritionReport !== 'function' || !Array.isArray(dates) || typeof timeZone !== 'string' || !timeZone) {
     throw new TypeError('Diary history requires an API client, dates, and an IANA timezone.');
   }
-
   const uniqueDates = [...new Set(dates)];
-  const results = await Promise.all(uniqueDates.map(async date => {
-    try {
-      const response = await api.getMealEntries({ date, timeZone });
-      return { date, value: validateDiaryResponse(response, date) };
-    } catch (error) {
-      return { date, error: error?.message || 'Không tải được nhật ký ngày này.' };
+  if (!uniqueDates.length) return { byDate: {}, errorsByDate: {} };
+  try {
+    const response = await api.getMyNutritionReport({ date: uniqueDates.at(-1), timeZone, days: uniqueDates.length });
+    if (!response || !Array.isArray(response.days) || response.days.length !== uniqueDates.length) {
+      throw new Error('Dữ liệu báo cáo dinh dưỡng trả về không đúng định dạng.');
     }
-  }));
-
-  return results.reduce((history, result) => {
-    if (result.error) history.errorsByDate[result.date] = result.error;
-    else history.byDate[result.date] = result.value;
-    return history;
-  }, { byDate: {}, errorsByDate: {} });
+    const byDate = {};
+    response.days.forEach((day, index) => {
+      if (day?.date !== uniqueDates[index]) throw new Error('Dữ liệu báo cáo dinh dưỡng trả về không đúng ngày.');
+      byDate[day.date] = validateDiaryResponse(day, day.date);
+    });
+    return { byDate, errorsByDate: {} };
+  } catch (error) {
+    const errorsByDate = Object.fromEntries(uniqueDates.map(date => [date, error?.message || 'Không tải được báo cáo ngày này.']));
+    return { byDate: {}, errorsByDate };
+  }
 }
 
 module.exports = { formatLocalDateKey, getRecentLocalDays, getLocalWeek, loadDiaryHistory };

@@ -9,6 +9,9 @@ const { createConsentRouter } = require('./consent');
 const { createAccountRouter } = require('./account');
 const { createSourcedFoodRouter } = require('./sourced-foods');
 const { createMealPlanRouter } = require('./meal-plans');
+const { createAccountMealEntryRouter } = require('./account-meal-entries');
+const { createNutritionReportRouter } = require('./nutrition-report');
+const { createAccountGroceryRouter } = require('./account-grocery');
 
 function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
@@ -28,6 +31,9 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
     router.use('/me/consent', authMiddleware, createConsentRouter());
     router.use('/me/profile', authMiddleware, createProfileRouter());
     router.use('/me/meal-plans', authMiddleware, createMealPlanRouter({ foods, mealTemplates, catalog, foodSource }));
+    router.use('/me/meal-entries', authMiddleware, createAccountMealEntryRouter({ foodSource }));
+    router.use('/me/nutrition-report', authMiddleware, createNutritionReportRouter());
+    router.use('/me/grocery', authMiddleware, createAccountGroceryRouter({ foodSource }));
   }
   router.use(createSourcedFoodRouter({ foodSource }));
   router.get('/foods', (req, res) => {

@@ -16,7 +16,7 @@ function rounded(value) {
   return Math.round(Number(value) || 0);
 }
 
-export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryError = '', diaryLoading = false, onRetryDiary }) {
+export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryHasEntries = false, diaryError = '', diaryLoading = false, onRetryDiary }) {
   const [metricIndex, setMetricIndex] = useState(0);
   const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -37,15 +37,24 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryErr
     return () => { active = false; };
   }, [week, timeZone, retryVersion]);
 
+  const hasTodayEntries = diaryHasEntries || diary.length > 0;
   const chartValues = week.map(day => {
-    if (day.current) return diaryLoading || diaryError ? null : Number(diaryTotals[activeMetric.key]) || 0;
+    if (day.current) {
+      if (diaryLoading || diaryError) return null;
+      if (!hasTodayEntries) return 0;
+      return Number.isFinite(diaryTotals[activeMetric.key]) ? diaryTotals[activeMetric.key] : null;
+    }
     if (history.errorsByDate[day.date]) return null;
-    if (history.byDate[day.date]) return Number(history.byDate[day.date].totals[activeMetric.key]) || 0;
+    if (history.byDate[day.date]) {
+      const report = history.byDate[day.date];
+      if (!report.hasEntries) return 0;
+      return Number.isFinite(report.totals[activeMetric.key]) ? report.totals[activeMetric.key] : null;
+    }
     return historyLoading ? null : 0;
   });
   const chartMaximum = Math.max(...chartValues.filter(value => value !== null), activeMetric.key === 'energyKcal' ? 1800 : 100);
   const failedDateCount = Object.keys(history.errorsByDate).length + (diaryError ? 1 : 0);
-  const hasEntries = diary.length > 0 || week.slice(0, -1).some(day => (history.byDate[day.date]?.items.length || 0) > 0);
+  const hasEntries = hasTodayEntries || week.slice(0, -1).some(day => history.byDate[day.date]?.hasEntries);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
@@ -57,7 +66,8 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryErr
 
     <View style={styles.metricGrid}>
       {metrics.map((metric, index) => {
-        const value = rounded(diaryTotals[metric.key]);
+        const rawValue = diaryTotals[metric.key];
+        const value = hasTodayEntries && Number.isFinite(rawValue) ? rounded(rawValue) : '—';
         return <View key={metric.key} style={[styles.metricCard, index < 3 ? styles.thirdCard : styles.halfCard]}>
           <View style={styles.metricCardHeader}><Text style={styles.metricLabel}>{metric.label}</Text><Text style={styles.metricIcon}>{metric.icon}</Text></View>
           <Text style={styles.metricValue}>{value}<Text style={styles.metricUnit}> {metric.unit}</Text></Text>
@@ -79,11 +89,13 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryErr
           {week.map((day, index) => {
             const value = chartValues[index];
             const dayFailed = day.current ? Boolean(diaryError) : Boolean(history.errorsByDate[day.date]);
+            const dayHasEntries = day.current ? hasTodayEntries : Boolean(history.byDate[day.date]?.hasEntries);
             const height = value !== null && value > 0 ? Math.max(8, value / chartMaximum * 170) : 0;
-            const dayDescription = `${activeMetric.label} ${day.date}: ${value === null ? dayFailed ? 'không tải được' : 'đang tải' : `${rounded(value)} ${activeMetric.unit}`}`;
+            const dayDescription = `${activeMetric.label} ${day.date}: ${value === null ? dayFailed ? 'không tải được' : 'chưa có dữ liệu dưỡng chất' : !dayHasEntries ? 'chưa ghi món' : `${rounded(value)} ${activeMetric.unit}`}`;
             return <View key={day.key} accessible accessibilityLabel={dayDescription} style={styles.chartColumn}>
               <View style={styles.chartTrack}>
                 {value === null && dayFailed ? <Text testID="chart-unavailable" style={styles.chartMissing}>!</Text> : null}
+                {value === null && !dayFailed ? <Text style={styles.chartMissing}>—</Text> : null}
                 {!!height && <View testID="chart-bar" style={[styles.chartBar, { height }]} />}
               </View>
               <Text style={[styles.dayLabel, day.current && styles.dayLabelCurrent]}>{day.label} {day.dateObject.getDate()}</Text>
@@ -101,7 +113,7 @@ export default function DashboardScreen({ diaryTotals = {}, diary = [], diaryErr
 
     <View style={styles.noteCard}>
       <Text style={styles.noteIcon}>ⓘ</Text>
-      <Text style={styles.noteText}>Giá trị là ước tính từ thực phẩm đã ghi trong nhật ký và tổng theo ngày từ API demo. Biểu đồ không thay thế hồ sơ theo dõi sức khỏe hoặc tư vấn chuyên môn.</Text>
+      <Text style={styles.noteText}>Giá trị được tính từ snapshot USDA trong nhật ký tài khoản. Ngày chưa ghi món và dưỡng chất nguồn không báo cáo được hiển thị riêng; thông tin không thay thế tư vấn chuyên môn.</Text>
     </View>
     <View style={styles.loggedSummary}>
       <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>

@@ -65,6 +65,26 @@ test('exposes the existing API methods with their original v1 paths and payloads
   ]);
 });
 
+test('account diary and report methods require bearer authentication without demo namespaces', async () => {
+  const calls = [];
+  const api = createApiMethods({ async request(path, options) { calls.push({ path, options }); return null; } });
+  const entry = { foodId: 'fdc:12345', portion: { amount: 120, unit: 'g' }, mealType: 'LUNCH' };
+  await api.createMyMealEntry(entry, 'diary-intent-0001');
+  await api.getMyMealEntries({ date: '2026-11-24', timeZone: 'Asia/Saigon', limit: 25, offset: 50 });
+  await api.getMyMealEntry('entry/one');
+  await api.updateMyMealEntry('entry/one', entry);
+  await api.deleteMyMealEntry('entry/one');
+  await api.getMyNutritionReport({ date: '2026-11-24', timeZone: 'Asia/Saigon', days: 7 });
+  assert.deepEqual(calls, [
+    { path: '/api/v1/me/meal-entries', options: { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': 'diary-intent-0001' }, body: JSON.stringify(entry) } },
+    { path: '/api/v1/me/meal-entries?date=2026-11-24&timeZone=Asia%2FSaigon&limit=25&offset=50', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { method: 'PATCH', authenticated: true, body: JSON.stringify(entry) } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/nutrition-report?date=2026-11-24&timeZone=Asia%2FSaigon&days=7', options: { authenticated: true } },
+  ]);
+});
+
 test('exposes diary CRUD and purge methods through the shared API request client', async () => {
   const calls = [];
   const api = createApiMethods({
@@ -253,6 +273,31 @@ test('private requests fail before network access when no account token exists',
   const client = createClient(async () => { fetchCalls += 1; return createResponse(200, '{}'); }, { getAccessToken: async () => null });
   await assert.rejects(client.request('/api/v1/me', { authenticated: true }), error => error.code === 'API_AUTH_REQUIRED');
   assert.equal(fetchCalls, 0);
+});
+
+test('account pantry and shopping-list methods use authenticated /me routes without demo namespace state', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => {
+    calls.push({ url, options });
+    return createResponse(200, '{}');
+  }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  await api.getMyShoppingList();
+  await api.createMyShoppingList('82b4fefe-81fd-44f1-8be0-905e33f10b16', 'grocery-intent-1');
+  await api.getMyPantry();
+  await api.createMyPantryItem({ foodId: 'fdc:12345', amount: 100, unit: 'g' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/grocery/shopping-list',
+    '/api/v1/me/grocery/shopping-list',
+    '/api/v1/me/grocery/pantry',
+    '/api/v1/me/grocery/pantry',
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+  assert.equal(calls[1].options.headers['Idempotency-Key'], 'grocery-intent-1');
+  assert.deepEqual(JSON.parse(calls[1].options.body), { savedPlanId: '82b4fefe-81fd-44f1-8be0-905e33f10b16' });
 });
 
 test('caller abort settles even when fetch ignores abort', async () => {

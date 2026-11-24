@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
+import { NUTRIENTS } from '../profile/profile-model.cjs';
 import { colors, radius } from '../../theme/tokens';
 
 const MEAL_TYPES = [
@@ -77,10 +78,10 @@ function sourceEdition(food) {
 }
 
 function sourceLine(food) {
-  const name = food.source?.name || 'Nguồn chưa ghi';
-  const license = food.source?.license?.name;
-  const rowStatus = food.source?.sourceRecordId ? '' : ' · ID bản ghi cụ thể chưa được lưu';
-  return `Nguồn: ${name} · ${sourceEdition(food)}${license ? ` · ${license}` : ''}${rowStatus}`;
+  const source = food.source || {};
+  const name = source.label || source.name || 'Nguồn chưa ghi';
+  const recordId = source.recordId || source.sourceRecordId;
+  return `Nguồn: ${name}${recordId ? ` · #${recordId}` : ''} · ${sourceEdition(food)}`;
 }
 
 export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
@@ -90,6 +91,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [timeZone] = useState(getDeviceTimeZone);
   const [entries, setEntries] = useState([]);
   const [totals, setTotals] = useState(EMPTY_TOTALS);
+  const [hasEntries, setHasEntries] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
@@ -114,14 +116,16 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     const sequence = ++loadSequence.current;
     setListLoading(true);
     setListError('');
-    api.getMealEntries({ date: selectedDate, timeZone })
+    api.getMyMealEntries({ date: selectedDate, timeZone })
       .then(result => {
         if (sequence !== loadSequence.current) return;
         const nextEntries = Array.isArray(result?.items) ? result.items : [];
         const nextTotals = result?.totals || EMPTY_TOTALS;
         setEntries(nextEntries);
         setTotals(nextTotals);
-        onTodayDataLoaded?.(selectedDate, nextEntries, nextTotals);
+        const nextHasEntries = result?.hasEntries === true || nextEntries.length > 0;
+        setHasEntries(nextHasEntries);
+        onTodayDataLoaded?.(selectedDate, nextEntries, nextTotals, nextHasEntries);
       })
       .catch(error => {
         if (sequence === loadSequence.current) setListError(error?.message || 'Không tải được nhật ký. Hãy thử lại.');
@@ -137,9 +141,9 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSearchError('');
     setSuccessMessage('');
     try {
-      const result = await api.getFoods(query.trim());
+      const result = await api.searchSourcedFoods(query.trim());
       setFoods(Array.isArray(result?.items) ? result.items : []);
-      setCatalogInfo(result?.catalog || null);
+      setCatalogInfo(result?.catalogVersion ? { version: result.catalogVersion, status: 'live', notice: 'Kết quả được lấy trực tiếp từ USDA FoodData Central.', limitations: [] } : null);
     } catch (error) {
       setSearchError(error?.message || 'Không tìm được thực phẩm. Hãy kiểm tra kết nối rồi thử lại.');
     } finally {
@@ -201,13 +205,13 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSuccessMessage('');
     try {
       if (editingId) {
-        await api.updateMealEntry(editingId, payload);
+        await api.updateMyMealEntry(editingId, payload);
       } else {
         const signature = JSON.stringify(payload);
         if (createIntent.current?.signature !== signature) {
           createIntent.current = { signature, key: createIdempotencyKey() };
         }
-        await api.createMealEntry(payload, createIntent.current.key);
+        await api.createMyMealEntry(payload, createIntent.current.key);
         createIntent.current = null;
       }
       onDiaryMutation?.();
@@ -229,7 +233,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
         setMutationError('');
         setSuccessMessage('');
         try {
-          await api.deleteMealEntry(entry.id);
+          await api.deleteMyMealEntry(entry.id);
           onDiaryMutation?.();
           setSuccessMessage('Đã xóa bản ghi.');
           setReloadCount(value => value + 1);
@@ -255,13 +259,14 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   function clearDateFeedback() {
     setEntries([]);
     setTotals(EMPTY_TOTALS);
+    setHasEntries(false);
     setSuccessMessage('');
     setMutationError('');
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text accessibilityRole="header" style={styles.title}>Nhật ký bữa ăn</Text>
-    <Text style={styles.disclaimer}>Đây là nhật ký demo lưu trên máy chủ. Chỉ dùng dữ liệu tổng hợp, không nhập thông tin sức khỏe thật. Dinh dưỡng là ước tính, không phải tư vấn y tế.</Text>
+    <Text style={styles.disclaimer}>Nhật ký được lưu trong tài khoản và chỉ hiển thị cho bạn. Dinh dưỡng là ước tính từ dữ liệu nguồn, không phải tư vấn y tế.</Text>
 
     <View style={styles.dayRow}>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ngày trước" style={styles.dayButton} onPress={() => changeDate(-1)}><Text style={styles.dayArrow}>‹</Text></TouchableOpacity>
@@ -302,12 +307,13 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
         {catalogInfo.status === 'prototype' && <Text style={styles.catalogNoticeText}>Danh mục mẫu, chưa được chuyên gia rà soát. Không phải bảng dữ liệu chính thức của Viện Dinh dưỡng.</Text>}
         {(catalogInfo.limitations || []).map((limitation, index) => <Text key={`${index}-${limitation}`} style={styles.catalogLimitation}>• {limitation}</Text>)}
       </View>}
-      {foods.map(food => <TouchableOpacity key={food.id} accessibilityRole="button" accessibilityState={{ selected: selectedFood?.id === food.id }} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.per100g?.energyKcal) && <Text style={styles.small}>Mỗi 100 g · {food.per100g.energyKcal} kcal</Text>}<Text style={styles.sourceText}>{sourceLine(food)}</Text></TouchableOpacity>)}
+      {foods.map(food => <TouchableOpacity key={food.id} accessibilityRole="button" accessibilityState={{ selected: selectedFood?.id === food.id }} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.nutrition?.values?.energyKcal?.value) && <Text style={styles.small}>Mỗi 100 g · {food.nutrition.values.energyKcal.value} kcal</Text>}<Text style={styles.sourceText}>{sourceLine(food)}</Text></TouchableOpacity>)}
 
       {selectedFood && <View style={styles.selected}>
         <Text style={styles.heading}>{selectedFood.name}</Text>
-        {selectedFood.serving && <Text style={styles.small}>Khẩu phần tham khảo: {selectedFood.serving.amount} {selectedFood.serving.unit} · {selectedFood.serving.household}. Dinh dưỡng tính trên {selectedFood.nutrition?.basis?.amount || 100} {selectedFood.nutrition?.basis?.unit || 'g'} phần ăn được.</Text>}
+        <Text style={styles.small}>Dữ liệu nguồn theo {selectedFood.basis?.amount || 100} {selectedFood.basis?.unit || 'g'}; giá trị không có trong hồ sơ nguồn được giữ là chưa có dữ liệu.</Text>
         {selectedFood.source && <Text style={styles.small}>{sourceLine(selectedFood)}</Text>}
+        {NUTRIENTS.map(nutrient => <Text key={nutrient.key} style={styles.small}>{nutrient.label}: {selectedFood.nutrition?.values?.[nutrient.key]?.value ?? 'Chưa có dữ liệu'} {nutrient.unit}</Text>)}
         <Text style={styles.small}>Khẩu phần (g)</Text>
         <TextInput accessibilityLabel="Khối lượng" value={grams} onChangeText={setGrams} keyboardType="decimal-pad" style={styles.input} placeholder="Khối lượng (g)" />
         <Text style={styles.small}>Ngày và giờ theo múi giờ thiết bị</Text>
@@ -327,9 +333,11 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
     <View style={styles.summaryCard}>
       <Text style={styles.heading}>Tổng dinh dưỡng trong ngày</Text>
-      <Text style={styles.summaryValue}>{displayValue(totals.energyKcal)} kcal</Text>
-      <Text style={styles.small}>Đạm {displayValue(totals.proteinG)} g · Carb {displayValue(totals.carbohydrateG)} g · Béo {displayValue(totals.fatG)} g</Text>
-      <Text style={styles.small}>Chất xơ {displayValue(totals.fiberG)} g · Natri {displayValue(totals.sodiumMg)} mg</Text>
+      {hasEntries ? <>
+        <Text style={styles.summaryValue}>{displayValue(totals.energyKcal)} kcal</Text>
+        <Text style={styles.small}>Đạm {displayValue(totals.proteinG)} g · Carb {displayValue(totals.carbohydrateG)} g · Béo {displayValue(totals.fatG)} g</Text>
+        <Text style={styles.small}>Chất xơ {displayValue(totals.fiberG)} g · Natri {displayValue(totals.sodiumMg)} mg</Text>
+      </> : <Text style={styles.small}>Chưa ghi món ăn trong ngày này.</Text>}
     </View>
 
     <Text style={styles.heading}>Các món đã ghi ({entries.length})</Text>

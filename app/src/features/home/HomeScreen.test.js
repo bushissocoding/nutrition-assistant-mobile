@@ -4,13 +4,13 @@ import HomeScreen from './HomeScreen';
 import { api } from '../../services/api';
 import { formatLocalDateKey, getLocalWeek } from '../diary/diary-history.cjs';
 
-jest.mock('../../services/api', () => ({ api: { getMealEntries: jest.fn() } }));
+jest.mock('../../services/api', () => ({ api: { getMyMealEntries: jest.fn() } }));
 
 const totals = { energyKcal: 195, proteinG: 9, carbohydrateG: 22, fatG: 4, fiberG: 3, sodiumMg: 100 };
 
 beforeEach(() => {
-  api.getMealEntries.mockReset();
-  api.getMealEntries.mockImplementation(async ({ date }) => ({ date, items: [], totals }));
+  api.getMyMealEntries.mockReset();
+  api.getMyMealEntries.mockImplementation(async ({ date }) => ({ date, items: [], hasEntries: false, totals: null }));
 });
 
 test('shows the eight designed shortcuts and routes them to their matching features', () => {
@@ -41,25 +41,25 @@ test('loads the selected local calendar date and shows its API diary response', 
 
   const now = new Date();
   const target = getLocalWeek(now).find(day => day.date !== formatLocalDateKey(now));
-  api.getMealEntries.mockResolvedValueOnce({ date: target.date, items: [
+  api.getMyMealEntries.mockResolvedValueOnce({ date: target.date, hasEntries: true, items: [
     { id: 'history-entry', mealType: 'LUNCH', foodName: 'Canh bí đỏ', nutrients: { energyKcal: 85 } },
   ], totals });
   fireEvent.press(screen.getByRole('tab', { name: `${target.label} ${target.dateObject.getDate()}` }));
 
   await waitFor(() => expect(screen.getByText('Canh bí đỏ')).toBeTruthy());
   expect(screen.getByText('85 kcal')).toBeTruthy();
-  expect(api.getMealEntries).toHaveBeenCalledWith({ date: target.date, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
+  expect(api.getMyMealEntries).toHaveBeenCalledWith({ date: target.date, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' });
 });
 
 test('shows an error instead of empty state and retries the selected historical date', async () => {
   const screen = render(<HomeScreen onNavigate={jest.fn()} />);
   const now = new Date();
   const target = getLocalWeek(now).find(day => day.date !== formatLocalDateKey(now));
-  api.getMealEntries.mockRejectedValueOnce(new Error('API đang ngoại tuyến.'));
+  api.getMyMealEntries.mockRejectedValueOnce(new Error('API đang ngoại tuyến.'));
   fireEvent.press(screen.getByRole('tab', { name: `${target.label} ${target.dateObject.getDate()}` }));
 
   await waitFor(() => expect(screen.getByText(new RegExp(`Không tải được nhật ký ngày ${target.date}`))).toBeTruthy());
-  api.getMealEntries.mockResolvedValueOnce({ date: target.date, items: [
+  api.getMyMealEntries.mockResolvedValueOnce({ date: target.date, hasEntries: true, items: [
     { id: 'retry-entry', mealType: 'DINNER', foodName: 'Đậu hũ sốt cà', nutrients: { energyKcal: 120 } },
   ], totals });
   fireEvent.press(screen.getByRole('button', { name: 'Thử lại' }));
@@ -70,7 +70,7 @@ test('ignores a late response after the user selects a different calendar day', 
   const now = new Date();
   const targets = getLocalWeek(now).filter(day => day.date !== formatLocalDateKey(now)).slice(0, 2);
   let resolveFirst;
-  api.getMealEntries.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
+  api.getMyMealEntries.mockImplementationOnce(() => new Promise(resolve => { resolveFirst = resolve; }))
     .mockImplementationOnce(async ({ date }) => ({ date, items: [
       { id: 'newest-entry', mealType: 'LUNCH', foodName: 'Ngày vừa chọn', nutrients: { energyKcal: 110 } },
     ], totals }));
@@ -80,7 +80,7 @@ test('ignores a late response after the user selects a different calendar day', 
   fireEvent.press(screen.getByRole('tab', { name: `${targets[1].label} ${targets[1].dateObject.getDate()}` }));
   await waitFor(() => expect(screen.getByText('Ngày vừa chọn')).toBeTruthy());
 
-  resolveFirst({ date: targets[0].date, items: [
+  resolveFirst({ date: targets[0].date, hasEntries: true, items: [
     { id: 'stale-entry', mealType: 'LUNCH', foodName: 'Ngày cũ', nutrients: { energyKcal: 90 } },
   ], totals });
   await waitFor(() => expect(screen.queryByText('Ngày cũ')).toBeNull());

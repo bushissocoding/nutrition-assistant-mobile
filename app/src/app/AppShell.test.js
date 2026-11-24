@@ -6,7 +6,7 @@ import { authService } from '../services/auth-client';
 
 jest.mock('../services/api', () => ({ api: {
   getCurrentUser: jest.fn(), getMyConsent: jest.fn(), saveMyConsent: jest.fn(), getMyProfile: jest.fn(), saveMyProfile: jest.fn(), deleteMyProfile: jest.fn(),
-  getMealEntries: jest.fn(),
+  getMyMealEntries: jest.fn(),
 } }));
 jest.mock('../services/auth-client', () => ({ isAuthConfigured: true, authClient: {}, authService: {
   restoreSession: jest.fn(), subscribe: jest.fn(() => jest.fn()), completeCallback: jest.fn(),
@@ -59,7 +59,7 @@ beforeEach(() => {
   api.getMyProfile.mockResolvedValue({ profile });
   api.saveMyConsent.mockResolvedValue({ consent, currentVersion: consent.version });
   api.saveMyProfile.mockResolvedValue({ profile });
-  api.getMealEntries.mockResolvedValue({ items: [], totals: { energyKcal: 0 } });
+  api.getMyMealEntries.mockResolvedValue({ items: [], hasEntries: false, totals: null });
 });
 
 async function press(screen, label) {

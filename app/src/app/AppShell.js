@@ -51,11 +51,12 @@ export default function AppShell() {
   const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState(null);
   const [screen, setScreen] = useState('welcome');
-  const [groceryItems, setGroceryItems] = useState(null);
+  const [groceryPlanId, setGroceryPlanId] = useState(null);
   const [groceryReturn, setGroceryReturn] = useState('home');
   const [plan, setPlan] = useState(null);
   const [diary, setDiary] = useState([]);
   const [diaryTotals, setDiaryTotals] = useState(emptyTotals);
+  const [diaryHasEntries, setDiaryHasEntries] = useState(false);
   const [diaryHydrationError, setDiaryHydrationError] = useState('');
   const [diaryLoading, setDiaryLoading] = useState(false);
   const [diaryHydrationVersion, setDiaryHydrationVersion] = useState(0);
@@ -79,8 +80,8 @@ export default function AppShell() {
     authEpoch.current += 1;
     authAccountId.current = null;
     setAccount(null); setConsentRecord(null); setConsented(false); setProfile(null); setPlan(null);
-    setDiary([]); setDiaryTotals(emptyTotals); setDiaryHydrationError(''); setDiaryLoading(false);
-    setGroceryItems(null); setBookingRequest(null); setChatContact(null); setNotifications(initialNotificationItems);
+    setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setDiaryHydrationError(''); setDiaryLoading(false);
+    setGroceryPlanId(null); setBookingRequest(null); setChatContact(null); setNotifications(initialNotificationItems);
     setScreen('welcome');
   }, []);
 
@@ -90,7 +91,7 @@ export default function AppShell() {
     authAccountId.current = user.id;
     setAccount(user);
     setStorageError('');
-    setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setGroceryItems(null); setBookingRequest(null);
+    setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setGroceryPlanId(null); setBookingRequest(null);
     try {
       const currentUser = await api.getCurrentUser();
       if (currentUser?.user?.id !== user.id || epoch !== authEpoch.current) return;
@@ -171,10 +172,11 @@ export default function AppShell() {
     const day = getCurrentLocalDay();
     setDiaryLoading(true);
     setDiaryHydrationError('');
-    api.getMealEntries(day).then(result => {
+    api.getMyMealEntries(day).then(result => {
       if (!active) return;
       setDiary(Array.isArray(result?.items) ? result.items : []);
       setDiaryTotals(result?.totals || emptyTotals);
+      setDiaryHasEntries(result?.hasEntries === true || (Array.isArray(result?.items) && result.items.length > 0));
     }).catch(error => {
       if (active) setDiaryHydrationError(error?.message || 'Không tải được nhật ký hôm nay.');
     }).finally(() => {
@@ -239,7 +241,7 @@ export default function AppShell() {
         try {
           const choices = { ...(consentRecord?.choices || {}), profile_processing: false, nutrition_processing: false, data_lifecycle: false };
           const result = await api.saveMyConsent(choices);
-          setConsentRecord(result.consent); setConsented(false); setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setScreen('consent'); setStorageError('');
+          setConsentRecord(result.consent); setConsented(false); setProfile(null); setPlan(null); setDiary([]); setDiaryTotals(emptyTotals); setDiaryHasEntries(false); setScreen('consent'); setStorageError('');
         } catch (error) { setStorageError(error?.message || 'Không thể xác nhận thay đổi. Lựa chọn hiện tại vẫn được giữ.'); }
       } },
     ]);
@@ -337,16 +339,17 @@ export default function AppShell() {
   if (!consented || screen === 'consent-review') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ConsentScreen onContinue={acceptConsent} busy={consentSaving} initialChoices={consentRecord?.choices} onBack={screen === 'consent-review' ? () => setScreen(consentReturnScreen) : undefined} onWithdraw={profile || consentRecord ? withdrawConsentAndDelete : undefined} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
   if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile || { username: account?.username || '' }} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} />{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
 
-  function openGrocery(items) { setGroceryReturn(screen); setGroceryItems(Array.isArray(items) ? items : null); setScreen('grocery'); }
+  function openGrocery(savedPlanId) { setGroceryReturn(screen); setGroceryPlanId(typeof savedPlanId === 'string' ? savedPlanId : null); setScreen('grocery'); }
   async function deleteProfileData() {
     await api.deleteMyProfile();
-    setProfile(null); setPlan(null); setGroceryItems(null); setScreen('profile-setup');
+    setProfile(null); setPlan(null); setGroceryPlanId(null); setScreen('profile-setup');
     Alert.alert('Đã xóa hồ sơ sức khỏe', 'Hồ sơ sức khỏe tài khoản đã được máy chủ xóa. Biên nhận đồng ý và các dữ liệu tính năng khác vẫn được giữ lại.');
   }
-  function updateTodayDiary(date, entries, totals) {
+  function updateTodayDiary(date, entries, totals, hasEntries) {
     if (date !== getCurrentLocalDay().date) return;
     setDiary(entries);
     setDiaryTotals(totals || emptyTotals);
+    setDiaryHasEntries(hasEntries === true || entries.length > 0);
     setDiaryHydrationError('');
     setDiaryLoading(false);
   }
@@ -373,9 +376,9 @@ export default function AppShell() {
   let content;
   if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'planner') content = <MealPlanScreen profile={profile} onOpenProfile={() => openProfileSetup('planner')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
-  else if (screen === 'grocery') content = <GroceryScreen sourceItems={groceryItems || []} onBack={() => setScreen(groceryReturn)} />;
+  else if (screen === 'grocery') content = <GroceryScreen savedPlanId={groceryPlanId} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
-  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
+  else if (screen === 'dashboard') content = <DashboardScreen diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={handleLogout} />;
   else if (screen === 'chat') content = <ChatScreen onNavigate={navigate} />;
   else if (screen === 'doctor-chat') content = <ChatScreen contact={chatContact} onNavigate={navigate} />;

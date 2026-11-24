@@ -67,7 +67,7 @@ function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
       <Text style={styles.provenance}>Catalog {result.metadata?.catalogVersion || 'không rõ'} · thuật toán {result.metadata?.algorithmVersion || 'không rõ'}</Text>
     </View>
     {plan.map((meal, index) => <MealDetails key={`detail-${meal.slot}-${index}`} meal={meal} catalogVersion={result.metadata?.catalogVersion} />)}
-    <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => onOpenGrocery?.(result.grocery || [])}>
+    <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => onOpenGrocery?.(result.savedPlan?.id || null)}>
       <Text style={styles.secondaryText}>Tạo danh sách đi chợ</Text>
     </TouchableOpacity>
     {(result.limitations || []).map((limitation, index) => <Text key={`limitation-${index}`} style={styles.footnote}>{limitation}</Text>)}
