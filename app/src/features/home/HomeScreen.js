@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { colors, radius } from '../../theme/tokens';
-import OptionListModal from '../../shared/components/OptionListModal';
+import DropdownMenu from '../../shared/components/DropdownMenu';
 import { formatLocalDateKey } from '../diary/diary-history.cjs';
 import { getAccountMonthOptions, getDateInMonth, getMonthDateOptions, monthLabel } from './home-calendar.cjs';
 
@@ -34,6 +34,7 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [monthPickerVisible, setMonthPickerVisible] = useState(false);
+  const monthPickerRef = useRef(null);
   const [selectedDateResult, setSelectedDateResult] = useState(null);
   const [selectedDateError, setSelectedDateError] = useState('');
   const [selectedDateLoading, setSelectedDateLoading] = useState(false);
@@ -125,12 +126,12 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
     </View>
 
     <View style={styles.calendarHeader}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tháng đang chọn" style={styles.monthSelect} onPress={() => setMonthPickerVisible(true)}>
+      <TouchableOpacity ref={monthPickerRef} accessibilityRole="button" accessibilityLabel="Tháng đang chọn" style={styles.monthSelect} onPress={() => setMonthPickerVisible(true)}>
         <Text style={styles.monthLabel}>{monthLabel(selectedMonth)}</Text><Text style={styles.monthChevron}>⌄</Text>
       </TouchableOpacity>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Mở báo cáo tổng quát" style={styles.calendarButton} onPress={() => onNavigate('dashboard')}><Text style={styles.calendarGlyph}>▥</Text></TouchableOpacity>
     </View>
-    <ScrollView ref={dateStripRef} horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel="Các ngày trong tháng" contentContainerStyle={styles.dateStrip}>
+    <ScrollView ref={dateStripRef} horizontal showsHorizontalScrollIndicator={false} accessibilityRole="tablist" accessibilityLabel="Các ngày trong tháng" style={styles.dateScroller} contentContainerStyle={styles.dateStrip}>
       {dateOptions.map(date => {
         const dateObject = new Date(`${date}T12:00:00`);
         const label = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(dateObject);
@@ -176,11 +177,12 @@ export default function HomeScreen({ onNavigate, diary = [], diaryTotals = {}, d
       <View style={styles.planCopy}><Text style={styles.planTitle}>Thực đơn đã sẵn sàng</Text><Text style={styles.planCaption}>{plan.plan.length} bữa trong ngày · Xem chi tiết</Text></View>
       <Text style={styles.planArrow}>›</Text>
     </TouchableOpacity> : null}
-    <OptionListModal
+    <DropdownMenu
       visible={monthPickerVisible}
       title="Chọn tháng"
       options={monthOptions}
       selectedValue={selectedMonth}
+      anchorRef={monthPickerRef}
       onSelect={selectMonth}
       onClose={() => setMonthPickerVisible(false)}
     />
@@ -215,7 +217,8 @@ const styles = StyleSheet.create({
   monthChevron: { color: colors.text, fontSize: 16 },
   calendarButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
   calendarGlyph: { color: '#343A46', fontSize: 22 },
-  dateStrip: { flexDirection: 'row', gap: 6, paddingHorizontal: 11, paddingBottom: 13 },
+  dateScroller: { width: '100%', height: 72, flexGrow: 0, flexShrink: 0 },
+  dateStrip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 11, paddingVertical: 9 },
   dayCard: { width: 42, minHeight: 54, flexShrink: 0, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: '#E3E6EA', backgroundColor: 'white' },
   dayCardSelected: { backgroundColor: '#D3F3FF', borderColor: '#4BBEFF' },
   dayName: { color: '#616875', fontSize: 12 },

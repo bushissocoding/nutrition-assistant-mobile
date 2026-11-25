@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { colors, radius, spacing } from '../../theme/tokens';
-import OptionListModal from '../../shared/components/OptionListModal';
+import DropdownMenu from '../../shared/components/DropdownMenu';
 import { formatLocalDateKey, getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
 
@@ -24,6 +24,8 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
   const [metricIndex, setMetricIndex] = useState(0);
   const [metricPickerVisible, setMetricPickerVisible] = useState(false);
   const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const datePickerRef = useRef(null);
+  const metricPickerRef = useRef(null);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -96,7 +98,7 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Text accessibilityRole="header" style={styles.title}>Chỉ số</Text>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chọn ngày báo cáo: ${selectedDateLabel}`} style={styles.todayButton} onPress={() => setDatePickerVisible(true)}>
+      <TouchableOpacity ref={datePickerRef} accessibilityRole="button" accessibilityLabel={`Chọn ngày báo cáo: ${selectedDateLabel}`} style={styles.todayButton} onPress={() => setDatePickerVisible(true)}>
         <Text style={styles.todayText}>{selectedDateLabel}　⌄</Text>
       </TouchableOpacity>
     </View>
@@ -134,7 +136,7 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
 
     <View style={styles.chartHeading}>
       <Text accessibilityRole="header" style={styles.chartTitle}>Biểu đồ 7 ngày gần nhất</Text>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chỉ số đang xem: ${activeMetric.label}`} style={styles.metricPicker} onPress={() => setMetricPickerVisible(true)}>
+      <TouchableOpacity ref={metricPickerRef} accessibilityRole="button" accessibilityLabel={`Chỉ số đang xem: ${activeMetric.label}`} style={styles.metricPicker} onPress={() => setMetricPickerVisible(true)}>
         <Text style={styles.metricPickerText}>{activeMetric.label}　⌄</Text>
       </TouchableOpacity>
     </View>
@@ -176,19 +178,21 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
       <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>
       <Text style={styles.loggedValue}>{diary.length} món đã ghi</Text>
     </View>
-    <OptionListModal
+    <DropdownMenu
       visible={metricPickerVisible}
       title="Chọn chỉ số"
       options={metrics.map(metric => ({ value: metric.key, label: metric.label }))}
       selectedValue={activeMetric.key}
+      anchorRef={metricPickerRef}
       onSelect={key => setMetricIndex(metrics.findIndex(metric => metric.key === key))}
       onClose={() => setMetricPickerVisible(false)}
     />
-    <OptionListModal
+    <DropdownMenu
       visible={datePickerVisible}
       title="Chọn ngày báo cáo"
       options={dateOptions}
       selectedValue={selectedDate}
+      anchorRef={datePickerRef}
       onSelect={setSelectedDate}
       onClose={() => setDatePickerVisible(false)}
     />

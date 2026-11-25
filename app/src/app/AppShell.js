@@ -29,6 +29,10 @@ import * as Notifications from 'expo-notifications';
 
 const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
 
+export function getTopPaddingSurface(screen) {
+  return screen === 'settings-help' ? colors.primary : colors.surface;
+}
+
 function getCurrentLocalDay() {
   const now = new Date();
   const pad = value => String(value).padStart(2, '0');
@@ -216,29 +220,35 @@ export default function AppShell() {
     setScreen('profile-setup');
   }
 
+  async function persistProfile(nextProfile) {
+    const payload = {
+      username: nextProfile.username || account?.username,
+      dateOfBirth: Object.prototype.hasOwnProperty.call(nextProfile, 'dateOfBirth') ? nextProfile.dateOfBirth : profile?.dateOfBirth || null,
+      mode: nextProfile.mode,
+      gender: nextProfile.gender,
+      age: Number(nextProfile.age),
+      heightCm: Number(nextProfile.heightCm),
+      weightKg: Number(nextProfile.weightKg),
+      activityLevel: nextProfile.activityLevel,
+      conditionType: nextProfile.conditionType,
+      allergies: nextProfile.allergies,
+      symptomNotes: nextProfile.symptomNotes,
+      redFlags: nextProfile.redFlags,
+      diagnosisNotes: nextProfile.diagnosisNotes,
+      hardLimits: nextProfile.hardLimits,
+      medicalLimitsConfirmed: nextProfile.medicalLimitsConfirmed,
+    };
+    const result = await api.saveMyProfile(payload);
+    setProfile(result.profile);
+    setPlan(null);
+    setStorageError('');
+    return result.profile;
+  }
+
   async function completeProfile(nextProfile) {
     try {
-      const payload = {
-        username: nextProfile.username || account?.username,
-        mode: nextProfile.mode,
-        gender: nextProfile.gender,
-        age: Number(nextProfile.age),
-        heightCm: Number(nextProfile.heightCm),
-        weightKg: Number(nextProfile.weightKg),
-        activityLevel: nextProfile.activityLevel,
-        conditionType: nextProfile.conditionType,
-        allergies: nextProfile.allergies,
-        symptomNotes: nextProfile.symptomNotes,
-        redFlags: nextProfile.redFlags,
-        diagnosisNotes: nextProfile.diagnosisNotes,
-        hardLimits: nextProfile.hardLimits,
-        medicalLimitsConfirmed: nextProfile.medicalLimitsConfirmed,
-      };
-      const result = await api.saveMyProfile(payload);
-      setProfile(result.profile);
-      setPlan(null);
+      await persistProfile(nextProfile);
       setScreen(profile ? profileSetupReturn : 'home');
-      setStorageError('');
     } catch (error) { setStorageError(error?.message || 'Không thể lưu hồ sơ tài khoản. Chưa tiếp tục với dữ liệu chưa được máy chủ xác nhận.'); }
   }
 
@@ -351,11 +361,6 @@ export default function AppShell() {
   if (!profile || screen === 'profile-setup') return <SafeAreaView style={styles.safe}><StatusBar barStyle="dark-content" /><View testID="app-page-content" style={styles.pageContent}><ProfileSetupScreen key={`${profile?.mode || 'new'}-${profile?.version || 1}`} initialProfile={profile || { username: account?.username || '' }} onComplete={completeProfile} onBack={backFromProfileSetup} onWithdrawConsent={withdrawConsentAndDelete} /></View>{!!storageError && <Text style={styles.storageError}>{storageError}</Text>}</SafeAreaView>;
 
   function openGrocery(savedPlanId) { setGroceryReturn(screen); setGroceryPlanId(typeof savedPlanId === 'string' ? savedPlanId : null); setScreen('grocery'); }
-  async function deleteProfileData() {
-    await api.deleteMyProfile();
-    setProfile(null); setPlan(null); setGroceryPlanId(null); setScreen('profile-setup');
-    Alert.alert('Đã xóa hồ sơ sức khỏe', 'Hồ sơ sức khỏe tài khoản đã được máy chủ xóa. Biên nhận đồng ý và các dữ liệu tính năng khác vẫn được giữ lại.');
-  }
   function updateTodayDiary(date, entries, totals, hasEntries) {
     if (date !== getCurrentLocalDay().date) return;
     setDiary(entries);
@@ -402,18 +407,19 @@ export default function AppShell() {
   else if (screen === 'grocery') content = <GroceryScreen savedPlanId={groceryPlanId} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
   else if (screen === 'dashboard') content = <DashboardScreen profile={profile} diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
-  else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} consentRecord={consentRecord} onEdit={() => openProfileSetup('profile')} onDeleted={deleteProfileData} onWithdrawConsent={withdrawConsentAndDelete} onReviewConsent={() => reviewConsent('profile')} onNavigate={navigate} onExitDemo={handleLogout} />;
+  else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} onSaveProfile={persistProfile} onNavigate={navigate} onExitDemo={handleLogout} />;
   else if (screen === routes.chat) content = <ChatInboxScreen account={account} onOpenAssistant={openAssistantConversation} onOpenDoctorChat={contact => openDoctorConversation(contact, routes.chat)} />;
   else if (screen === routes.assistantChat) content = <ChatScreen account={account} onBack={() => setScreen(chatReturnScreen)} />;
   else if (screen === routes.doctorChat) content = <ChatScreen account={account} contact={chatContact} onBack={() => setScreen(chatReturnScreen)} />;
   else if (screen === 'notifications') content = <NotificationsScreen accountId={account?.id} onNavigate={navigate} />;
-  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
+  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} consentRecord={consentRecord} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onReviewConsent={() => reviewConsent('settings-privacy')} onWithdrawConsent={withdrawConsentAndDelete} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
   else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods' || screen === 'provider-workspace') content = <AppointmentScreen initialView={screen} account={account} onOpenDoctorChat={appointment => openDoctorConversation({ id: appointment.providerId, role: appointment.chatCounterpartyRole || 'provider', name: appointment.chatCounterpartyName || appointment.provider?.name || 'Nhà cung cấp', appointmentId: appointment.id }, screen)} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
   else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} account={account} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
   else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} healthRecordConsent={consentRecord?.choices?.health_record_storage === true} onEnableHealthRecordStorage={enableHealthRecordStorage} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
   else content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} plan={plan} profile={profile} account={account} />;
 
-  return <SafeAreaView style={[styles.safe, screen === 'settings-help' && styles.helpSafe]}><StatusBar barStyle={screen === 'settings-help' ? 'light-content' : 'dark-content'} backgroundColor={screen === 'settings-help' ? colors.primary : undefined} /><View testID="app-page-content" style={styles.pageContent}>{content}</View>
+  const topPaddingSurface = getTopPaddingSurface(screen);
+  return <SafeAreaView testID="app-safe-area" style={[styles.safe, { backgroundColor: topPaddingSurface }]}><StatusBar barStyle={screen === 'settings-help' ? 'light-content' : 'dark-content'} /><View testID="app-page-content" style={[styles.pageContent, { backgroundColor: topPaddingSurface }]}>{content}</View>
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}
     {!['assistant-chat', 'doctor-chat'].includes(screen) && <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
       const selected = screen === tab.key
@@ -432,4 +438,4 @@ export default function AppShell() {
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.canvas }, helpSafe: { backgroundColor: colors.primary }, pageContent: { flex: 1, paddingTop: 20 }, splash: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, splashMark: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }, splashVertical: { position: 'absolute', width: 27, height: 76, borderRadius: 11, backgroundColor: 'white' }, splashHorizontal: { position: 'absolute', width: 76, height: 27, borderRadius: 11, backgroundColor: 'white' }, splashTitle: { color: 'white', fontSize: 19, letterSpacing: 4, fontWeight: '300', marginTop: 24 }, splashLoader: { marginTop: 76 }, splashCopy: { color: 'white', fontSize: 12, marginTop: 10 }, accountError: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.surface }, accountErrorText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginVertical: 18 }, retryButton: { minHeight: 50, minWidth: 180, alignItems: 'center', justifyContent: 'center', marginTop: 8, backgroundColor: colors.primary, borderRadius: 24 }, retryText: { color: 'white', fontWeight: '800' }, nav: { position: 'absolute', bottom: 14, left: 30, right: 30, minHeight: 54, borderRadius: 29, backgroundColor: colors.primary, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 8, elevation: 8 }, navItem: { alignItems: 'center', justifyContent: 'center', width: 48, minWidth: 48, minHeight: 48, borderRadius: 24 }, navItemSelected: { backgroundColor: 'rgba(255,255,255,0.16)' }, navIcon: { color: 'white', fontSize: 25 }, placeholderCopy: { color: colors.muted, fontSize: 14 }, storageError: { color: colors.danger, backgroundColor: '#FFF0F0', padding: 10, marginHorizontal: 16, borderRadius: 9, fontSize: 14 } });
+const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: colors.surface }, pageContent: { flex: 1, paddingTop: 32, backgroundColor: colors.surface }, splash: { backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center' }, splashMark: { width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }, splashVertical: { position: 'absolute', width: 27, height: 76, borderRadius: 11, backgroundColor: 'white' }, splashHorizontal: { position: 'absolute', width: 76, height: 27, borderRadius: 11, backgroundColor: 'white' }, splashTitle: { color: 'white', fontSize: 19, letterSpacing: 4, fontWeight: '300', marginTop: 24 }, splashLoader: { marginTop: 76 }, splashCopy: { color: 'white', fontSize: 12, marginTop: 10 }, accountError: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, backgroundColor: colors.surface }, accountErrorText: { color: colors.muted, fontSize: 14, lineHeight: 21, textAlign: 'center', marginVertical: 18 }, retryButton: { minHeight: 50, minWidth: 180, alignItems: 'center', justifyContent: 'center', marginTop: 8, backgroundColor: colors.primary, borderRadius: 24 }, retryText: { color: 'white', fontWeight: '800' }, nav: { position: 'absolute', bottom: 14, left: 30, right: 30, minHeight: 54, borderRadius: 29, backgroundColor: colors.primary, flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', paddingHorizontal: 8, elevation: 8 }, navItem: { alignItems: 'center', justifyContent: 'center', width: 48, minWidth: 48, minHeight: 48, borderRadius: 24 }, navItemSelected: { backgroundColor: 'rgba(255,255,255,0.16)' }, navIcon: { color: 'white', fontSize: 25 }, placeholderCopy: { color: colors.muted, fontSize: 14 }, storageError: { color: colors.danger, backgroundColor: '#FFF0F0', padding: 10, marginHorizontal: 16, borderRadius: 9, fontSize: 14 } });

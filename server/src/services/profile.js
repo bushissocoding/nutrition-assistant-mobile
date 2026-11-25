@@ -6,7 +6,7 @@ const CONDITION_TYPES = new Set([
 const RED_FLAGS = new Set(['chestPain', 'breathingDifficulty', 'fainting']);
 const NUTRIENTS = new Set(['energyKcal', 'proteinG', 'carbohydrateG', 'fatG', 'fiberG', 'sodiumMg']);
 const PROFILE_FIELDS = Object.freeze([
-  'username', 'mode', 'gender', 'age', 'heightCm', 'weightKg', 'activityLevel', 'conditionType',
+  'username', 'dateOfBirth', 'mode', 'gender', 'age', 'heightCm', 'weightKg', 'activityLevel', 'conditionType',
   'allergies', 'symptomNotes', 'redFlags', 'diagnosisNotes', 'hardLimits', 'medicalLimitsConfirmed',
 ]);
 const PROFILE_NAME_PATTERN = /^[\p{L}0-9_.-]+(?: [\p{L}0-9_.-]+)*$/u;
@@ -27,6 +27,20 @@ function invalidProfile(message = 'Dữ liệu hồ sơ không hợp lệ.') {
   return error;
 }
 
+function parseDateOfBirth(value) {
+  if (value === null) return null;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw invalidProfile('Ngày sinh không hợp lệ.');
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) throw invalidProfile('Ngày sinh không hợp lệ.');
+  const latestAllowed = new Date();
+  latestAllowed.setUTCHours(0, 0, 0, 0);
+  // Calendar dates from clients east of UTC can be one day ahead of the server's date.
+  latestAllowed.setUTCDate(latestAllowed.getUTCDate() + 1);
+  if (parsed > latestAllowed) throw invalidProfile('Ngày sinh không hợp lệ.');
+  return value;
+}
+
 function parseProfileInput(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidProfile();
   const unknown = Object.keys(input).filter(key => !PROFILE_FIELDS.includes(key));
@@ -35,6 +49,7 @@ function parseProfileInput(input) {
   if (typeof value.username !== 'string') throw invalidProfile('Tên hiển thị không hợp lệ.');
   value.username = normalizeProfileName(value.username);
   if (!isValidProfileName(value.username)) throw invalidProfile('Tên hiển thị không hợp lệ.');
+  if (Object.prototype.hasOwnProperty.call(value, 'dateOfBirth')) value.dateOfBirth = parseDateOfBirth(value.dateOfBirth);
   if (!['healthy', 'patient'].includes(value.mode)) throw invalidProfile();
   if (!['female', 'male', 'unspecified'].includes(value.gender)) throw invalidProfile();
   if (!Number.isInteger(value.age) || value.age < 1 || value.age > 120) throw invalidProfile();
@@ -60,6 +75,7 @@ function parseProfileInput(input) {
   if (value.mode === 'healthy' && (Object.keys(value.hardLimits).length > 0 || value.medicalLimitsConfirmed)) throw invalidProfile();
   return {
     username: value.username,
+    ...(Object.prototype.hasOwnProperty.call(value, 'dateOfBirth') ? { date_of_birth: value.dateOfBirth } : {}),
     mode: value.mode,
     gender: value.gender,
     age: value.age,
@@ -80,6 +96,7 @@ function toProfileDto(row) {
   if (!row) return null;
   return {
     username: row.username,
+    dateOfBirth: row.date_of_birth || null,
     mode: row.mode,
     gender: row.gender,
     age: row.age,

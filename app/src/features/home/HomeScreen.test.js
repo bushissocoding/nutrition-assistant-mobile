@@ -44,6 +44,16 @@ test('opens the help center from the Home guide shortcut', () => {
   expect(onNavigate).toHaveBeenCalledWith('settings-help');
 });
 
+test('keeps the month day selector visible on Home with a bounded horizontal strip', () => {
+  const screen = render(<HomeScreen onNavigate={jest.fn()} />);
+  const today = new Date();
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(today);
+  const dayStrip = screen.UNSAFE_getByProps({ accessibilityLabel: 'Các ngày trong tháng' });
+
+  expect(StyleSheet.flatten(dayStrip.props.style)).toMatchObject({ height: 72, flexGrow: 0, flexShrink: 0 });
+  expect(screen.getByRole('tab', { name: `${weekday} ${today.getDate()}` })).toBeTruthy();
+});
+
 test('opens account-bounded month options and changes Home month without navigating away', () => {
   const onNavigate = jest.fn();
   const screen = render(<HomeScreen onNavigate={onNavigate} account={{ createdAt: '2024-03-18T08:30:00.000Z' }} />);

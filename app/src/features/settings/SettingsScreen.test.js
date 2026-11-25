@@ -133,3 +133,21 @@ test('shows expandable website and Facebook rows with their current setup status
   expect(screen.getByText('Website hỗ trợ chưa được cấu hình.')).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Facebook' })).toBeTruthy();
 });
+
+test('keeps the consent receipt and its actions inside Privacy', () => {
+  const onReviewConsent = jest.fn();
+  const onWithdrawConsent = jest.fn();
+  const screen = render(<SettingsScreen
+    screen="settings-privacy"
+    consentRecord={{ version: '2026-11-24-v1', acceptedAt: '2026-11-24T00:00:00.000Z' }}
+    onReviewConsent={onReviewConsent}
+    onWithdrawConsent={onWithdrawConsent}
+  />);
+
+  expect(screen.getByText('Biên nhận đồng ý')).toBeTruthy();
+  expect(screen.getByText(/2026-11-24-v1/)).toBeTruthy();
+  fireEvent.press(screen.getByText('Xem lại nội dung và lựa chọn ›'));
+  fireEvent.press(screen.getByRole('button', { name: 'Thu hồi quyền xử lý dữ liệu' }));
+  expect(onReviewConsent).toHaveBeenCalledTimes(1);
+  expect(onWithdrawConsent).toHaveBeenCalledTimes(1);
+});

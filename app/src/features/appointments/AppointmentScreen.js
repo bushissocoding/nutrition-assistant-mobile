@@ -415,7 +415,7 @@ export default function AppointmentScreen({ initialView = 'doctors', account, on
 
   function renderAppointments() {
     return <>
-      <ScreenHeader title="Lịch hẹn của tôi" onBack={() => setPage('providers')} rightLabel="Đặt lịch" onRight={() => setPage('providers')} />
+      <ScreenHeader title="Lịch hẹn của tôi" onBack={initialPage === 'appointments' ? onBack : () => setPage('providers')} rightLabel="Đặt lịch" onRight={() => setPage('providers')} />
       <View style={styles.filterRow}>{['Sắp tới', 'Đã khám', 'Đã hủy'].map(tab => <TouchableOpacity key={tab} accessibilityRole="button" accessibilityState={{ selected: appointmentTab === tab }} style={[styles.chip, appointmentTab === tab && styles.chipOn]} onPress={() => setAppointmentTab(tab)}><Text style={[styles.chipText, appointmentTab === tab && styles.chipTextOn]}>{tab}</Text></TouchableOpacity>)}</View>
       {appointmentsLoading && appointments.length === 0 ? <Loading label="Đang tải lịch hẹn…" /> : appointmentsError ? <ErrorState error={appointmentsError} onRetry={() => setDataVersion(value => value + 1)} /> : visibleAppointments.length ? visibleAppointments.map(appointment => <View key={appointment.id}>
         <AppointmentCard appointment={appointment} />

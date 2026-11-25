@@ -6,7 +6,7 @@ const { once } = require('node:events');
 const test = require('node:test');
 const { createApiRouter } = require('../src/routes/api');
 const { CURRENT_CONSENT_VERSION, hasRequiredConsent, parseConsentChoices } = require('../src/services/consent');
-const { parseProfileInput } = require('../src/services/profile');
+const { parseProfileInput, toProfileDto } = require('../src/services/profile');
 
 const profileInput = Object.freeze({
   username: 'synthetic_user', mode: 'healthy', gender: 'unspecified', age: 35,
@@ -91,6 +91,11 @@ test('profile parser validates every field, converts storage names and rejects o
   const parsed = parseProfileInput(profileInput);
   assert.equal(parsed.height_cm, 165);
   assert.deepEqual(parsed.allergies, ['peanuts']);
+  const dated = parseProfileInput({ ...profileInput, dateOfBirth: '2000-05-06' });
+  assert.equal(dated.date_of_birth, '2000-05-06');
+  assert.equal(toProfileDto({ ...dated, created_at: null, updated_at: null }).dateOfBirth, '2000-05-06');
+  assert.throws(() => parseProfileInput({ ...profileInput, dateOfBirth: '2001-02-29' }), { code: 'INVALID_PROFILE' });
+  assert.throws(() => parseProfileInput({ ...profileInput, dateOfBirth: 20000506 }), { code: 'INVALID_PROFILE' });
   assert.equal(parseProfileInput({ ...profileInput, username: '  Nguyễn   Văn An  ' }).username, 'Nguyễn Văn An');
   assert.throws(() => parseProfileInput({ ...profileInput, username: 'Gia @ Khang' }), { code: 'INVALID_PROFILE' });
   assert.throws(() => parseProfileInput({ ...profileInput, userId: 'other-user' }), { code: 'INVALID_PROFILE' });
@@ -118,6 +123,15 @@ test('profile and consent tables have owner RLS, server timestamps, and append-o
   assert.match(migration, /grant insert \(user_id, version, choices\) on public\.consent_records to authenticated/i);
   assert.match(migration, /profiles_delete_own[\s\S]*for delete to authenticated using \(id = \(select auth\.uid\(\)\)\)/i);
   assert.doesNotMatch(migration, /grant\s+(update|delete|all)\s+on\s+public\.consent_records\s+to\s+authenticated/i);
+});
+
+test('profile date-of-birth migration adds an optional date column without guessing old values', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/202611250001_profile_date_of_birth.sql'), 'utf8');
+  assert.match(migration, /add column if not exists date_of_birth date/i);
+  assert.match(migration, /grant insert \(date_of_birth\) on public\.profiles to authenticated/i);
+  assert.match(migration, /grant update \(date_of_birth\) on public\.profiles to authenticated/i);
+  assert.doesNotMatch(migration, /grant update on public\.profiles/i);
+  assert.doesNotMatch(migration, /update public\.profiles/i);
 });
 
 test('profile display-name migration keeps the normalized 3–30 character rule and allows spaces', () => {
@@ -151,9 +165,11 @@ test('identity routes require auth, require current consent for profile, and ign
   const invalid = await request('/me/profile', { method: 'PUT', body: { ...profileInput, userId: 'synthetic-user-b' } });
   assert.equal(invalid.status, 400);
 
-  const saved = await request('/me/profile', { method: 'PUT', body: profileInput });
+  const saved = await request('/me/profile', { method: 'PUT', body: { ...profileInput, dateOfBirth: '2000-05-06' } });
   assert.equal(saved.status, 200);
-  assert.equal((await saved.json()).profile.username, 'synthetic_user');
+  const savedProfile = (await saved.json()).profile;
+  assert.equal(savedProfile.username, 'synthetic_user');
+  assert.equal(savedProfile.dateOfBirth, '2000-05-06');
   assert.equal(pool.rows.profiles.has('synthetic-user-a'), true);
   assert.equal(pool.rows.profiles.has('synthetic-user-b'), false);
 

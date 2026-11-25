@@ -1,6 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, hasUrgentRedFlags, isValidProfileName, normalizeProfile, normalizeProfileName, validateProfile } = require('./profile-model.cjs');
+const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, formatDateOfBirth, hasUrgentRedFlags, isValidProfileName, normalizeProfile, normalizeProfileName, parseDateOfBirthInput, validateProfile } = require('./profile-model.cjs');
+
+test('date of birth input validates calendar dates, age limits, and formats for display', () => {
+  const today = new Date(2026, 10, 25);
+  assert.deepEqual(parseDateOfBirthInput('29/02/2004', today), { iso: '2004-02-29', age: 22 });
+  assert.equal(parseDateOfBirthInput('29/02/2003', today), null);
+  assert.equal(parseDateOfBirthInput('26/11/2026', today), null);
+  assert.equal(parseDateOfBirthInput('25/11/2026', today), null);
+  assert.equal(formatDateOfBirth('2004-02-29'), '29/02/2004');
+  assert.equal(formatDateOfBirth(null), '');
+});
 
 test('healthy profile calculates BMI for adult and does not diagnose', () => {
   assert.equal(calculateAdultBmi({ age: '25', heightCm: '170', weightKg: '62' }), 21.5);

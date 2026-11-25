@@ -1,7 +1,8 @@
 import React from 'react';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
-import AppShell from './AppShell';
+import { StatusBar, StyleSheet } from 'react-native';
+import AppShell, { getTopPaddingSurface } from './AppShell';
+import { colors } from '../theme/tokens';
 import { api } from '../services/api';
 import { authService } from '../services/auth-client';
 
@@ -43,11 +44,11 @@ jest.mock('../features/grocery/GroceryScreen', () => () => null);
 jest.mock('../features/meal-planning/MealPlanScreen', () => () => null);
 jest.mock('../features/home/HomeScreen', () => {
   const RN = require('react-native');
-  return function MockHome({ onNavigate }) { return <><RN.Text>Account Home</RN.Text><RN.Pressable onPress={() => onNavigate('profile')}><RN.Text>Open profile</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments')}><RN.Text>Open appointments</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('settings-help')}><RN.Text>Open help center</RN.Text></RN.Pressable></>; };
+  return function MockHome({ onNavigate }) { return <><RN.Text>Account Home</RN.Text><RN.Pressable onPress={() => onNavigate('profile')}><RN.Text>Open profile</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments')}><RN.Text>Open appointments</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments-list')}><RN.Text>Open appointment list</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('settings-help')}><RN.Text>Open help center</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/profile/ProfileScreen', () => {
   const RN = require('react-native');
-  return function MockProfile({ account, onExitDemo }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable></>; };
+  return function MockProfile({ account, profile, onExitDemo, onSaveProfile }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable><RN.Pressable onPress={() => onSaveProfile({ ...profile, username: 'Khang Updated', age: 17 })}><RN.Text>Save personal details</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/chat/ChatScreen', () => {
   const RN = require('react-native');
@@ -64,13 +65,18 @@ jest.mock('../features/settings/SettingsScreen', () => {
 });
 jest.mock('../features/appointments/AppointmentScreen', () => {
   const RN = require('react-native');
-  return function MockAppointments({ onOpenDoctorChat }) { return <><RN.Text>Appointment Screen</RN.Text><RN.Pressable onPress={() => onOpenDoctorChat({ id: 'appointment-2', providerId: 'provider-2', provider: { name: 'Bác sĩ Bình' } })}><RN.Text>Open provider chat</RN.Text></RN.Pressable></>; };
+  return function MockAppointments({ initialView, onBack, onNavigate, onOpenDoctorChat }) { return <><RN.Text>Appointment Screen</RN.Text><RN.Text>{`Appointment view: ${initialView}`}</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Appointment back</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments-list')}><RN.Text>Open appointments list</RN.Text></RN.Pressable><RN.Pressable onPress={() => onOpenDoctorChat({ id: 'appointment-2', providerId: 'provider-2', provider: { name: 'Bác sĩ Bình' } })}><RN.Text>Open provider chat</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/medical-record/MedicalRecordScreen', () => () => null);
 jest.mock('../features/personalization/PersonalizationScreen', () => () => null);
 
 const user = { id: 'synthetic-user-a', email: 'user@example.test', username: 'patient_a' };
 const choices = { profile_processing: true, nutrition_processing: true, data_lifecycle: true, ai_processing: false, health_record_storage: false };
+
+test('top padding uses the surface color of the active screen', () => {
+  expect(getTopPaddingSurface('home')).toBe(colors.surface);
+  expect(getTopPaddingSurface('settings-help')).toBe(colors.primary);
+});
 const consent = { version: '2026-11-24-v1', choices, acceptedAt: '2026-11-24T00:00:00.000Z' };
 const profile = { username: 'patient_a', mode: 'healthy', gender: 'unspecified', age: 30, heightCm: 170, weightKg: 70, activityLevel: 'moderate', conditionType: 'unspecified', allergies: [], symptomNotes: '', redFlags: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
 
@@ -92,11 +98,39 @@ async function press(screen, label) {
 test('restores an account and loads server consent/profile before opening Home', async () => {
   const screen = render(<AppShell />);
   await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
-  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(20);
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(32);
+  expect(StyleSheet.flatten(screen.getByTestId('app-safe-area').props.style).backgroundColor).toBe('#FFFFFF');
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).backgroundColor).toBe('#FFFFFF');
   expect(authService.restoreSession).toHaveBeenCalledTimes(1);
   expect(api.getCurrentUser).toHaveBeenCalledTimes(1);
   expect(api.getMyConsent).toHaveBeenCalledTimes(1);
   expect(api.getMyProfile).toHaveBeenCalledTimes(1);
+});
+
+test('appointment list returns to the route that opened it', async () => {
+  const screen = render(<AppShell />);
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+
+  await press(screen, 'Open appointment list');
+  expect(screen.getByText('Appointment view: appointments-list')).toBeTruthy();
+  await press(screen, 'Appointment back');
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+
+  await press(screen, 'Open appointments');
+  expect(screen.getByText('Appointment view: appointments')).toBeTruthy();
+  await press(screen, 'Open appointments list');
+  expect(screen.getByText('Appointment view: appointments-list')).toBeTruthy();
+  await press(screen, 'Appointment back');
+  expect(screen.getByText('Appointment view: appointments')).toBeTruthy();
+});
+
+test('saves personal profile edits through the account profile API', async () => {
+  const screen = render(<AppShell />);
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+  await press(screen, 'Open profile');
+  await press(screen, 'Save personal details');
+
+  await waitFor(() => expect(api.saveMyProfile).toHaveBeenCalledWith(expect.objectContaining({ username: 'Khang Updated', age: 17 })));
 });
 
 test('the last bottom tab opens the weekly report dashboard', async () => {
@@ -150,6 +184,10 @@ test('Home help shortcut opens the support center and can return Home', async ()
 
   await press(screen, 'Open help center');
   expect(screen.getByText('Support center mock')).toBeTruthy();
+  expect(StyleSheet.flatten(screen.getByTestId('app-safe-area').props.style).backgroundColor).toBe(colors.primary);
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(32);
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).backgroundColor).toBe(colors.primary);
+  expect(screen.UNSAFE_getByType(StatusBar).props.barStyle).toBe('light-content');
   expect(screen.getAllByRole('tab')).toHaveLength(4);
   await press(screen, 'Close help center');
   expect(screen.getByText('Account Home')).toBeTruthy();
@@ -159,10 +197,10 @@ test('requires server consent and persists the assessment to the account API', a
   api.getMyConsent.mockResolvedValue({ consent: null, currentVersion: '2026-11-24-v1' });
   const screen = render(<AppShell />);
   await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
-  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(20);
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(32);
   await press(screen, 'Continue consent');
   await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
-  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(20);
+  expect(StyleSheet.flatten(screen.getByTestId('app-page-content').props.style).paddingTop).toBe(32);
   expect(api.saveMyConsent).toHaveBeenCalledWith(choices);
   expect(screen.getByText('patient_a')).toBeTruthy();
   await press(screen, 'Save profile');
