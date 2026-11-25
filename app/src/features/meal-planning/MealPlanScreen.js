@@ -1,12 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
-import CroppedReferenceImage from '../../shared/components/CroppedReferenceImage';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
-import { colors, radius } from '../../theme/tokens';
-
-const MEAL_SCHEDULE_REFERENCE = require('../../../../assets/design/ui-reference/UI/14. Thực đơn/14.1.png');
-const RECIPE_REFERENCE = require('../../../../assets/design/ui-reference/UI/14. Thực đơn/14.2.png');
+import { colors, radius, spacing } from '../../theme/tokens';
 
 const SAMPLE_PLAN = {
   status: 'feasible',
@@ -22,14 +18,14 @@ const SAMPLE_PLAN = {
         { foodId: 'sample-tomato', food: 'Cà chua', grams: 90 },
       ],
       nutrients: { energyKcal: 458 },
-      explanation: 'Bữa ăn mẫu lấy từ ảnh tham khảo giao diện.',
+      explanation: 'Bữa ăn minh họa giao diện, không được tạo từ hồ sơ người dùng.',
     },
     {
       id: 'reference-lunch', slot: 'Bữa trưa', name: 'Tô salad',
       preparationTimeMinutes: 20,
       portions: [],
       nutrients: { energyKcal: 600 },
-      explanation: 'Bữa ăn mẫu lấy từ ảnh tham khảo giao diện.',
+      explanation: 'Bữa ăn minh họa giao diện, không được tạo từ hồ sơ người dùng.',
     },
   ],
   dailyTotals: { energyKcal: 1058, proteinG: 43, carbohydrateG: 136, fatG: 23 },
@@ -76,19 +72,6 @@ function mealIllustration(meal) {
   return '🍽️';
 }
 
-function schedulePhoto(meal) {
-  const identity = `${meal?.name || ''} ${meal?.slot || ''}`.toLocaleLowerCase('vi-VN');
-  if (/trứng.*bánh mì|bánh mì.*trứng|egg.*toast/.test(identity)) return { source: MEAL_SCHEDULE_REFERENCE, crop: { x: 47, y: 155, width: 120 } };
-  if (/salad/.test(identity)) return { source: MEAL_SCHEDULE_REFERENCE, crop: { x: 258, y: 155, width: 102 } };
-  return null;
-}
-
-function recipePhoto(meal) {
-  const identity = `${meal?.name || ''} ${meal?.slot || ''}`.toLocaleLowerCase('vi-VN');
-  if (/trứng.*bánh mì|bánh mì.*trứng|egg.*toast/.test(identity)) return { source: RECIPE_REFERENCE, crop: { x: 86, y: 114, width: 180 } };
-  return null;
-}
-
 function ingredientIllustration(portion) {
   const name = `${portion?.food || ''}`.toLocaleLowerCase('vi-VN');
   if (/trứng|egg/.test(name)) return '🥚';
@@ -99,13 +82,16 @@ function ingredientIllustration(portion) {
   return '🥣';
 }
 
-function NutrientBar({ nutrient, value, maxValue, label }) {
+function NutrientBar({ nutrient, value, maxValue, label, showProgress = true }) {
   const percentage = Number.isFinite(value) && maxValue > 0 ? Math.min(100, Math.round((value / maxValue) * 100)) : 0;
   return <View style={styles.trackerRow}>
-    <Text style={styles.trackerLabel}>{label || nutrient.label}</Text>
-    <View accessibilityRole="progressbar" accessibilityLabel={`${label || nutrient.label}, ước tính minh họa`} accessibilityValue={{ min: 0, max: 100, now: percentage }} style={styles.progressTrack}>
-      <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+    <View style={styles.trackerRowHeader}>
+      <Text style={styles.trackerLabel}>{label || nutrient.label}</Text>
+      <Text style={styles.trackerValue}>{Number.isFinite(value) ? `${value} ${nutrient.unit}` : 'Chưa có dữ liệu'}</Text>
     </View>
+    {showProgress && <View accessibilityRole="progressbar" accessibilityLabel={`${label || nutrient.label}, ước tính minh họa`} accessibilityValue={{ min: 0, max: 100, now: percentage }} style={styles.progressTrack}>
+      <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+    </View>}
   </View>;
 }
 
@@ -130,41 +116,51 @@ function MealDetails({ meal, catalogVersion }) {
 function PlanResult({ result, onOpenGrocery, onViewRecipe, isSample = false }) {
   const plan = Array.isArray(result.plan) ? result.plan : [];
   const macroNutrients = NUTRIENTS.filter(nutrient => ['proteinG', 'carbohydrateG', 'fatG'].includes(nutrient.key));
-  const macroDisplayTargets = { proteinG: 60, carbohydrateG: 220, fatG: 60 };
-  const macroLabels = { proteinG: 'Proteins', carbohydrateG: 'Carbohydrates', fatG: 'Fats' };
+  const sampleMacroScale = { proteinG: 60, carbohydrateG: 220, fatG: 60 };
+  const macroLabels = { proteinG: 'Đạm', carbohydrateG: 'Tinh bột', fatG: 'Chất béo' };
+  const energy = result.dailyTotals?.energyKcal;
   return <View>
-    <Text accessibilityRole="header" style={styles.scheduleHeading}>Meal schedule</Text>
+    <View style={styles.sectionHeadingRow}>
+      <Text accessibilityRole="header" style={styles.scheduleHeading}>Các bữa trong ngày</Text>
+      <Text style={styles.mealCount}>{plan.length} bữa</Text>
+    </View>
+    {isSample && <Text style={styles.sampleBadge}>Thực đơn mẫu</Text>}
     {!isSample && <>
       <Text style={styles.helper}>Ưu tiên xếp hạng: {varietyLabels[result.metadata?.dietaryVariety] || 'cân bằng'}. Đây chỉ là gợi ý mềm, không bảo đảm thành phần phù hợp.</Text>
       {(result.warnings || []).map((warning, index) => <Text key={`warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
     </>}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.meals}>
-      {plan.map((meal, index) => {
-        const photo = schedulePhoto(meal);
-        return <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal, isSample)}>
-          <View style={styles.mealImage}>{photo ? <CroppedReferenceImage source={photo.source} crop={photo.crop} size={120} /> : <Text style={styles.mealGlyph}>{mealIllustration(meal)}</Text>}</View>
-          <Text style={styles.mealSlot}>{meal.slot}</Text>
+      {plan.map((meal, index) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal, isSample)}>
+          <View style={styles.mealCardTop}>
+            <View style={styles.mealImage}><Text style={styles.mealGlyph}>{mealIllustration(meal)}</Text></View>
+            <Text style={styles.mealSlot}>{meal.slot}</Text>
+          </View>
           <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
-          <Text style={styles.mealCalories}>Calories　{meal.nutrients?.energyKcal ?? '—'} kcal</Text>
-          {(meal.preparationTimeMinutes || meal.cookTimeMinutes) && <Text style={styles.mealTime}>Time　{meal.preparationTimeMinutes || meal.cookTimeMinutes} mins</Text>}
-        </TouchableOpacity>;
-      })}
+          <View style={styles.mealMeta}>
+            <Text style={styles.mealCalories}>{meal.nutrients?.energyKcal ?? '—'} kcal</Text>
+            {(meal.preparationTimeMinutes || meal.cookTimeMinutes) && <Text style={styles.mealTime}>◷ {meal.preparationTimeMinutes || meal.cookTimeMinutes} phút</Text>}
+          </View>
+          <Text style={styles.recipeLink}>Xem công thức ›</Text>
+        </TouchableOpacity>)}
     </ScrollView>
-    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.carouselTrack}><View style={styles.carouselThumb} /></View>
     <View style={styles.trackerCard}>
-      <Text accessibilityRole="header" style={styles.trackerTitle}>Calories Tracker</Text>
-      <Text style={styles.trackerSubtitle}>Total Calories</Text>
-      <View accessibilityRole="progressbar" accessibilityLabel="Total Calories, ước tính minh họa" accessibilityValue={{ min: 0, max: 100, now: Math.min(100, Math.round(((result.dailyTotals?.energyKcal || 0) / 1400) * 100)) }} style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${Math.min(100, Math.round(((result.dailyTotals?.energyKcal || 0) / 1400) * 100))}%` }]} />
+      <View style={styles.nutritionSummary}>
+        <View style={styles.nutritionSummaryCopy}>
+          <Text accessibilityRole="header" style={styles.trackerTitle}>Dinh dưỡng trong ngày</Text>
+          <Text style={styles.trackerSubtitle}>Tổng năng lượng</Text>
+        </View>
+        <View style={styles.energyBadge}><Text style={styles.energyValue}>{energy ?? '—'}</Text><Text style={styles.energyUnit}>kcal</Text></View>
       </View>
+      {isSample && <View accessibilityRole="progressbar" accessibilityLabel="Tổng năng lượng, mốc minh họa" accessibilityValue={{ min: 0, max: 1400, now: Math.min(1400, energy || 0) }} style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.min(100, Math.round(((energy || 0) / 1400) * 100))}%` }]} />
+      </View>}
       <View style={styles.trackerDivider} />
-      <Text accessibilityRole="header" style={styles.trackerTitle}>Macronutrient tracking</Text>
-      {macroNutrients.map(nutrient => <NutrientBar key={nutrient.key} nutrient={nutrient} label={macroLabels[nutrient.key]} value={result.dailyTotals?.[nutrient.key]} maxValue={macroDisplayTargets[nutrient.key]} />)}
+      <Text accessibilityRole="header" style={styles.trackerSubtitle}>Thành phần dinh dưỡng</Text>
+      {macroNutrients.map(nutrient => <NutrientBar key={nutrient.key} nutrient={nutrient} label={macroLabels[nutrient.key]} value={result.dailyTotals?.[nutrient.key]} maxValue={sampleMacroScale[nutrient.key]} showProgress={isSample} />)}
     </View>
     {isSample
-      ? <Text style={styles.sampleNotice}>Mẫu minh họa từ ảnh tham khảo. Số liệu không phải kế hoạch cá nhân hay tư vấn dinh dưỡng.</Text>
+      ? <Text style={styles.sampleNotice}>Số liệu minh họa giao diện, không được cá nhân hóa và không phải tư vấn dinh dưỡng.</Text>
       : <>
-        <Text style={styles.trackerNote}>Các thanh dùng mốc hiển thị tham khảo, không phải mục tiêu dinh dưỡng cá nhân.</Text>
         {plan.map((meal, index) => <MealDetails key={`detail-${meal.slot}-${index}`} meal={meal} catalogVersion={result.metadata?.catalogVersion} />)}
         <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={() => onOpenGrocery?.(result.savedPlan?.id || null)}>
           <Text style={styles.secondaryText}>Tạo danh sách đi chợ</Text>
@@ -341,14 +337,14 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại trang chủ" style={styles.screenBack} onPress={onBack}>
         <Text style={styles.screenBackText}>‹</Text>
       </TouchableOpacity>
-      <Text accessibilityRole="header" style={styles.title}>Lịch Ăn Hằng Ngày</Text>
-      <View style={styles.screenBack} />
+      <Text accessibilityRole="header" style={styles.title}>Thực đơn</Text>
     </View>
     {restoreError ? <Text accessibilityRole="alert" style={styles.restoreError}>Không tải được thực đơn đã lưu: {restoreError}. Đang hiển thị mẫu minh họa.</Text> : null}
+    <Text accessibilityRole="header" style={styles.pageSectionTitle}>Lịch ăn trong ngày</Text>
     {isDisplayablePlan(result)
       ? <PlanResult result={result} onOpenGrocery={onOpenGrocery} onViewRecipe={(meal, isSample) => setSelectedMeal(isSample ? { ...meal, isSamplePreview: true } : meal)} />
       : !result && <PlanResult result={SAMPLE_PLAN} isSample onViewRecipe={(meal) => setSelectedMeal({ ...meal, isSamplePreview: true })} />}
-    <Text style={styles.disclaimer}>Dữ liệu dinh dưỡng từ kế hoạch tạo bằng API được lấy từ nguồn đã ghi nhận khi cấu hình. Mọi giá trị chỉ mang tính tham khảo, không phải chỉ định điều trị.</Text>
+    <Text style={styles.disclaimer}>Thông tin dinh dưỡng chỉ mang tính tham khảo, không thay thế tư vấn y tế.</Text>
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.heading}>Tra cứu USDA FoodData Central</Text>
       <Text style={styles.helper}>Tìm bản ghi nguồn và tính lại theo khối lượng. USDA không xác nhận nhiễm chéo hoặc khả năng phù hợp cho điều trị.</Text>
@@ -431,93 +427,150 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
 
 function RecipeView({ meal, onBack, isSample = false }) {
   const portions = Array.isArray(meal.portions) ? meal.portions : [];
-  const photo = recipePhoto(meal);
+  const instructions = Array.isArray(meal.instructions) ? meal.instructions : [];
+  const descriptionHeading = isSample || !instructions.length
+    ? (meal.explanation && !isSample ? 'Lý do lựa chọn' : 'Mô tả món ăn')
+    : 'Cách chế biến';
   return <ScrollView style={styles.screen} contentContainerStyle={styles.recipeContent}>
-    <View style={styles.recipeHeader}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại lịch ăn" style={styles.recipeBack} onPress={onBack}><Text style={styles.recipeBackText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.recipeHeaderTitle}>FOOD</Text><View style={styles.recipeBack} /></View>
-    <View style={styles.recipeHero}>{photo ? <CroppedReferenceImage source={photo.source} crop={photo.crop} size={180} /> : <Text style={styles.recipeHeroGlyph}>{mealIllustration(meal)}</Text>}</View>
-    {!isSample && <>
-      <Text style={styles.recipeSlot}>{meal.slot} · {meal.nutrients?.energyKcal ?? '—'} kcal</Text>
-      <Text accessibilityRole="header" style={styles.recipeTitle}>{meal.name}</Text>
-    </>}
-    <View style={[styles.recipeFacts, isSample && styles.sampleRecipeFacts]}><Text style={styles.recipeFact}>◷　{meal.preparationTimeMinutes || meal.cookTimeMinutes || '—'} Phút</Text><Text style={styles.recipeFact}>ϟ　{meal.nutrients?.energyKcal ?? '—'} kcal</Text><Text style={styles.recipeFact}>♙　{isSample ? '1 người ăn' : `${portions.length} thành phần`}</Text></View>
-    <Text style={styles.recipeSectionTitle}>Nguyên liệu</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recipeIngredients}>{portions.length ? portions.map((portion, index) => <View key={`${portion.foodId}-${index}`} style={styles.recipeIngredient}><View style={styles.ingredientIcon}><Text style={styles.ingredientGlyph}>{ingredientIllustration(portion)}</Text></View><Text style={styles.ingredientName}>{portion.food}</Text><Text style={styles.ingredientAmount}>{portion.grams} g</Text></View>) : <Text style={styles.helper}>Chưa có thành phần trong dữ liệu bữa ăn.</Text>}</ScrollView>
-    <Text style={styles.recipeSectionTitle}>Mô tả chi tiết</Text>
+    <View style={styles.recipeHeader}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại lịch ăn" style={styles.recipeBack} onPress={onBack}><Text style={styles.recipeBackText}>‹</Text></TouchableOpacity>
+      <Text accessibilityRole="header" style={styles.recipeHeaderTitle}>Chi tiết món ăn</Text>
+    </View>
+    <View style={styles.recipeIntro}>
+      <View style={styles.recipeHero}><Text style={styles.recipeHeroGlyph}>{mealIllustration(meal)}</Text></View>
+      <View style={styles.recipeIntroCopy}>
+        <Text style={styles.recipeSlot}>{meal.slot}</Text>
+        <Text accessibilityRole="header" style={styles.recipeTitle}>{meal.name}</Text>
+      </View>
+    </View>
+    <View style={styles.recipeFacts}>
+      <View style={styles.recipeFactCard}><Text style={styles.recipeFactLabel}>Thời gian</Text><Text style={styles.recipeFact}>◷ {meal.preparationTimeMinutes || meal.cookTimeMinutes || '—'} phút</Text></View>
+      <View style={styles.recipeFactCard}><Text style={styles.recipeFactLabel}>Năng lượng</Text><Text style={styles.recipeFact}>{meal.nutrients?.energyKcal ?? '—'} kcal</Text></View>
+      <View style={styles.recipeFactCard}><Text style={styles.recipeFactLabel}>Nguyên liệu</Text><Text style={styles.recipeFact}>{portions.length ? `${portions.length} loại` : 'Chưa có dữ liệu'}</Text></View>
+    </View>
+    <Text accessibilityRole="header" style={styles.recipeSectionTitle}>Nguyên liệu</Text>
+    <View style={styles.recipeIngredients}>
+      {portions.length ? portions.map((portion, index) => <View key={`${portion.foodId}-${index}`} style={styles.recipeIngredient}>
+        <View style={styles.ingredientIcon}><Text style={styles.ingredientGlyph}>{ingredientIllustration(portion)}</Text></View>
+        <Text style={styles.ingredientName}>{portion.food}</Text>
+        <Text style={styles.ingredientAmount}>{portion.grams} g</Text>
+      </View>) : <Text style={styles.helper}>Chưa có thành phần trong dữ liệu bữa ăn.</Text>}
+    </View>
+    <Text accessibilityRole="header" style={styles.recipeSectionTitle}>{descriptionHeading}</Text>
     <View style={styles.recipeDescription}>
       {isSample
-        ? <Text style={styles.recipeDescriptionText}>Món ăn mẫu trong ảnh tham khảo. Thành phần và định lượng chỉ dùng để minh họa giao diện.</Text>
-        : Array.isArray(meal.instructions) && meal.instructions.length
-          ? meal.instructions.map((step, index) => <Text key={`recipe-step-${index}`} style={styles.recipeDescriptionText}>{index + 1}. {step}</Text>)
+        ? <Text style={styles.recipeDescriptionText}>Món và định lượng chỉ minh họa cách trình bày. Hãy tạo thực đơn để xem dữ liệu từ kế hoạch của bạn.</Text>
+        : instructions.length
+          ? instructions.map((step, index) => <Text key={`recipe-step-${index}`} style={styles.recipeDescriptionText}>{index + 1}. {step}</Text>)
           : <Text style={styles.recipeDescriptionText}>{meal.explanation || 'Chưa có mô tả cho món ăn này.'}</Text>}
     </View>
-    {!isSample && <Text style={styles.recipeDisclaimer}>Nội dung mẫu, chưa được chuyên gia dinh dưỡng thẩm định; không phải chỉ định điều trị.</Text>}
+    {isSample
+      ? <Text style={styles.sampleNotice}>Đây là nội dung minh họa, không phải thực đơn cá nhân hay tư vấn dinh dưỡng.</Text>
+      : <Text style={styles.recipeDisclaimer}>Giá trị dinh dưỡng mang tính tham khảo; không phải chỉ định điều trị.</Text>}
     <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={onBack}><Text style={styles.secondaryText}>Quay lại thực đơn</Text></TouchableOpacity>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface },
-  content: { paddingBottom: 132 },
-  screenHeader: { height: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
-  screenBack: { width: 44, minHeight: 38, alignItems: 'flex-start', justifyContent: 'center' },
-  screenBackText: { color: colors.primary, fontSize: 36, lineHeight: 40 },
-  title: { color: colors.primary, fontWeight: '800', fontSize: 22, textAlign: 'center' },
-  scheduleHeading: { fontSize: 16, color: '#302B2B', fontWeight: '800', marginTop: 6, marginHorizontal: 16 },
-  restoreError: { color: colors.warning, fontSize: 12, lineHeight: 17, marginHorizontal: 16, marginTop: 5 },
-  nutrientGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 7, marginTop: 10 },
-  nutrientCell: { width: '48%', color: colors.text, fontSize: 14, backgroundColor: '#F5F7FB', padding: 9, borderRadius: 9, lineHeight: 17 },
-  profileSummary: { backgroundColor: '#F5F7FB', padding: 12, borderRadius: 11, marginTop: 6 },
+  screen: { flex: 1, backgroundColor: colors.canvas },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  screenHeader: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.sm },
+  screenBack: { width: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  screenBackText: { color: colors.primary, fontSize: 28, lineHeight: 34 },
+  title: { flex: 1, color: colors.text, fontWeight: '800', fontSize: 21, textAlign: 'left' },
+  pageSectionTitle: { color: colors.text, fontSize: 20, fontWeight: '800', marginTop: spacing.sm, marginBottom: spacing.sm },
+  sectionHeadingRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: spacing.sm },
+  scheduleHeading: { fontSize: 16, color: colors.text, fontWeight: '800' },
+  mealCount: { color: colors.primaryDark, fontSize: 12, fontWeight: '700', backgroundColor: colors.softBlue, paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill },
+  sampleBadge: { color: colors.primaryDark, backgroundColor: colors.softBlue, alignSelf: 'flex-start', fontSize: 12, fontWeight: '700', paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, marginTop: spacing.sm },
+  restoreError: { color: colors.warning, fontSize: 12, lineHeight: 17, marginTop: spacing.xs },
+  nutrientGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: spacing.sm, marginTop: spacing.md },
+  nutrientCell: { width: '48%', color: colors.text, fontSize: 14, backgroundColor: colors.canvas, padding: spacing.sm, borderRadius: radius.sm, lineHeight: 18 },
+  profileSummary: { backgroundColor: colors.canvas, padding: spacing.md, borderRadius: radius.sm, marginTop: spacing.xs },
   profileValue: { color: colors.primaryDark, fontSize: 14, fontWeight: '800' },
-  profileHint: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: 4 },
-  editLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: 8 },
-  disclaimer: { color: colors.muted, fontSize: 12, lineHeight: 17, backgroundColor: '#F5F7FB', padding: 11, borderRadius: radius.sm, marginHorizontal: 16, marginVertical: 9 },
-  savedListButton: { minHeight: 54, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, marginBottom: 8 },
+  profileHint: { color: colors.muted, fontSize: 13, lineHeight: 18, marginTop: spacing.xs },
+  editLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: spacing.sm },
+  disclaimer: { color: colors.muted, fontSize: 12, lineHeight: 17, backgroundColor: colors.surface, padding: spacing.md, borderRadius: radius.sm, marginVertical: spacing.sm },
+  savedListButton: { minHeight: 50, paddingHorizontal: spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1, borderColor: colors.primary, marginBottom: spacing.sm, backgroundColor: colors.surface },
   savedListText: { color: colors.primary, fontWeight: '800', fontSize: 13 },
-  card: { padding: 15, borderRadius: radius.md, backgroundColor: colors.surface, marginVertical: 7, borderWidth: 1, borderColor: colors.border },
-  heading: { fontSize: 17, color: colors.text, fontWeight: '800', marginBottom: 5 },
-  label: { fontSize: 13, color: colors.text, fontWeight: '700', marginTop: 13 },
-  input: { minHeight: 54, backgroundColor: '#F5F7FB', borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 12, paddingVertical: 10, marginTop: 6, color: colors.text, fontSize: 14 },
-  helper: { color: colors.muted, fontSize: 14, lineHeight: 17, marginTop: 6 },
-  button: { minHeight: 54, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: 18 },
+  card: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surface, marginVertical: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  heading: { fontSize: 17, color: colors.text, fontWeight: '800', marginBottom: spacing.xs },
+  label: { fontSize: 13, color: colors.text, fontWeight: '700', marginTop: spacing.md },
+  input: { minHeight: 50, backgroundColor: colors.canvas, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.xs, color: colors.text, fontSize: 14 },
+  helper: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.xs },
+  button: { minHeight: 52, borderRadius: radius.pill, backgroundColor: colors.primary, justifyContent: 'center', alignItems: 'center', marginTop: spacing.lg },
   disabledButton: { opacity: 0.5 },
-  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  loadingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   buttonText: { color: 'white', fontWeight: '800' },
-  error: { color: colors.danger, marginTop: 10 },
-  retryButton: { minHeight: 54, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 10, marginTop: 10 },
+  error: { color: colors.danger, marginTop: spacing.sm },
+  retryButton: { minHeight: 50, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, marginTop: spacing.sm },
   retryText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
-  warning: { color: colors.warning, backgroundColor: '#FFF7E6', padding: 11, borderRadius: 9, marginTop: 7, fontSize: 13, lineHeight: 18 },
-  meals: { gap: 30, paddingHorizontal: 16, paddingTop: 51, paddingBottom: 10 },
-  mealCard: { width: 180, height: 190, alignItems: 'center', backgroundColor: colors.surface, paddingHorizontal: 10, paddingTop: 105, paddingBottom: 10, borderRadius: 19, borderWidth: 1, borderColor: '#F0F1F4', shadowColor: '#18243A', shadowOpacity: 0.14, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  mealImage: { position: 'absolute', zIndex: 1, top: -22, width: 120, height: 120, borderRadius: 60, backgroundColor: '#F7E8D8', alignItems: 'center', justifyContent: 'center', shadowColor: '#1D2838', shadowOpacity: 0.19, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  mealGlyph: { color: colors.primary, fontSize: 59 },
-  mealSlot: { fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 6, fontSize: 14 },
-  mealName: { color: colors.text, fontSize: 12, textAlign: 'center', marginTop: 2, minHeight: 17, lineHeight: 16 },
-  mealCalories: { color: colors.muted, fontSize: 10, textAlign: 'center', marginTop: 7 },
-  mealTime: { color: colors.muted, fontSize: 10, textAlign: 'center', marginTop: 3 },
-  recipeLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: 7 },
-  carouselTrack: { width: 240, height: 5, borderRadius: 4, backgroundColor: '#DDE2EA', alignSelf: 'center', marginBottom: 12, overflow: 'hidden' },
-  carouselThumb: { width: 92, height: 5, backgroundColor: colors.primaryDark, borderRadius: 4 },
-  trackerCard: { minHeight: 374, padding: 14, borderRadius: 9, backgroundColor: colors.surface, marginTop: 4, marginHorizontal: 19, marginBottom: 8, borderWidth: 1, borderColor: '#D9DDE4', shadowColor: '#172236', shadowOpacity: 0.13, shadowRadius: 4, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  trackerTitle: { color: colors.text, fontWeight: '800', fontSize: 14 },
-  trackerSubtitle: { color: colors.text, fontSize: 10, marginTop: 13 },
-  trackerDivider: { height: 1, backgroundColor: '#EEF0F4', marginVertical: 13 },
-  trackerNote: { color: colors.muted, fontSize: 11, lineHeight: 15, marginTop: 4, marginBottom: 7 },
-  sampleNotice: { color: colors.muted, fontSize: 11, lineHeight: 16, marginHorizontal: 19, marginTop: 4 },
-  trackerRow: { marginTop: 10 },
-  trackerLabel: { color: colors.text, fontSize: 10 },
-  progressTrack: { height: 12, backgroundColor: '#D9D9D9', borderRadius: 8, marginTop: 8, marginBottom: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 8 },
-  otherNutrients: { color: colors.muted, fontSize: 12, marginTop: 12 },
-  small: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
-  explanation: { color: colors.primaryDark, fontSize: 14, lineHeight: 20, marginTop: 12 },
-  provenance: { color: colors.muted, fontSize: 13, lineHeight: 16, marginTop: 5 },
-  sourceBox: { marginTop: 10, padding: 10, backgroundColor: '#F5F7FB', borderRadius: 9 }, searchResult: { paddingVertical: 11, borderBottomWidth: 1, borderColor: colors.border }, selectedFood: { flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: 62, borderBottomWidth: 1, borderColor: colors.border }, selectedFoodCopy: { flex: 1 }, gramsInput: { width: 70, minHeight: 46, textAlign: 'center', borderRadius: 9, borderWidth: 1, borderColor: colors.border, backgroundColor: '#F5F7FB', color: colors.text },
+  warning: { color: colors.warning, backgroundColor: '#FFF7E6', padding: spacing.md, borderRadius: radius.sm, marginTop: spacing.sm, fontSize: 13, lineHeight: 18 },
+  meals: { gap: spacing.md, paddingTop: spacing.md, paddingBottom: spacing.sm },
+  mealCard: { width: 218, minHeight: 176, alignItems: 'stretch', backgroundColor: colors.surface, padding: spacing.md, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  mealCardTop: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  mealImage: { width: 44, height: 44, borderRadius: radius.sm, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
+  mealGlyph: { color: colors.primaryDark, fontSize: 23 },
+  mealSlot: { fontWeight: '700', color: colors.muted, fontSize: 13 },
+  mealName: { color: colors.text, fontSize: 15, fontWeight: '800', marginTop: spacing.md, minHeight: 40, lineHeight: 20 },
+  mealMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: spacing.md, marginTop: spacing.xs },
+  mealCalories: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  mealTime: { color: colors.muted, fontSize: 12 },
+  recipeLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: spacing.md },
+  trackerCard: { padding: spacing.lg, borderRadius: radius.md, backgroundColor: colors.surface, marginTop: spacing.sm, marginBottom: spacing.sm, borderWidth: 1, borderColor: colors.border },
+  nutritionSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.md },
+  nutritionSummaryCopy: { flex: 1 },
+  trackerTitle: { color: colors.text, fontWeight: '800', fontSize: 16 },
+  trackerSubtitle: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
+  energyBadge: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.xs, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, borderRadius: radius.sm, backgroundColor: colors.softBlue },
+  energyValue: { color: colors.primaryDark, fontSize: 18, fontWeight: '800' },
+  energyUnit: { color: colors.primaryDark, fontSize: 12, fontWeight: '700' },
+  trackerDivider: { height: 1, backgroundColor: colors.border, marginVertical: spacing.md },
+  sampleNotice: { color: colors.primaryDark, fontSize: 12, lineHeight: 18, backgroundColor: colors.softBlue, padding: spacing.md, borderRadius: radius.sm, marginTop: spacing.sm },
+  trackerRow: { marginTop: spacing.md },
+  trackerRowHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: spacing.sm },
+  trackerLabel: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  trackerValue: { color: colors.muted, fontSize: 12 },
+  progressTrack: { height: 8, backgroundColor: colors.canvas, borderRadius: radius.pill, marginTop: spacing.sm, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.pill },
+  small: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: spacing.xs },
+  explanation: { color: colors.primaryDark, fontSize: 14, lineHeight: 20, marginTop: spacing.md },
+  provenance: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: spacing.xs },
+  sourceBox: { marginTop: spacing.md, padding: spacing.md, backgroundColor: colors.canvas, borderRadius: radius.sm },
+  searchResult: { paddingVertical: spacing.md, borderBottomWidth: 1, borderColor: colors.border },
+  selectedFood: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, minHeight: 62, borderBottomWidth: 1, borderColor: colors.border },
+  selectedFoodCopy: { flex: 1 },
+  gramsInput: { width: 70, minHeight: 46, textAlign: 'center', borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.canvas, color: colors.text },
   sourceHeading: { color: colors.text, fontWeight: '800', fontSize: 14 },
-  secondary: { minHeight: 54, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 15, alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  secondary: { minHeight: 52, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: spacing.lg, alignItems: 'center', justifyContent: 'center', marginTop: spacing.md },
   secondaryText: { color: 'white', fontWeight: '800' },
-  footnote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 14 },
-  emptyState: { backgroundColor: 'white', borderWidth: 1, borderColor: colors.warning, borderRadius: radius.md, padding: 16, marginVertical: 8 },
+  footnote: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: spacing.md },
+  emptyState: { backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.warning, borderRadius: radius.md, padding: spacing.lg, marginVertical: spacing.sm },
   emptyHeading: { fontSize: 18, color: colors.text, fontWeight: '800' },
-  emptyText: { fontSize: 15, color: colors.text, lineHeight: 22, marginTop: 8 },
-  recipeContent: { paddingHorizontal: 10, paddingBottom: 132 }, recipeHeader: { height: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, recipeBack: { width: 54, minHeight: 38, justifyContent: 'center' }, recipeBackText: { color: colors.primary, fontSize: 36, opacity: 0 }, recipeHeaderTitle: { color: colors.primary, fontSize: 20, fontWeight: '800' }, recipeHero: { width: 180, height: 180, borderRadius: 90, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8E9D9', marginTop: 16, marginBottom: 16, shadowColor: '#202A3B', shadowOpacity: 0.15, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 5 }, recipeHeroGlyph: { fontSize: 82 }, recipeSlot: { color: colors.muted, textAlign: 'center', fontSize: 14, marginTop: 3 }, recipeTitle: { color: colors.text, textAlign: 'center', fontSize: 23, fontWeight: '900', marginTop: 7 }, recipeFacts: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 16, marginTop: 13 }, sampleRecipeFacts: { marginTop: 48 }, recipeFact: { color: colors.primary, fontSize: 12, fontWeight: '700' }, recipeSectionTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: 22, marginBottom: 9 }, recipeIngredients: { flexDirection: 'row', gap: 10 }, recipeIngredient: { width: 90, minWidth: 90, flexDirection: 'column', alignItems: 'center', gap: 10 }, ingredientIcon: { width: 90, height: 90, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: 'white', borderWidth: 1, borderColor: colors.border, shadowColor: '#172236', shadowOpacity: 0.1, shadowRadius: 3, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, ingredientGlyph: { color: colors.primary, fontSize: 42 }, ingredientName: { color: colors.text, fontSize: 14, fontWeight: '800', textAlign: 'center', marginTop: 2 }, ingredientAmount: { color: colors.text, fontSize: 14 }, recipeDescription: { backgroundColor: 'transparent', paddingVertical: 4 }, recipeDescriptionText: { color: colors.text, fontSize: 13, lineHeight: 19 }, recipeDisclaimer: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 10 }
+  emptyText: { fontSize: 15, color: colors.text, lineHeight: 22, marginTop: spacing.sm },
+  recipeContent: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, paddingBottom: spacing.xl },
+  recipeHeader: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  recipeBack: { width: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border },
+  recipeBackText: { color: colors.primary, fontSize: 28, lineHeight: 34 },
+  recipeHeaderTitle: { flex: 1, color: colors.text, fontSize: 17, fontWeight: '800' },
+  recipeIntro: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginTop: spacing.md },
+  recipeHero: { width: 68, height: 68, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.softBlue },
+  recipeHeroGlyph: { fontSize: 34 },
+  recipeIntroCopy: { flex: 1 },
+  recipeSlot: { color: colors.muted, fontSize: 13, fontWeight: '700' },
+  recipeTitle: { color: colors.text, fontSize: 19, lineHeight: 24, fontWeight: '800', marginTop: spacing.xs },
+  recipeFacts: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
+  recipeFactCard: { flex: 1, minWidth: 0, backgroundColor: colors.surface, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, padding: spacing.sm },
+  recipeFactLabel: { color: colors.muted, fontSize: 11, marginBottom: spacing.xs },
+  recipeFact: { color: colors.primaryDark, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  recipeSectionTitle: { color: colors.text, fontSize: 16, fontWeight: '800', marginTop: spacing.xl, marginBottom: spacing.sm },
+  recipeIngredients: { gap: spacing.sm },
+  recipeIngredient: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: spacing.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, borderRadius: radius.sm, padding: spacing.sm },
+  ingredientIcon: { width: 38, height: 38, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.softBlue },
+  ingredientGlyph: { color: colors.primaryDark, fontSize: 21 },
+  ingredientName: { flex: 1, color: colors.text, fontSize: 14, fontWeight: '700' },
+  ingredientAmount: { color: colors.primaryDark, fontSize: 12, fontWeight: '700' },
+  recipeDescription: { backgroundColor: colors.surface, padding: spacing.md, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, gap: spacing.sm },
+  recipeDescriptionText: { color: colors.text, fontSize: 14, lineHeight: 21 },
+  recipeDisclaimer: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: spacing.md }
 });
