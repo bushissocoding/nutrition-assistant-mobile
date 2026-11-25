@@ -1,8 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
+import CroppedReferenceImage from '../../shared/components/CroppedReferenceImage';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
 import { colors, radius } from '../../theme/tokens';
+
+const FOOD_SEARCH_REFERENCE = require('../../../../assets/design/ui-reference/UI/18. Nhật kí/18.2.png');
 
 const MEAL_TYPES = [
   { value: 'BREAKFAST', label: 'Sáng' },
@@ -103,6 +106,23 @@ function foodIllustration(food) {
   if (/gà|chicken|thịt|beef|pork/.test(name)) return '🍗';
   if (/rau|cải|vegetable|spinach/.test(name)) return '🥬';
   return '🥣';
+}
+
+function foodReferenceCrop(food) {
+  const name = `${food?.name || ''}`.toLocaleLowerCase('vi-VN');
+  if (/gạo|cơm|rice|grain/.test(name)) return { x: 16, y: 334, width: 42 };
+  if (/gà|chicken|poultry/.test(name)) return { x: 16, y: 428, width: 42 };
+  if (/rau|cải|canh|vegetable/.test(name)) return { x: 16, y: 520, width: 42 };
+  if (/trứng|egg/.test(name)) return { x: 16, y: 612, width: 42 };
+  return null;
+}
+
+function FoodThumbnail({ food, size }) {
+  const crop = foodReferenceCrop(food);
+  const glyphStyle = size > 48 ? styles.foodThumbLargeGlyph : styles.foodThumbGlyph;
+  return crop
+    ? <CroppedReferenceImage source={FOOD_SEARCH_REFERENCE} crop={crop} size={size} radius={size * 0.2} />
+    : <Text style={[glyphStyle, { fontSize: size * 0.56 }]}>{foodIllustration(food)}</Text>;
 }
 
 function MacroSummary({ totals }) {
@@ -394,7 +414,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
             setSelectedFoods(current => selected ? current.filter(item => item.id !== food.id) : [...current, { ...food, grams: String(defaultGrams) }]);
             setMutationError('');
           }}>
-            <View style={styles.foodThumb}><Text style={styles.foodThumbGlyph}>{foodIllustration(food)}</Text></View>
+            <View style={styles.foodThumb}><FoodThumbnail food={food} size={48} /></View>
             <View style={styles.foodResultCopy}><Text style={styles.foodName}>{food.name}</Text>{Number.isFinite(food.nutrition?.values?.energyKcal?.value) && <Text style={styles.small}>{food.nutrition.values.energyKcal.value} kcal · {food.basis?.amount || 100} {food.basis?.unit || 'g'}</Text>}<Text style={styles.sourceText}>{sourceLine(food)}</Text></View>
             <View style={[styles.selectMark, selected && styles.selectMarkActive]}><Text style={[styles.selectCheck, selected && styles.selectCheckActive]}>{selected ? '✓' : '+'}</Text></View>
           </TouchableOpacity>;
@@ -414,7 +434,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
       {addStep === 'portion' && selectedFood && <>
         <View style={styles.selectedFoodCard}>
-          <View style={styles.foodThumbLarge}><Text style={styles.foodThumbLargeGlyph}>{foodIllustration(selectedFood)}</Text></View>
+          <View style={styles.foodThumbLarge}><FoodThumbnail food={selectedFood} size={66} /></View>
           <View style={styles.selectedFoodCopy}><View style={styles.tagRow}><Text style={styles.sourceTag}>{selectedFood.source?.label || 'Nguồn chưa ghi'}</Text><Text style={styles.sourceTagMuted}>Dữ liệu nguồn</Text></View><Text style={styles.selectedFoodTitle}>{selectedFood.name}</Text><Text style={styles.sourceText}>{sourceLine(selectedFood)}</Text></View>
         </View>
         {portionIndex > 0 && <Text style={styles.progressCopy}>Món {portionIndex + 1} · các món trước đã được lưu thành công.</Text>}
@@ -480,7 +500,6 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
       return <View key={meal.value} style={[styles.timelineCard, { borderLeftColor: meal.value === 'BREAKFAST' ? '#21B7E8' : meal.value === 'LUNCH' ? colors.primary : '#9373F7' }]}>
         <View style={styles.timelineCardHeader}><View style={styles.timelineIcon}><Text style={styles.timelineIconText}>{meal.value === 'BREAKFAST' ? '☼' : meal.value === 'LUNCH' ? '♜' : meal.value === 'DINNER' ? '☾' : '✦'}</Text></View><View style={styles.timelineMealCopy}><Text style={styles.timelineMealName}>Bữa {meal.label}</Text><Text style={styles.timelineTime}>{items[0] ? formatEntryTime(items[0]) : ''}</Text></View><View style={styles.timelineEnergy}><Text style={styles.timelineCalories}>{displayValue(calories)} kcal</Text><Text style={styles.small}>Tổng: {items.length} món</Text></View></View>
         {items.map(entry => <View key={entry.id} style={styles.timelineEntry}>
-          <View style={styles.entryThumb}><Text style={styles.entryThumbGlyph}>{foodIllustration(entry)}</Text></View>
           <View style={styles.entryCopy}><Text style={styles.entryFoodName}>{entry.foodName}</Text><Text style={styles.entryMeta}>{entry.portion.amount} {entry.portion.unit || 'g'} · {displayValue(entry.nutrients.energyKcal)} kcal</Text><Text style={styles.entryMacros}>Đạm {displayValue(entry.nutrients.proteinG)} g · Carb {displayValue(entry.nutrients.carbohydrateG)} g · Béo {displayValue(entry.nutrients.fatG)} g</Text>{!!entry.notes && <Text style={styles.entryMacros}>{entry.notes}</Text>}</View>
           <View style={styles.entryActions}><TouchableOpacity accessibilityRole="button" style={styles.textButton} onPress={() => startEditing(entry)} disabled={mutationLoading}><Text style={styles.link}>Sửa</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.textButton} onPress={() => deleteEntry(entry)} disabled={mutationLoading}><Text style={styles.deleteText}>Xóa</Text></TouchableOpacity></View>
         </View>)}
@@ -544,8 +563,6 @@ const styles = StyleSheet.create({
   timelineEnergy: { alignItems: 'flex-end' },
   timelineCalories: { color: colors.primary, fontSize: 12, fontWeight: '800' },
   timelineEntry: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#FAFBFE', padding: 7, borderRadius: 12, marginTop: 7 },
-  entryThumb: { width: 42, height: 42, borderRadius: 10, backgroundColor: '#FCEFE4', alignItems: 'center', justifyContent: 'center' },
-  entryThumbGlyph: { fontSize: 24 },
   entryCopy: { flex: 1, minWidth: 0 },
   entryFoodName: { color: colors.text, fontSize: 12, fontWeight: '700' },
   entryMeta: { color: colors.primary, fontSize: 11, marginTop: 3 },

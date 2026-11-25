@@ -22,6 +22,7 @@ Rebuild the food diary screen to follow supplied references `assets/design/ui-re
 
 - `app/src/features/diary/DiaryScreen.js` — day history, sourced-food search, portion and CRUD UI.
 - `app/src/features/diary/DiaryScreen.test.js` — focused screen behavior tests.
+- `app/src/shared/components/CroppedReferenceImage.js` — clips food thumbnails supplied in the reference screenshots.
 - `app/src/features/diary/diary-history.cjs` — existing timezone and date helpers.
 - `app/src/theme/tokens.js` — existing shared visual tokens.
 - `assets/design/ui-reference/UI/18. Nhật kí/` — visual acceptance references; do not edit.

@@ -15,7 +15,7 @@ Self-reviewed and approved under the user's explicit authorization.
 
 - UI feature files and their focused tests, plus the spec/map/plan/todo artifacts in `spec/`.
 - No server, API contract, dependency, authentication, navigation, or design-reference changes.
-- Reuse existing theme tokens and current sourced API data. Add a source image only if it can be reused from the provided reference assets without adding unrelated generated output.
+- Reuse existing theme tokens and current sourced API data. Use the supplied screenshot's food-photo regions through a shared clipping component; do not add edited image files or unrelated generated output.
 
 ## Risks and handling
 

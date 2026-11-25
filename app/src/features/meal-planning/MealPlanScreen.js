@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
+import CroppedReferenceImage from '../../shared/components/CroppedReferenceImage';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
 import { colors, radius } from '../../theme/tokens';
+
+const MEAL_SCHEDULE_REFERENCE = require('../../../../assets/design/ui-reference/UI/14. Thực đơn/14.1.png');
+const RECIPE_REFERENCE = require('../../../../assets/design/ui-reference/UI/14. Thực đơn/14.2.png');
 
 function warningText(warning) {
   return typeof warning === 'string' ? warning : warning?.message || '';
@@ -38,6 +42,19 @@ function mealIllustration(meal) {
   if (/cơm|rice|trưa|lunch/.test(identity)) return '🍚';
   if (/cá|fish|hải sản/.test(identity)) return '🐟';
   return '🍽️';
+}
+
+function schedulePhoto(meal) {
+  const slot = `${meal?.slot || ''}`.toLocaleLowerCase('vi-VN');
+  if (/bữa sáng|breakfast/.test(slot)) return { source: MEAL_SCHEDULE_REFERENCE, crop: { x: 47, y: 155, width: 120 } };
+  if (/bữa trưa|lunch/.test(slot)) return { source: MEAL_SCHEDULE_REFERENCE, crop: { x: 258, y: 155, width: 102 } };
+  return null;
+}
+
+function recipePhoto(meal) {
+  const slot = `${meal?.slot || ''}`.toLocaleLowerCase('vi-VN');
+  if (/bữa sáng|breakfast/.test(slot)) return { source: RECIPE_REFERENCE, crop: { x: 86, y: 114, width: 180 } };
+  return null;
 }
 
 function ingredientIllustration(portion) {
@@ -91,14 +108,17 @@ function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
     <Text style={styles.helper}>Ưu tiên xếp hạng: {varietyLabels[result.metadata?.dietaryVariety] || 'cân bằng'}. Đây chỉ là gợi ý mềm, không bảo đảm thành phần phù hợp.</Text>
     {(result.warnings || []).map((warning, index) => <Text key={`warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.meals}>
-      {plan.map((meal, index) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal)}>
-        <View style={styles.mealImage}><Text style={styles.mealGlyph}>{mealIllustration(meal)}</Text></View>
-        <Text style={styles.mealSlot}>{meal.slot}</Text>
-        <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
-        <Text style={styles.mealCalories}>Calories　{meal.nutrients?.energyKcal ?? '—'} kcal</Text>
-        {(meal.preparationTimeMinutes || meal.cookTimeMinutes) && <Text style={styles.mealTime}>Time　{meal.preparationTimeMinutes || meal.cookTimeMinutes} mins</Text>}
-        <Text style={styles.recipeLink}>Xem công thức ›</Text>
-      </TouchableOpacity>)}
+      {plan.map((meal, index) => {
+        const photo = schedulePhoto(meal);
+        return <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal)}>
+          <View style={styles.mealImage}>{photo ? <CroppedReferenceImage source={photo.source} crop={photo.crop} size={110} /> : <Text style={styles.mealGlyph}>{mealIllustration(meal)}</Text>}</View>
+          <Text style={styles.mealSlot}>{meal.slot}</Text>
+          <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
+          <Text style={styles.mealCalories}>Calories　{meal.nutrients?.energyKcal ?? '—'} kcal</Text>
+          {(meal.preparationTimeMinutes || meal.cookTimeMinutes) && <Text style={styles.mealTime}>Time　{meal.preparationTimeMinutes || meal.cookTimeMinutes} mins</Text>}
+          <Text style={styles.recipeLink}>Xem công thức ›</Text>
+        </TouchableOpacity>;
+      })}
     </ScrollView>
     <View style={styles.trackerCard}>
       <Text accessibilityRole="header" style={styles.trackerTitle}>Calories Tracker</Text>
@@ -348,9 +368,10 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
 
 function RecipeView({ meal, onBack }) {
   const portions = Array.isArray(meal.portions) ? meal.portions : [];
+  const photo = recipePhoto(meal);
   return <ScrollView style={styles.screen} contentContainerStyle={styles.recipeContent}>
     <View style={styles.recipeHeader}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại lịch ăn" style={styles.recipeBack} onPress={onBack}><Text style={styles.recipeBackText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.recipeHeaderTitle}>FOOD</Text><View style={styles.recipeBack} /></View>
-    <View style={styles.recipeHero}><Text style={styles.recipeHeroGlyph}>{mealIllustration(meal)}</Text></View>
+    <View style={styles.recipeHero}>{photo ? <CroppedReferenceImage source={photo.source} crop={photo.crop} size={190} /> : <Text style={styles.recipeHeroGlyph}>{mealIllustration(meal)}</Text>}</View>
     <Text style={styles.recipeSlot}>{meal.slot} · {meal.nutrients?.energyKcal ?? '—'} kcal</Text>
     <Text accessibilityRole="header" style={styles.recipeTitle}>{meal.name}</Text>
     <View style={styles.recipeFacts}><Text style={styles.recipeFact}>◷　{meal.preparationTimeMinutes || meal.cookTimeMinutes || '—'} phút</Text><Text style={styles.recipeFact}>ϟ　{meal.nutrients?.energyKcal ?? '—'} kcal</Text><Text style={styles.recipeFact}>♙　{portions.length} thành phần</Text></View>
