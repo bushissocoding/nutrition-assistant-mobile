@@ -22,6 +22,7 @@ Rebuild the meal-planning result and recipe detail screens to follow the supplie
 
 - `app/src/features/meal-planning/MealPlanScreen.js` — plan result and recipe detail UI.
 - `app/src/features/meal-planning/MealPlanScreen.test.js` — focused screen behavior tests.
+- `app/src/shared/components/CroppedReferenceImage.js` — clips food imagery supplied in the reference screenshots for the relevant meal cards.
 - `app/src/theme/tokens.js` — existing shared visual tokens.
 - `assets/design/ui-reference/UI/14. Thực đơn/` — visual acceptance references; do not edit.
 
