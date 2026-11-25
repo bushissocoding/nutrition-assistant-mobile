@@ -9,5 +9,5 @@
 - [x] Add or update focused UI tests without relaxing existing behavioral checks.
 - [x] Run `npm run test:unit`, `npm run test:ui`, and `npm run test:api`.
 - [x] Check local preview capability; no Android emulator, Chrome, or Chrome DevTools MCP/Playwright is available, so no runtime screenshot was captured.
-- [ ] Review staged diff and secrets, commit feature work, and merge into `codex/fix-bug`.
-- [ ] Verify merge result and update this checklist with final outcomes.
+- [x] Review staged diff and secret matches; commit feature work as `eab5158` and merge into `codex/fix-bug` as `686e163`.
+- [x] Verify the merge result, update this checklist, and confirm the target branch is clean.
