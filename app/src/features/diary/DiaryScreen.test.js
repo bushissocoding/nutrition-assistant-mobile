@@ -51,6 +51,17 @@ async function press(screen, text) {
   });
 }
 
+async function pressLabel(screen, label) {
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText(label));
+    for (let index = 0; index < 3; index += 1) await Promise.resolve();
+  });
+}
+
+async function openAddFood(screen) {
+  await press(screen, '＋ Thêm món');
+}
+
 async function changeText(screen, placeholder, value) {
   await act(async () => { fireEvent.changeText(screen.getByPlaceholderText(placeholder), value); });
 }
@@ -124,10 +135,12 @@ test('shows catalog version, food source, units and serving limits in search res
   });
   const screen = renderDiary();
 
-  await press(screen, 'Tìm');
+  await openAddFood(screen);
+  await pressLabel(screen, 'Tìm thực phẩm');
   expect(screen.getByText(/Danh mục USDA-FDC-live-v1 · live/)).toBeTruthy();
   expect(screen.getByText(/USDA FoodData Central · #12345 · edition 2025-04-01/)).toBeTruthy();
   await press(screen, 'Synthetic food');
+  await press(screen, 'Xem khẩu phần (1) →');
   expect(screen.getByText(/Dữ liệu nguồn theo 100 g/)).toBeTruthy();
 });
 
@@ -137,12 +150,14 @@ test('preserves the form on create failure and retries the same intent with the 
   api.getMyMealEntries.mockResolvedValueOnce(emptyDiary).mockResolvedValueOnce(savedDiary);
   const screen = renderDiary();
 
-  await press(screen, 'Tìm');
+  await openAddFood(screen);
+  await pressLabel(screen, 'Tìm thực phẩm');
   await waitFor(() => expect(screen.getByText('Cơm trắng')).toBeTruthy());
   await press(screen, 'Cơm trắng');
+  await press(screen, 'Xem khẩu phần (1) →');
   await changeText(screen, 'Khối lượng (g)', '120');
   await changeText(screen, 'Ghi chú (tùy chọn)', 'bữa trưa');
-  await press(screen, 'Lưu bữa ăn');
+  await press(screen, '⊕ Xác nhận thêm vào bữa');
 
   await waitFor(() => expect(screen.getByText('Không kết nối được API.')).toBeTruthy());
   expect(screen.getByDisplayValue('120')).toBeTruthy();
@@ -159,7 +174,42 @@ test('preserves the form on create failure and retries the same intent with the 
   expect(firstAttempt[0].timeZone).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC');
   await waitFor(() => expect(screen.getByText('Đã lưu nhật ký.')).toBeTruthy());
   expect(screen.getByText('Đã lưu nhật ký.').props.accessibilityLiveRegion).toBe('polite');
-  expect(screen.getByText('156 kcal')).toBeTruthy();
+  expect(screen.getAllByText('156 kcal').length).toBeGreaterThan(0);
+});
+
+test('confirms multiple selected foods sequentially with separate idempotency keys', async () => {
+  api.searchSourcedFoods.mockResolvedValue({
+    items: [
+      { id: 'fdc:rice', name: 'Cơm gạo lứt', basis: { amount: 100, unit: 'g' }, source: { label: 'USDA FoodData Central', recordId: 'rice', edition: '2025' } },
+      { id: 'fdc:fish', name: 'Cá hồi', basis: { amount: 100, unit: 'g' }, source: { label: 'USDA FoodData Central', recordId: 'fish', edition: '2025' } },
+    ],
+  });
+  api.createMyMealEntry.mockResolvedValueOnce({ item: savedEntry }).mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });
+  const screen = renderDiary();
+
+  await openAddFood(screen);
+  await pressLabel(screen, 'Tìm thực phẩm');
+  await press(screen, 'Cơm gạo lứt');
+  await press(screen, 'Cá hồi');
+  expect(screen.getByText('Đã chọn: 2 món')).toBeTruthy();
+  await press(screen, 'Xem khẩu phần (2) →');
+  await press(screen, '⊕ Xác nhận thêm vào bữa');
+  await waitFor(() => expect(screen.getByText('Món 2 · các món trước đã được lưu thành công.')).toBeTruthy());
+  expect(screen.getByText('Cá hồi')).toBeTruthy();
+  await press(screen, '⊕ Xác nhận thêm vào bữa');
+  await waitFor(() => expect(screen.getByText('Không kết nối được API.')).toBeTruthy());
+  await press(screen, 'Thử lưu lại');
+
+  await waitFor(() => expect(api.createMyMealEntry).toHaveBeenCalledTimes(3));
+  const first = api.createMyMealEntry.mock.calls[0];
+  const second = api.createMyMealEntry.mock.calls[1];
+  const retry = api.createMyMealEntry.mock.calls[2];
+  expect(first[0].foodId).toBe('fdc:rice');
+  expect(second[0].foodId).toBe('fdc:fish');
+  expect(first[1]).not.toBe(second[1]);
+  expect(retry).toEqual(second);
+  expect(first[0]).not.toHaveProperty('nutrients');
+  await waitFor(() => expect(screen.getByText('Đã lưu nhật ký.')).toBeTruthy());
 });
 
 test('updates and deletes only after the API confirms each mutation', async () => {

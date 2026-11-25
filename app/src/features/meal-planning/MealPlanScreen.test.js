@@ -43,7 +43,7 @@ test('loads and restores a saved account meal plan', async () => {
   fireEvent.press(screen.getByText('Xem kế hoạch đã lưu'));
   await waitFor(() => expect(screen.getByText('Kế hoạch tài khoản')).toBeTruthy());
   fireEvent.press(screen.getByRole('button', { name: /Cơm trứng và bắp cải/ }));
-  expect(screen.getByText('Lịch thực đơn')).toBeTruthy();
+  expect(screen.getByText('Meal schedule')).toBeTruthy();
   expect(api.getMyMealPlans).toHaveBeenCalledWith({ limit: 20, offset: 0 });
 });
 

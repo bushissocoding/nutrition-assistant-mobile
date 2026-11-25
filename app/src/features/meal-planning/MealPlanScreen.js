@@ -31,6 +31,38 @@ function provenanceText(meal, catalogVersion) {
   ].join('\n');
 }
 
+function mealIllustration(meal) {
+  const identity = `${meal?.name || ''} ${meal?.slot || ''}`.toLocaleLowerCase('vi-VN');
+  if (/salad|rau|gỏi/.test(identity)) return '🥗';
+  if (/trứng|egg|sáng|breakfast/.test(identity)) return '🍳';
+  if (/cơm|rice|trưa|lunch/.test(identity)) return '🍚';
+  if (/cá|fish|hải sản/.test(identity)) return '🐟';
+  return '🍽️';
+}
+
+function ingredientIllustration(portion) {
+  const name = `${portion?.food || ''}`.toLocaleLowerCase('vi-VN');
+  if (/trứng|egg/.test(name)) return '🥚';
+  if (/bánh mì|bread|wheat/.test(name)) return '🍞';
+  if (/cà chua|tomato/.test(name)) return '🍅';
+  if (/cơm|gạo|rice/.test(name)) return '🍚';
+  if (/cá|fish/.test(name)) return '🐟';
+  return '🥣';
+}
+
+function NutrientBar({ nutrient, value, maxValue }) {
+  const percentage = Number.isFinite(value) && maxValue > 0 ? Math.round((value / maxValue) * 100) : 0;
+  return <View style={styles.trackerRow}>
+    <View style={styles.trackerLabelRow}>
+      <Text style={styles.trackerLabel}>{nutrient.label}</Text>
+      <Text style={styles.trackerValue}>{value ?? '—'} {nutrient.unit}</Text>
+    </View>
+    <View accessibilityRole="progressbar" accessibilityLabel={`${nutrient.label}, so sánh giữa các chất dinh dưỡng`} accessibilityValue={{ min: 0, max: 100, now: percentage }} style={styles.progressTrack}>
+      <View style={[styles.progressFill, { width: `${percentage}%` }]} />
+    </View>
+  </View>;
+}
+
 const preferenceLabels = { vegetarian: 'ăn chay', low_sugar: 'ít đường', low_salt: 'ít muối', mild: 'không cay', Vietnamese: 'món Việt', easy_cook: 'dễ nấu' };
 const varietyLabels = { simple: 'đơn giản', balanced: 'cân bằng', varied: 'đa dạng' };
 
@@ -51,22 +83,32 @@ function MealDetails({ meal, catalogVersion }) {
 
 function PlanResult({ result, onOpenGrocery, onViewRecipe }) {
   const plan = Array.isArray(result.plan) ? result.plan : [];
+  const macroNutrients = NUTRIENTS.filter(nutrient => ['proteinG', 'carbohydrateG', 'fatG'].includes(nutrient.key));
+  const macroValues = macroNutrients.map(nutrient => result.dailyTotals?.[nutrient.key]).filter(Number.isFinite);
+  const largestMacro = Math.max(0, ...macroValues);
   return <View>
-    <Text accessibilityRole="header" style={styles.heading}>Lịch thực đơn</Text>
+    <Text accessibilityRole="header" style={styles.heading}>Meal schedule</Text>
     <Text style={styles.helper}>Ưu tiên xếp hạng: {varietyLabels[result.metadata?.dietaryVariety] || 'cân bằng'}. Đây chỉ là gợi ý mềm, không bảo đảm thành phần phù hợp.</Text>
     {(result.warnings || []).map((warning, index) => <Text key={`warning-${index}`} style={styles.warning}>{warningText(warning)}</Text>)}
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.meals}>
       {plan.map((meal, index) => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xem công thức ${meal.name}`} key={`${meal.slot}-${index}`} style={styles.mealCard} onPress={() => onViewRecipe?.(meal)}>
-        <View style={styles.mealIcon}><Text style={styles.mealGlyph}>{['◒', '◉', '◍', '◌'][index] || '◉'}</Text></View>
+        <View style={styles.mealImage}><Text style={styles.mealGlyph}>{mealIllustration(meal)}</Text></View>
         <Text style={styles.mealSlot}>{meal.slot}</Text>
         <Text style={styles.mealName} numberOfLines={2}>{meal.name}</Text>
-        <Text style={styles.small}>{meal.nutrients?.energyKcal ?? '—'} kcal · {moneyText(meal.estimatedCostVnd)}</Text>
+        <Text style={styles.mealCalories}>Calories　{meal.nutrients?.energyKcal ?? '—'} kcal</Text>
+        {(meal.preparationTimeMinutes || meal.cookTimeMinutes) && <Text style={styles.mealTime}>Time　{meal.preparationTimeMinutes || meal.cookTimeMinutes} mins</Text>}
         <Text style={styles.recipeLink}>Xem công thức ›</Text>
       </TouchableOpacity>)}
     </ScrollView>
-    <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.heading}>Tổng dinh dưỡng mỗi ngày</Text>
-      {NUTRIENTS.map(nutrient => <Text key={nutrient.key} style={styles.small}>{nutrient.label}　{result.dailyTotals?.[nutrient.key] ?? '—'} {nutrient.unit}</Text>)}
+    <View style={styles.trackerCard}>
+      <Text accessibilityRole="header" style={styles.trackerTitle}>Calories Tracker</Text>
+      <Text style={styles.trackerSubtitle}>Total Calories</Text>
+      <Text style={styles.calorieValue}>{result.dailyTotals?.energyKcal ?? '—'} <Text style={styles.calorieUnit}>kcal</Text></Text>
+      <View style={styles.trackerDivider} />
+      <Text accessibilityRole="header" style={styles.trackerTitle}>Macronutrient tracking</Text>
+      <Text style={styles.trackerNote}>Giá trị từ thực đơn; thanh thể hiện tỷ lệ tương đối giữa các macro, không phải mục tiêu cá nhân.</Text>
+      {macroNutrients.map(nutrient => <NutrientBar key={nutrient.key} nutrient={nutrient} value={result.dailyTotals?.[nutrient.key]} maxValue={largestMacro} />)}
+      <Text style={styles.otherNutrients}>Chất xơ　{result.dailyTotals?.fiberG ?? '—'} g　·　Natri　{result.dailyTotals?.sodiumMg ?? '—'} mg</Text>
       <Text style={styles.explanation}>Chi phí ước tính: {moneyText(result.estimatedCostVnd)}</Text>
       <Text style={styles.provenance}>Catalog {result.metadata?.catalogVersion || 'không rõ'} · thuật toán {result.metadata?.algorithmVersion || 'không rõ'}</Text>
     </View>
@@ -223,6 +265,7 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <Text accessibilityRole="header" style={styles.title}>Lịch ăn hằng ngày</Text>
     <Text style={styles.disclaimer}>Dữ liệu dưỡng chất lấy từ USDA khi nguồn được cấu hình. Mẫu bữa do dự án biên soạn, chưa được chuyên gia dinh dưỡng thẩm định và không phải chế độ điều trị.</Text>
+    {result?.status === 'feasible' && result.planFeasible && <PlanResult result={result} onOpenGrocery={onOpenGrocery} onViewRecipe={setSelectedMeal} />}
     <View style={styles.card}>
       <Text accessibilityRole="header" style={styles.heading}>Tra cứu USDA FoodData Central</Text>
       <Text style={styles.helper}>Tìm bản ghi nguồn và tính lại theo khối lượng. USDA không xác nhận nhiễm chéo hoặc khả năng phù hợp cho điều trị.</Text>
@@ -300,7 +343,6 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
       <Text style={styles.emptyHeading}>Dữ liệu chưa đủ để tạo thực đơn</Text>
       <Text style={styles.emptyText}>{result.unavailability?.message || 'Thiếu dữ liệu có nguồn để đánh giá các điều kiện.'}</Text>
     </View>}
-    {result?.status === 'feasible' && result.planFeasible && <PlanResult result={result} onOpenGrocery={onOpenGrocery} onViewRecipe={setSelectedMeal} />}
   </ScrollView>;
 }
 
@@ -308,12 +350,12 @@ function RecipeView({ meal, onBack }) {
   const portions = Array.isArray(meal.portions) ? meal.portions : [];
   return <ScrollView style={styles.screen} contentContainerStyle={styles.recipeContent}>
     <View style={styles.recipeHeader}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại lịch ăn" style={styles.recipeBack} onPress={onBack}><Text style={styles.recipeBackText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.recipeHeaderTitle}>FOOD</Text><View style={styles.recipeBack} /></View>
-    <View style={styles.recipeHero}><Text style={styles.recipeHeroGlyph}>🍽</Text></View>
+    <View style={styles.recipeHero}><Text style={styles.recipeHeroGlyph}>{mealIllustration(meal)}</Text></View>
     <Text style={styles.recipeSlot}>{meal.slot} · {meal.nutrients?.energyKcal ?? '—'} kcal</Text>
     <Text accessibilityRole="header" style={styles.recipeTitle}>{meal.name}</Text>
-    <View style={styles.recipeFacts}><Text style={styles.recipeFact}>Ước tính dinh dưỡng</Text><Text style={styles.recipeFact}>{portions.length} thành phần</Text></View>
+    <View style={styles.recipeFacts}><Text style={styles.recipeFact}>◷　{meal.preparationTimeMinutes || meal.cookTimeMinutes || '—'} phút</Text><Text style={styles.recipeFact}>ϟ　{meal.nutrients?.energyKcal ?? '—'} kcal</Text><Text style={styles.recipeFact}>♙　{portions.length} thành phần</Text></View>
     <Text style={styles.recipeSectionTitle}>Nguyên liệu</Text>
-    <View style={styles.recipeIngredients}>{portions.length ? portions.map((portion, index) => <View key={`${portion.foodId}-${index}`} style={styles.recipeIngredient}><View style={styles.ingredientIcon}><Text style={styles.ingredientGlyph}>{['◉', '◌', '⌁'][index % 3]}</Text></View><Text style={styles.ingredientName}>{portion.food}</Text><Text style={styles.ingredientAmount}>{portion.grams} g</Text></View>) : <Text style={styles.helper}>Chưa có thành phần trong dữ liệu bữa ăn.</Text>}</View>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recipeIngredients}>{portions.length ? portions.map((portion, index) => <View key={`${portion.foodId}-${index}`} style={styles.recipeIngredient}><View style={styles.ingredientIcon}><Text style={styles.ingredientGlyph}>{ingredientIllustration(portion)}</Text></View><Text style={styles.ingredientName}>{portion.food}</Text><Text style={styles.ingredientAmount}>{portion.grams} g</Text></View>) : <Text style={styles.helper}>Chưa có thành phần trong dữ liệu bữa ăn.</Text>}</ScrollView>
     <Text style={styles.recipeSectionTitle}>Cách chế biến tham khảo</Text>
     <View style={styles.recipeDescription}>{Array.isArray(meal.instructions) && meal.instructions.length ? meal.instructions.map((step, index) => <Text key={`recipe-step-${index}`} style={styles.recipeDescriptionText}>{index + 1}. {step}</Text>) : <Text style={styles.recipeDescriptionText}>Chưa có hướng dẫn chế biến cho món ăn này.</Text>}</View>
     <Text style={styles.recipeSectionTitle}>Thông tin món ăn</Text>
@@ -324,7 +366,7 @@ function RecipeView({ meal, onBack }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  content: { padding: 16, paddingBottom: 124 },
+  content: { padding: 16, paddingTop: 10, paddingBottom: 132 },
   title: { color: colors.primary, fontWeight: '800', fontSize: 26, marginBottom: 5 },
   nutrientGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 7, marginTop: 10 },
   nutrientCell: { width: '48%', color: colors.text, fontSize: 14, backgroundColor: '#F5F7FB', padding: 9, borderRadius: 9, lineHeight: 17 },
@@ -348,13 +390,29 @@ const styles = StyleSheet.create({
   retryButton: { minHeight: 54, alignSelf: 'flex-start', borderWidth: 1, borderColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 10, marginTop: 10 },
   retryText: { color: colors.primary, fontWeight: '800', fontSize: 14 },
   warning: { color: colors.warning, backgroundColor: '#FFF7E6', padding: 11, borderRadius: 9, marginTop: 7, fontSize: 13, lineHeight: 18 },
-  meals: { gap: 12, paddingVertical: 12 },
-  mealCard: { width: 176, minHeight: 205, alignItems: 'center', backgroundColor: colors.surface, padding: 14, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
-  mealIcon: { width: 62, height: 62, borderRadius: 31, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
-  mealGlyph: { color: colors.primary, fontSize: 31 },
-  mealSlot: { fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 8, fontSize: 14 },
-  mealName: { color: colors.text, fontSize: 13, textAlign: 'center', marginTop: 4, minHeight: 30 },
-  recipeLink: { color: colors.primary, fontSize: 14, fontWeight: '800', marginTop: 8 },
+  meals: { gap: 16, paddingHorizontal: 4, paddingTop: 66, paddingBottom: 18 },
+  mealCard: { width: 184, minHeight: 222, alignItems: 'center', backgroundColor: colors.surface, paddingHorizontal: 13, paddingTop: 57, paddingBottom: 13, borderRadius: 20, borderWidth: 1, borderColor: '#F0F1F4', shadowColor: '#18243A', shadowOpacity: 0.14, shadowRadius: 5, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  mealImage: { position: 'absolute', zIndex: 1, top: -58, width: 118, height: 118, borderRadius: 59, backgroundColor: '#F7E8D8', borderWidth: 4, borderColor: colors.surface, alignItems: 'center', justifyContent: 'center', shadowColor: '#1D2838', shadowOpacity: 0.19, shadowRadius: 7, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  mealGlyph: { color: colors.primary, fontSize: 59 },
+  mealSlot: { fontWeight: '800', color: colors.text, textAlign: 'center', marginTop: 6, fontSize: 14 },
+  mealName: { color: colors.text, fontSize: 13, textAlign: 'center', marginTop: 3, minHeight: 32, lineHeight: 17 },
+  mealCalories: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 5 },
+  mealTime: { color: colors.muted, fontSize: 12, textAlign: 'center', marginTop: 2 },
+  recipeLink: { color: colors.primary, fontSize: 13, fontWeight: '800', marginTop: 7 },
+  trackerCard: { padding: 15, borderRadius: 14, backgroundColor: colors.surface, marginTop: 4, marginBottom: 8, borderWidth: 1, borderColor: '#D9DDE4', shadowColor: '#172236', shadowOpacity: 0.13, shadowRadius: 4, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
+  trackerTitle: { color: colors.text, fontWeight: '800', fontSize: 14 },
+  trackerSubtitle: { color: colors.muted, fontSize: 12, marginTop: 13 },
+  calorieValue: { color: colors.primaryDark, fontWeight: '800', fontSize: 24, marginTop: 2 },
+  calorieUnit: { color: colors.muted, fontWeight: '600', fontSize: 13 },
+  trackerDivider: { height: 1, backgroundColor: '#EEF0F4', marginVertical: 13 },
+  trackerNote: { color: colors.muted, fontSize: 11, lineHeight: 15, marginTop: 4, marginBottom: 7 },
+  trackerRow: { marginTop: 7 },
+  trackerLabelRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  trackerLabel: { color: colors.text, fontSize: 12 },
+  trackerValue: { color: colors.muted, fontSize: 11 },
+  progressTrack: { height: 12, backgroundColor: '#D9D9D9', borderRadius: 8, marginTop: 5, overflow: 'hidden' },
+  progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 8 },
+  otherNutrients: { color: colors.muted, fontSize: 12, marginTop: 12 },
   small: { color: colors.muted, fontSize: 14, lineHeight: 21, marginTop: 5 },
   explanation: { color: colors.primaryDark, fontSize: 14, lineHeight: 20, marginTop: 12 },
   provenance: { color: colors.muted, fontSize: 13, lineHeight: 16, marginTop: 5 },
@@ -366,5 +424,5 @@ const styles = StyleSheet.create({
   emptyState: { backgroundColor: 'white', borderWidth: 1, borderColor: colors.warning, borderRadius: radius.md, padding: 16, marginVertical: 8 },
   emptyHeading: { fontSize: 18, color: colors.text, fontWeight: '800' },
   emptyText: { fontSize: 15, color: colors.text, lineHeight: 22, marginTop: 8 },
-  recipeContent: { paddingHorizontal: 16, paddingBottom: 124 }, recipeHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, recipeBack: { width: 54, minHeight: 54, justifyContent: 'center' }, recipeBackText: { color: colors.primary, fontSize: 36 }, recipeHeaderTitle: { color: colors.primary, fontSize: 20, fontWeight: '800' }, recipeHero: { width: 190, height: 190, borderRadius: 95, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', backgroundColor: '#EAF0FF', marginTop: 6, marginBottom: 16 }, recipeHeroGlyph: { fontSize: 84 }, recipeSlot: { color: colors.muted, textAlign: 'center', fontSize: 14, marginTop: 3 }, recipeTitle: { color: colors.text, textAlign: 'center', fontSize: 23, fontWeight: '900', marginTop: 7 }, recipeFacts: { flexDirection: 'row', justifyContent: 'center', gap: 18, marginTop: 13 }, recipeFact: { color: colors.primary, fontSize: 14, fontWeight: '700' }, recipeSectionTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 22, marginBottom: 9 }, recipeIngredients: { gap: 8 }, recipeIngredient: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 9, backgroundColor: 'white', borderRadius: 13, borderWidth: 1, borderColor: colors.border }, ingredientIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.softBlue }, ingredientGlyph: { color: colors.primary, fontSize: 20 }, ingredientName: { flex: 1, color: colors.text, fontSize: 15, fontWeight: '700' }, ingredientAmount: { color: colors.primary, fontSize: 14, fontWeight: '800' }, recipeDescription: { backgroundColor: '#F5F7FB', borderRadius: 13, padding: 14 }, recipeDescriptionText: { color: colors.text, fontSize: 14, lineHeight: 21 }, recipeDisclaimer: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 10 }
+  recipeContent: { paddingHorizontal: 16, paddingBottom: 132 }, recipeHeader: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, recipeBack: { width: 54, minHeight: 54, justifyContent: 'center' }, recipeBackText: { color: colors.primary, fontSize: 36 }, recipeHeaderTitle: { color: colors.primary, fontSize: 20, fontWeight: '800' }, recipeHero: { width: 190, height: 190, borderRadius: 95, alignSelf: 'center', alignItems: 'center', justifyContent: 'center', backgroundColor: '#F8E9D9', marginTop: 6, marginBottom: 16, shadowColor: '#202A3B', shadowOpacity: 0.15, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 5 }, recipeHeroGlyph: { fontSize: 82 }, recipeSlot: { color: colors.muted, textAlign: 'center', fontSize: 14, marginTop: 3 }, recipeTitle: { color: colors.text, textAlign: 'center', fontSize: 23, fontWeight: '900', marginTop: 7 }, recipeFacts: { flexDirection: 'row', justifyContent: 'center', flexWrap: 'wrap', gap: 16, marginTop: 13 }, recipeFact: { color: colors.primary, fontSize: 12, fontWeight: '700' }, recipeSectionTitle: { color: colors.text, fontSize: 18, fontWeight: '800', marginTop: 22, marginBottom: 9 }, recipeIngredients: { flexDirection: 'row', gap: 10 }, recipeIngredient: { flex: 1, minWidth: 90, minHeight: 120, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 9, backgroundColor: 'white', borderRadius: 13, borderWidth: 1, borderColor: colors.border, shadowColor: '#172236', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 2 }, elevation: 2 }, ingredientIcon: { width: 62, height: 62, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF6EF' }, ingredientGlyph: { color: colors.primary, fontSize: 42 }, ingredientName: { color: colors.text, fontSize: 14, fontWeight: '800', textAlign: 'center' }, ingredientAmount: { color: colors.text, fontSize: 14 }, recipeDescription: { backgroundColor: 'transparent', paddingVertical: 4 }, recipeDescriptionText: { color: colors.text, fontSize: 13, lineHeight: 19 }, recipeDisclaimer: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 10 }
 });
