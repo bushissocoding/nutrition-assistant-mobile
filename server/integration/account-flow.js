@@ -177,9 +177,10 @@ async function runJourney() {
     const savedConsent = await api.saveMyConsent(firstConsent);
     ensure(savedConsent.consent?.choices?.health_record_storage === true, 'first account consent save');
 
-    stage = 'save first account profile and preferences';
+    stage = 'save first account profile';
     const profileA = {
       username: `e2e_${randomUUID().replaceAll('-', '').slice(0, 18)}`,
+      dateOfBirth: null,
       mode: 'healthy',
       gender: 'unspecified',
       age: 30,
@@ -194,7 +195,9 @@ async function runJourney() {
       hardLimits: {},
       medicalLimitsConfirmed: false,
     };
-    ensure((await api.saveMyProfile(profileA)).profile?.username === profileA.username, 'first account profile save');
+    const savedProfileA = (await api.saveMyProfile(profileA)).profile;
+    ensure(savedProfileA?.username === profileA.username && savedProfileA.dateOfBirth === null, 'first account profile save with an omitted date of birth');
+    stage = 'save first account preferences';
     const personalization = {
       dietaryVariety: 'balanced',
       foodPreferences: ['easy_cook'],

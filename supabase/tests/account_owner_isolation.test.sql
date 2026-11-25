@@ -1,6 +1,6 @@
 begin;
 
-select plan(10);
+select plan(12);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -29,6 +29,9 @@ select ok(not exists (
   where has_table_privilege('anon', format('public.%I', private_table.name), 'SELECT')
 ), 'anonymous users cannot read private application tables');
 
+select ok(has_column_privilege('authenticated', 'public.profiles', 'date_of_birth', 'INSERT'), 'authenticated users can insert an optional profile date of birth');
+select ok(has_column_privilege('authenticated', 'public.profiles', 'date_of_birth', 'UPDATE'), 'authenticated users can update an optional profile date of birth');
+
 select ok(exists (
   select 1 from storage.buckets where id = 'health-record-images' and public = false
 ), 'health record bucket is private');
@@ -54,15 +57,16 @@ select set_config('request.jwt.claims', '{"sub":"11110000-0000-4000-8000-0000000
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
 insert into public.profiles (
-  id, username, mode, gender, age, height_cm, weight_kg, activity_level, condition_type,
+  id, date_of_birth, username, mode, gender, age, height_cm, weight_kg, activity_level, condition_type,
   allergies, symptom_notes, red_flags, diagnosis_notes, hard_limits, medical_limits_confirmed
 )
 values (
-  '11110000-0000-4000-8000-000000000001', 'rls-one-upserted', 'healthy', 'unspecified', 30, 170, 65, 'moderate', 'unspecified',
+  '11110000-0000-4000-8000-000000000001', null, 'rls-one-upserted', 'healthy', 'unspecified', 30, 170, 65, 'moderate', 'unspecified',
   '{}', '', '{}', '', '{}'::jsonb, false
 )
 on conflict (id) do update set
   id = excluded.id,
+  date_of_birth = excluded.date_of_birth,
   username = excluded.username,
   mode = excluded.mode,
   gender = excluded.gender,
