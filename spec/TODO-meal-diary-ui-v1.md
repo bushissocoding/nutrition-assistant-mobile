@@ -12,3 +12,4 @@
 - [x] Check local preview capability; no Android emulator, Chrome, or Chrome DevTools MCP/Playwright is available, so no runtime screenshot was captured.
 - [x] Review staged diff and secret matches; commit feature work and merge into `codex/fix-bug`.
 - [x] Verify the merge result, update this checklist, and confirm the target branch is clean.
+- [x] Follow-up: show the 14.1/14.2 flow on first entry, restore saved plans automatically, and connect the planner back action.

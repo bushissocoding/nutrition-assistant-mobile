@@ -403,7 +403,7 @@ export default function AppShell() {
 
   let content;
   if (screen === 'home') content = <HomeScreen onNavigate={navigate} diary={diary} diaryTotals={diaryTotals} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} profile={profile} account={account} />;
-  else if (screen === 'planner') content = <MealPlanScreen profile={profile} onOpenProfile={() => openProfileSetup('planner')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
+  else if (screen === 'planner') content = <MealPlanScreen profile={profile} initialPlan={plan} onBack={() => setScreen('home')} onOpenProfile={() => openProfileSetup('planner')} onOpenGrocery={openGrocery} onPlanGenerated={setPlan} />;
   else if (screen === 'grocery') content = <GroceryScreen savedPlanId={groceryPlanId} onBack={() => setScreen(groceryReturn)} />;
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
   else if (screen === 'dashboard') content = <DashboardScreen profile={profile} diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
@@ -421,7 +421,7 @@ export default function AppShell() {
   const topPaddingSurface = getTopPaddingSurface(screen);
   return <SafeAreaView testID="app-safe-area" style={[styles.safe, { backgroundColor: topPaddingSurface }]}><StatusBar barStyle={screen === 'settings-help' ? 'light-content' : 'dark-content'} /><View testID="app-page-content" style={[styles.pageContent, { backgroundColor: topPaddingSurface }]}>{content}</View>
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}
-    {!['assistant-chat', 'doctor-chat'].includes(screen) && <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
+    {!['assistant-chat', 'doctor-chat', 'planner'].includes(screen) && <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
       const selected = screen === tab.key
         || (tab.key === 'profile' && (screen.startsWith('settings') || ['medical-record', 'personalization', 'profile-setup'].includes(screen)));
       return <TouchableOpacity

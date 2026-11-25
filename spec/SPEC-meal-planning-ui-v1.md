@@ -8,7 +8,8 @@ Rebuild the meal-planning result and recipe detail screens to follow the supplie
 
 - The request targets the two meal-planning reference screens, not the broader onboarding or home flow.
 - The current `/api/v1` response, server calculations, profile constraints, and saved-plan behavior remain authoritative.
-- The screenshot's food photos are illustrative; only real source-backed content already available in the app may be shown as data. Missing image data may use neutral visual treatment.
+- On first entry, restore the latest saved API plan when one exists. If the account has no saved plan, show the two screenshot meals as an explicitly labeled UI sample; do not send or save that sample as a user plan.
+- Screenshot sample values are illustrative only and are disclosed as non-personal. Generated and restored plans continue to show only their API-provided data and provenance.
 - This spec, plan, and task list are self-reviewed under the user's explicit authorization to approve these artifacts autonomously.
 
 ## Commands
@@ -31,8 +32,8 @@ Rebuild the meal-planning result and recipe detail screens to follow the supplie
 - Screen job: let users scan the day's suggested meals and open one meal's ingredients and preparation details.
 - Hierarchy: title and meal schedule; horizontally browsable meal cards with circular imagery/placeholder, slot, meal name, calories, and recipe affordance; a rounded daily calorie/macro tracker; recipe detail with centered food hero, serving facts, ingredient cards, and description.
 - Use the existing blue, white, navy, and light-blue palette and rounded card language. Preserve comfortable touch targets and accessible labels.
-- Preserve current generated-plan form, profile/allergy warnings, loading/error/infeasible/unavailable states, USDA source attribution, saved plans, grocery navigation, and non-clinical disclaimer.
-- Do not invent ingredient values, prices, nutrient totals, or targets. Present missing values as unavailable. Keep source/provenance and estimate disclaimers available in the result/detail flow.
+- Preserve current generated-plan form, profile/allergy warnings, loading/error/infeasible/unavailable states, USDA source attribution, saved plans, grocery navigation, and non-clinical disclaimer. Add focused entry/exit navigation for the reference screen.
+- Outside the disclosed UI sample, do not invent ingredient values, prices, nutrient totals, or targets. Present missing values as unavailable. Keep source/provenance and estimate disclaimers available in the result/detail flow.
 
 ## Testing Strategy
 
