@@ -41,10 +41,13 @@ jest.mock('../features/dashboard/DashboardScreen', () => {
 });
 jest.mock('../features/diary/DiaryScreen', () => () => null);
 jest.mock('../features/grocery/GroceryScreen', () => () => null);
-jest.mock('../features/meal-planning/MealPlanScreen', () => () => null);
+jest.mock('../features/meal-planning/MealPlanScreen', () => {
+  const RN = require('react-native');
+  return function MockMealPlan({ onBack, initialPlan }) { return <><RN.Text>{initialPlan?.plan?.length ? 'Restored meal plan' : 'Meal plan screen mock'}</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Meal plan back</RN.Text></RN.Pressable></>; };
+});
 jest.mock('../features/home/HomeScreen', () => {
   const RN = require('react-native');
-  return function MockHome({ onNavigate }) { return <><RN.Text>Account Home</RN.Text><RN.Pressable onPress={() => onNavigate('profile')}><RN.Text>Open profile</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments')}><RN.Text>Open appointments</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments-list')}><RN.Text>Open appointment list</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('settings-help')}><RN.Text>Open help center</RN.Text></RN.Pressable></>; };
+  return function MockHome({ onNavigate }) { return <><RN.Text>Account Home</RN.Text><RN.Pressable onPress={() => onNavigate('planner')}><RN.Text>Open meal plan</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('profile')}><RN.Text>Open profile</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments')}><RN.Text>Open appointments</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('appointments-list')}><RN.Text>Open appointment list</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('settings-help')}><RN.Text>Open help center</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/profile/ProfileScreen', () => {
   const RN = require('react-native');
@@ -122,6 +125,18 @@ test('appointment list returns to the route that opened it', async () => {
   expect(screen.getByText('Appointment view: appointments-list')).toBeTruthy();
   await press(screen, 'Appointment back');
   expect(screen.getByText('Appointment view: appointments')).toBeTruthy();
+});
+
+test('meal plan opens as a focused screen without tabs and returns Home', async () => {
+  const screen = render(<AppShell />);
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+
+  await press(screen, 'Open meal plan');
+  expect(screen.getByText('Meal plan screen mock')).toBeTruthy();
+  expect(screen.queryAllByRole('tab')).toHaveLength(0);
+  await press(screen, 'Meal plan back');
+  expect(screen.getByText('Account Home')).toBeTruthy();
+  expect(screen.getAllByRole('tab')).toHaveLength(4);
 });
 
 test('saves personal profile edits through the account profile API', async () => {
