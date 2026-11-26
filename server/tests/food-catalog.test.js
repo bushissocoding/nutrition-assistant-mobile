@@ -123,7 +123,7 @@ test('invalid imports fail before creating output or a report', t => {
   const catalog = makeCatalog();
   delete catalog.foods[0].provenance;
   fs.writeFileSync(input, JSON.stringify(catalog));
-  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/import-food-catalog.js'), '--input', input, '--output', output, '--report', report], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/import-food-catalog.js'), '--input', input, '--output', output, '--report', report, '--check'], { encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /provenance/);
   assert.equal(fs.existsSync(output), false);
@@ -287,7 +287,7 @@ test('change report identifies added, updated, removed and unchanged foods deter
   assert.deepEqual(report, createChangeReport(previous, next));
 });
 
-test('import command writes stable output and a machine-readable change report from the synthetic fixture', t => {
+test('synthetic fixture check reports deterministic changes without writing catalog files', t => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'food-catalog-import-'));
   t.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
   const fixture = path.join(__dirname, '..', 'data', 'fixtures', 'synthetic-foods.json');
@@ -295,15 +295,32 @@ test('import command writes stable output and a machine-readable change report f
   const script = path.join(__dirname, '..', 'scripts', 'import-food-catalog.js');
   const output = path.join(temporaryDirectory, 'catalog.json');
   const reportFile = path.join(temporaryDirectory, 'report.json');
-  const args = [script, '--input', fixture, '--sources', sourceRegistryFile, '--previous', fixture, '--output', output, '--report', reportFile];
+  const args = [script, '--input', fixture, '--sources', sourceRegistryFile, '--previous', fixture, '--check'];
 
   const firstRun = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(firstRun.status, 0, firstRun.stderr);
-  const outputBytes = fs.readFileSync(output, 'utf8');
-  const report = JSON.parse(fs.readFileSync(reportFile, 'utf8'));
+  const report = JSON.parse(firstRun.stdout).report;
   assert.equal(report.counts.unchanged, 1);
   assert.equal(report.counts.added, 0);
   const secondRun = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(secondRun.status, 0, secondRun.stderr);
-  assert.equal(fs.readFileSync(output, 'utf8'), outputBytes);
+  assert.equal(secondRun.stdout, firstRun.stdout);
+  assert.equal(fs.existsSync(output), false);
+  assert.equal(fs.existsSync(reportFile), false);
+});
+
+test('import command refuses to write synthetic fixture data or a change report', t => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'food-catalog-fixture-write-'));
+  t.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
+  const fixture = path.join(__dirname, '..', 'data', 'fixtures', 'synthetic-foods.json');
+  const sourceRegistryFile = path.join(__dirname, '..', 'data', 'sources.json');
+  const script = path.join(__dirname, '..', 'scripts', 'import-food-catalog.js');
+  const output = path.join(temporaryDirectory, 'catalog.json');
+  const reportFile = path.join(temporaryDirectory, 'report.json');
+  const result = spawnSync(process.execPath, [script, '--input', fixture, '--sources', sourceRegistryFile, '--output', output, '--report', reportFile], { encoding: 'utf8' });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /synthetic fixture catalogs are validation-only/i);
+  assert.equal(fs.existsSync(output), false);
+  assert.equal(fs.existsSync(reportFile), false);
 });

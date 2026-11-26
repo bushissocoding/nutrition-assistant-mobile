@@ -2,8 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { NUTRIENTS, validateFoodCatalog } = require('../services/food-catalog');
 
-function readJson(fileName) {
-  const filePath = path.join(__dirname, '..', '..', 'data', fileName);
+function readJson(fileName, dataDirectory) {
+  const filePath = path.join(dataDirectory, fileName);
   try {
     return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
@@ -11,12 +11,12 @@ function readJson(fileName) {
   }
 }
 
-function loadCatalog() {
-  const catalogFile = readJson('foods.json');
+function loadCatalog({ dataDirectory = path.join(__dirname, '..', '..', 'data') } = {}) {
+  const catalogFile = readJson('foods.json', dataDirectory);
   if (catalogFile.status === 'synthetic-fixture') throw new Error('Synthetic fixture catalogs cannot be served by the API.');
-  const mealTemplates = readJson('meals.json');
-  const sourceRegistry = readJson('sources.json');
-  const validation = validateFoodCatalog(catalogFile, { sourceRegistry });
+  const mealTemplates = readJson('meals.json', dataDirectory);
+  const sourceRegistry = readJson('sources.json', dataDirectory);
+  const validation = validateFoodCatalog(catalogFile, { sourceRegistry, strictImport: true, requireApprovedReview: true });
   if (validation.errors.length) {
     throw new Error(`Food catalog is invalid: ${validation.errors.join(' ')}`);
   }

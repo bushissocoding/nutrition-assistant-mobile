@@ -29,12 +29,12 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 ### Phase 2: Safe import and publication gates
 
-- [ ] Task 3: Keep synthetic fixtures out of import outputs and require complete approval before serving.
+- [x] Task 3: Keep synthetic fixtures out of import outputs and require complete approval before serving.
 
 ### Checkpoint: Fixture and runtime safety
 
-- [ ] `catalog:fixture` validates the fixture without writing catalog output.
-- [ ] The API fails closed for synthetic, unlicensed, incomplete-provenance, or unreviewed records.
+- [x] `catalog:fixture` validates the fixture without writing catalog output.
+- [x] The API fails closed for synthetic, unlicensed, incomplete-provenance, or unreviewed records.
 
 ### Phase 3: Documentation and acceptance
 

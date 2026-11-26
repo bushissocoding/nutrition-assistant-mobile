@@ -40,6 +40,9 @@ function readJson(fileName, description) {
 function importCatalog(options) {
   const sourceRegistry = readJson(options.sources, 'source registry');
   const candidate = readJson(options.input, 'input catalog');
+  if (!options.check && candidate?.status === 'synthetic-fixture') {
+    throw new Error('Synthetic fixture catalogs are validation-only and cannot be written.');
+  }
   const validation = validateFoodCatalog(candidate, { sourceRegistry, strictImport: !options.allowLegacy });
   if (validation.errors.length) throw new Error(`Catalog validation failed:\n- ${validation.errors.join('\n- ')}`);
   const previous = options.previous ? readJson(options.previous, 'previous catalog') : null;

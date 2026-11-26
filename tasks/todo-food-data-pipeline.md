@@ -39,11 +39,11 @@
 **Description:** Preserve fixture validation for tests while blocking fixture write-mode imports. Make the active catalog loader require strict rights/provenance checks and approved review metadata for external records.
 
 **Acceptance criteria:**
-- [ ] `catalog:fixture` remains validation-only; fixture write attempts fail before creating output/report files.
-- [ ] The active catalog loader rejects synthetic catalogs and external records without confirmed rights, complete provenance, and approved review metadata.
-- [ ] Pending production data continues to load with an empty catalog.
+- [x] `catalog:fixture` remains validation-only; fixture write attempts fail before creating output/report files.
+- [x] The active catalog loader rejects synthetic catalogs and external records without confirmed rights, complete provenance, and approved review metadata.
+- [x] Pending production data continues to load with an empty catalog.
 
-**Verification:** `npm run test:unit`, `npm run catalog:fixture`, and focused loader/importer tests.
+**Verification:** [x] `npm run test:unit` (331 passed); [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] importer/repository tests.
 
 **Dependencies:** Tasks 1–2.
 

@@ -32,7 +32,7 @@ function stableValue(value) {
   return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
 }
 
-function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictImport = false } = {}) {
+function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictImport = false, requireApprovedReview = false } = {}) {
   const errors = [];
   const fail = message => errors.push(message);
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -104,6 +104,7 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
     }
 
     const groups = food.provenance?.groups;
+    let hasExternalSource = false;
     if (!groups || typeof groups !== 'object' || Array.isArray(groups)) fail(`${path}.provenance.groups is required.`);
     else for (const group of PROVENANCE_GROUPS) {
       const provenance = groups[group];
@@ -113,6 +114,7 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
         continue;
       }
       if (!['external', 'internal', 'synthetic-fixture'].includes(source.kind)) fail(`${path} source kind is unsupported.`);
+      if (source.kind === 'external') hasExternalSource = true;
       if (source.kind === 'external' && source.rights?.redistributionStatus !== 'permitted') fail(`${path} source ${source.id} lacks confirmed redistribution rights.`);
       if (source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') fail(`${path} synthetic fixture data requires a fixture catalog.`);
       if (strictImport && source.kind === 'external') {
@@ -149,6 +151,11 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
     }
     if (!food.review || !['fixture-only', 'needs-source-verification', 'pending-review', 'approved'].includes(food.review.status)) fail(`${path}.review.status is required and must be supported.`);
     else if (food.review.status === 'approved' && (!food.review.reviewedBy || !food.review.reviewedOn)) fail(`${path}.review approved status requires reviewer and date.`);
+    if (requireApprovedReview && hasExternalSource
+      && (food.review?.status !== 'approved' || typeof food.review.reviewedBy !== 'string'
+        || !food.review.reviewedBy.trim() || !isIsoDate(food.review.reviewedOn))) {
+      fail(`${path}.review requires an approved review before serving external source data.`);
+    }
 
     const duplicateKey = [normalizedText(food.name), normalizedText(food.category), food.preparation?.state, food.preparation?.maturity].join('|');
     if (duplicateKey.startsWith('|') || duplicateKey.includes('||')) continue;
