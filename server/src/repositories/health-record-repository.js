@@ -107,7 +107,12 @@ function createHealthRecordRepository({ storageClient, signedUrlTtlSeconds = 60 
         p_record_id: recordId, p_file_path: path, p_mime_type: mimeType, p_file_size: bytes.length,
       });
       if (attachError) {
-        await bucket.remove([path]).catch(() => undefined);
+        try {
+          const { error: cleanupError } = await bucket.remove([path]);
+          if (cleanupError) throw cleanupError;
+        } catch {
+          throw new HealthRecordError('Ảnh đã tải lên nhưng chưa thể gắn vào hồ sơ. Hệ thống chưa xác nhận xóa ảnh; hãy thử lại sau.', 503, 'HEALTH_RECORD_UPLOAD_CLEANUP_FAILED');
+        }
         throw mapHealthRecordError(attachError);
       }
       return this.get({ db, userId, recordId });

@@ -4,12 +4,13 @@ const { once } = require('node:events');
 const test = require('node:test');
 const { createHealthRecordRouter } = require('../src/routes/health-records');
 
-async function withServer(t, repository) {
+async function withServer(t, repository, options = {}) {
   const app = express();
   app.use(express.json());
   app.use('/records', (req, _res, next) => { req.auth = { user: { id: 'account-1' } }; req.userDatabase = {}; next(); }, createHealthRecordRouter({
     repository,
     requireHealthRecordConsent(_req, _res, next) { next(); },
+    ...options,
   }));
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -57,6 +58,39 @@ test('accepts only bounded binary image uploads and forwards the authenticated o
   assert.equal(calls[0].recordId, '01380e6e-b95f-4bd5-8f38-a1391ae3bda1');
   assert.deepEqual(calls[0].bytes, bytes);
   assert.equal(calls[0].mimeType, 'image/jpeg');
+});
+
+test('caps concurrent image uploads and releases capacity when an upload finishes', async t => {
+  let markEntered;
+  let releaseFirst;
+  const entered = new Promise(resolve => { markEntered = resolve; });
+  const firstUploadGate = new Promise(resolve => { releaseFirst = resolve; });
+  let uploads = 0;
+  const baseUrl = await withServer(t, {
+    async uploadSource(input) {
+      uploads += 1;
+      if (uploads === 1) { markEntered(); await firstUploadGate; }
+      return { id: input.recordId, source: { available: true } };
+    },
+  }, { maxConcurrentUploads: 1 });
+  const uploadUrl = `${baseUrl}/01380e6e-b95f-4bd5-8f38-a1391ae3bda1/source`;
+  const request = () => fetch(uploadUrl, {
+    method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Record-Content-Type': 'image/jpeg' },
+    body: Buffer.from([0xff, 0xd8, 0xff, 0x00]),
+  });
+
+  const firstResponse = request();
+  await entered;
+  const saturatedResponse = await request();
+  assert.equal(saturatedResponse.status, 503);
+  assert.equal(saturatedResponse.headers.get('retry-after'), '1');
+  assert.equal((await saturatedResponse.json()).code, 'HEALTH_RECORD_UPLOAD_CAPACITY_REACHED');
+  assert.equal(uploads, 1);
+
+  releaseFirst();
+  assert.equal((await firstResponse).status, 200);
+  assert.equal((await request()).status, 200);
+  assert.equal(uploads, 2);
 });
 
 test('rejects malformed record identifiers before repository access', async t => {

@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(26);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -51,9 +51,27 @@ values
   ('11110000-0000-4000-8000-000000000001', 'rls-one', 'healthy', 'unspecified', 30, 170, 65, 'moderate', 'unspecified'),
   ('11110000-0000-4000-8000-000000000002', 'rls-two', 'healthy', 'unspecified', 31, 171, 66, 'moderate', 'unspecified');
 
+insert into public.consent_records (user_id, version, choices) values
+  ('11110000-0000-4000-8000-000000000001', '2026-11-24-v1', '{"profile_processing":true,"nutrition_processing":true,"data_lifecycle":true,"ai_processing":false,"health_record_storage":true}'),
+  ('11110000-0000-4000-8000-000000000002', '2026-11-24-v1', '{"profile_processing":true,"nutrition_processing":true,"data_lifecycle":true,"ai_processing":false,"health_record_storage":true}');
+
+insert into public.health_records (id, user_id, request_key, title, note) values
+  ('22220000-0000-4000-8000-000000000001', '11110000-0000-4000-8000-000000000001', '33330000-0000-4000-8000-000000000001', 'Synthetic panel one', ''),
+  ('22220000-0000-4000-8000-000000000002', '11110000-0000-4000-8000-000000000002', '33330000-0000-4000-8000-000000000002', 'Synthetic panel two', '');
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '11110000-0000-4000-8000-000000000001', true);
 select set_config('request.jwt.claims', '{"sub":"11110000-0000-4000-8000-000000000001","role":"authenticated"}', true);
+select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), true, 'account one owns only paths to its own record rows');
+select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/unlinked'), false, 'account one cannot upload to an unlinked arbitrary path');
+select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/nested/22220000-0000-4000-8000-000000000001'), false, 'nested object paths are not valid record source paths');
+select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000002'), false, 'account one cannot access another account record path');
+select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), true, 'account one may upload to its own record with current storage consent');
+reset role;
+insert into public.consent_records (user_id, version, choices, accepted_at)
+values ('11110000-0000-4000-8000-000000000001', '2026-11-24-v1', '{"profile_processing":true,"nutrition_processing":true,"data_lifecycle":true,"ai_processing":false,"health_record_storage":false}', now() + interval '1 second');
+set local role authenticated;
+select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), false, 'account one cannot upload after withdrawing health record storage consent');
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
 select is(

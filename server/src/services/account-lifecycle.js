@@ -1,20 +1,51 @@
 const { getProfile } = require('../repositories/profile-repository');
 const { toProfileDto } = require('./profile');
 
+const STORAGE_LIST_PAGE_SIZE = 100;
+const STORAGE_REMOVE_BATCH_SIZE = 100;
+
+async function listStorageFiles(bucket, rootFolder) {
+  const pendingFolders = [rootFolder];
+  const visitedFolders = new Set();
+  const filePaths = [];
+  while (pendingFolders.length) {
+    const folder = pendingFolders.pop();
+    if (visitedFolders.has(folder)) continue;
+    visitedFolders.add(folder);
+    let offset = 0;
+    while (true) {
+      const { data, error } = await bucket.list(folder, { limit: STORAGE_LIST_PAGE_SIZE, offset });
+      if (error || !Array.isArray(data)) throw new Error('Private health record files could not be listed.');
+      for (const entry of data) {
+        if (!entry || typeof entry.name !== 'string' || !entry.name || entry.name.includes('/') || entry.name === '.' || entry.name === '..') {
+          throw new Error('Private health record storage returned an invalid path.');
+        }
+        const path = `${folder}/${entry.name}`;
+        if (entry.id === null && entry.metadata == null) pendingFolders.push(path);
+        else if (typeof entry.id === 'string' && entry.id.length > 0) filePaths.push(path);
+        else throw new Error('Private health record storage returned an invalid entry.');
+      }
+      if (data.length < STORAGE_LIST_PAGE_SIZE) break;
+      offset += data.length;
+    }
+  }
+  return filePaths;
+}
+
 function createAccountDeletionService({ adminClient, deletionSteps = [] } = {}) {
   if (!Array.isArray(deletionSteps) || deletionSteps.some(step => typeof step !== 'function')) {
     throw new TypeError('Account deletion steps must be functions.');
   }
-  const healthRecordStorageCleanup = adminClient?.storage?.from ? async ({ userId, db }) => {
-    const { data: records, error } = await db.from('health_records').select('file_path').eq('user_id', userId);
-    if (error) throw error;
-    const paths = (records || []).map(record => record.file_path).filter(path => typeof path === 'string' && path.length > 0);
-    if (!paths.length) return;
-    const { error: storageError } = await adminClient.storage.from('health-record-images').remove(paths);
-    if (storageError) {
-      const failure = new Error('Private health record files could not be deleted.');
-      failure.code = 'ACCOUNT_DELETE_UNAVAILABLE';
-      throw failure;
+  const healthRecordStorageCleanup = adminClient?.storage?.from ? async ({ userId }) => {
+    const bucket = adminClient.storage.from('health-record-images');
+    const paths = await listStorageFiles(bucket, userId);
+    for (let index = 0; index < paths.length; index += STORAGE_REMOVE_BATCH_SIZE) {
+      const { error: storageError } = await bucket.remove(paths.slice(index, index + STORAGE_REMOVE_BATCH_SIZE));
+      if (storageError) {
+        const failure = new Error('Private health record files could not be deleted.');
+        failure.code = 'ACCOUNT_DELETE_UNAVAILABLE';
+        throw failure;
+      }
     }
   } : null;
   return async function deleteAccount({ userId, db }) {

@@ -59,6 +59,25 @@ test('uploads only to a server-derived owner path and attaches validated metadat
   assert.equal(saved.source.available, true);
 });
 
+test('reports an explicit cleanup failure when source metadata cannot be attached', async () => {
+  const calls = [];
+  const db = createDb();
+  db.rpc = async name => {
+    assert.equal(name, 'attach_health_record_source');
+    return { data: null, error: { code: '42501', message: 'consent withdrawn' } };
+  };
+  const storageClient = { storage: { from: () => ({
+    async upload() { return { error: null }; },
+    async remove(paths) { calls.push(paths); return { error: new Error('storage unavailable') }; },
+  }) } };
+  const repository = createHealthRecordRepository({ storageClient });
+  await assert.rejects(repository.uploadSource({
+    db, userId: 'account-1', recordId: record.id,
+    bytes: Buffer.from([0xff, 0xd8, 0xff, 1, 2, 3, 4, 5]), mimeType: 'image/jpeg',
+  }), error => error.code === 'HEALTH_RECORD_UPLOAD_CLEANUP_FAILED' && error.status === 503);
+  assert.deepEqual(calls, [[`account-1/${record.id}`]]);
+});
+
 test('deletes the private object before deleting owner-scoped metadata', async () => {
   const calls = [];
   const existing = { ...record, file_path: `account-1/${record.id}`, file_mime_type: 'image/jpeg', file_size: 8 };
