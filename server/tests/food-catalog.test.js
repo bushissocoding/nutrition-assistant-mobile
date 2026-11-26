@@ -112,6 +112,7 @@ test('synthetic sources cannot be relabeled as a live catalog and legacy validat
   assert.match(validateFoodCatalog(catalog, { sourceRegistry }).errors.join(' '), /fixture/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--allow-legacy']), /validation-only/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--report', 'input.json']), /overwrite/);
+  assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', path.join(__dirname, '..', 'data', 'foods.json')]), /active catalog/i);
 });
 
 test('invalid imports fail before creating output or a report', t => {

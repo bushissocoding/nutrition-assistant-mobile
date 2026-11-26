@@ -34,6 +34,7 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 ### Checkpoint: Fixture and runtime safety
 
 - [x] `catalog:fixture` validates the fixture without writing catalog output.
+- [x] Importer output/report paths cannot overwrite the active catalog.
 - [x] The API fails closed for synthetic, unlicensed, incomplete-provenance, or unreviewed records.
 
 ### Phase 3: Documentation and acceptance

@@ -24,9 +24,10 @@ function parseArgs(args) {
   if (options.allowLegacy && !options.check) throw new Error('--allow-legacy is validation-only and requires --check; it cannot write an imported catalog.');
   if (!options.check && !options.output) throw new Error('--output is required unless --check is used.');
   if (options.input && options.output && path.resolve(options.input) === path.resolve(options.output)) throw new Error('Input and output paths must differ.');
-  const protectedPaths = [options.input, options.sources, options.previous].filter(Boolean).map(file => path.resolve(file));
+  const protectedPaths = [options.input, options.sources, options.previous, path.join(__dirname, '..', 'data', 'foods.json')]
+    .filter(Boolean).map(file => path.resolve(file));
   for (const destination of [options.output, options.report].filter(Boolean)) {
-    if (protectedPaths.includes(path.resolve(destination))) throw new Error('Output/report must not overwrite input, source registry, or previous catalog.');
+    if (protectedPaths.includes(path.resolve(destination))) throw new Error('Output/report must not overwrite input, active catalog, source registry, or previous catalog.');
   }
   if (options.output && options.report && path.resolve(options.output) === path.resolve(options.report)) throw new Error('Output and report paths must differ.');
   return options;

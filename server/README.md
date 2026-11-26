@@ -113,7 +113,7 @@ Meal generation is deterministic template selection, not AI, a clinical optimize
 
 ## Food data provenance / Vietnam data
 
-The active catalog is `server/data/foods.json`, versioned as `prototype-2026-11-17.1`. Each record keeps Vietnamese labels and aliases, raw/cooked and maturity state, household serving and any explicit unit conversion, nutrients with units/missingness, provenance by field group, a record version, and review status. The API preserves the existing `/api/v1` fields (including `name`, `serving`, and numeric `per100g`) and adds the richer metadata. A missing `per100g` nutrient is omitted from that compatibility projection; calculation responses preserve it as `null`.
+The active catalog is `server/data/foods.json`, currently versioned as pending and empty until redistribution permission is confirmed. Each future record keeps labels and aliases, preparation/maturity state, household serving and explicit unit conversions, nutrients with units/missingness, provenance by field group, a record version, and review status. The API preserves the existing `/api/v1` fields (including `name`, `serving`, and numeric `per100g`) and adds the richer metadata. A missing `per100g` nutrient is omitted from that compatibility projection; calculation responses preserve it as `null`.
 
 `server/data/sources.json` records the preferred source, editions, verification dates, licensing, redistribution rights and attribution. The Vietnamese food-composition tables published by the National Institute of Nutrition are the preferred target, with 2007 and 2017 editions recorded for investigation. No license or redistribution permission has been confirmed; the catalog therefore contains no food values and source-based lookup is disabled. See [`docs/research/issue-4-food-data-sources.md`](../docs/research/issue-4-food-data-sources.md) for the rights findings. Saved historical snapshots keep their original provenance.
 
@@ -121,7 +121,7 @@ The Institute's 2007/2017 tables and the 2013 SMILING Vietnam table were reviewe
 
 ### Reproducible import and validation
 
-The dependency-free pipeline accepts canonical JSON, validates required fields, units, nutrient ranges, duplicate identities, provenance, source licensing and exact external record/edition references, then writes deterministic catalog JSON and an added/updated/removed/unchanged report. Strict imports from an external source fail unless the source registry confirms redistribution permission, license, verification date and attribution and every external provenance group names its source record and edition. `--allow-legacy` is validation-only and cannot write output.
+The dependency-free pipeline accepts canonical JSON and validates required fields, units, nutrient ranges, duplicate identities, provenance and source rights before writing deterministic candidate JSON and an added/updated/removed/unchanged report. Strict external imports require an HTTPS source URL, confirmed redistribution status, a license or written-permission name, an evidence reference, verified permissions to copy, transform and redistribute, the verifier/date, and exact attribution text. Every external provenance group must include its source record, edition, row/cell reference, access date and method. The import command creates a candidate; the serving loader also requires an approved reviewer and date before external records can become active. `--allow-legacy` is validation-only and cannot write output.
 
 ```sh
 npm run catalog:validate
@@ -129,7 +129,7 @@ npm run catalog:fixture
 npm run catalog:import -- --input <licensed-source.json> --sources server/data/sources.json --previous server/data/foods.json --output <candidate-catalog.json> --report <change-report.json>
 ```
 
-The checked-in synthetic fixture exists only to exercise the pipeline; it is not loaded by the API and its numbers do not describe real food. Do not use it to replace the active catalog. Do not import or publish a Vietnamese dataset until redistribution rights are confirmed and the records have a qualified food/nutrition review. `npm run catalog:import` never downloads or scrapes data.
+The checked-in synthetic fixture exists only to exercise the pipeline; `npm run catalog:fixture` validates it without writing, and write-mode imports reject synthetic-fixture catalogs. The importer also refuses to use the active `server/data/foods.json` as an output or report path, even if `--previous` is omitted. The fixture is not loaded by the API and its values do not describe real food. Do not use it to replace the active catalog. Do not import or publish a Vietnamese dataset until rights evidence and required permissions are recorded and the records have a qualified food/nutrition review. Keep private permission documents outside Git; record only a controlled evidence reference. `npm run catalog:import` never downloads or scrapes data.
 
 ### Updating or removing a source
 

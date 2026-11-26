@@ -31,3 +31,9 @@ Historical diary, grocery, and meal-plan snapshots keep their original source ID
 2. Record the exact edition, access date, row-level citations, preparation state, units, conversions, and transformation history for every imported value.
 3. Have a qualified nutrition reviewer verify food identity, preparation, values, portions, and planner constraints.
 4. Import through the existing strict catalog validator and approve the resulting change report before enabling the source.
+
+## Registry and import safeguards
+
+The source registry keeps NIN unconfirmed: its license, permission evidence reference, permitted actions, verifier, verification date, and final attribution remain unset. Do not infer any permission from public access. Once written rights exist, update the registry with a controlled reference to the evidence and explicitly record permission to copy, transform, and redistribute, plus the exact attribution text. Keep private permission documents outside the repository.
+
+Strict external records must carry provenance for identity, preparation, serving, and nutrition: source ID, exact source record and edition, row/cell reference, access date, and method. Nutrient units and unknown values stay explicit. The importer validates a candidate and emits a deterministic change report; its output cannot target the active catalog, and a qualified reviewer must approve records before the serving loader accepts them. It performs no download or scraping. The synthetic fixture is validation-only: CI runs `npm run catalog:fixture`, and the importer refuses to write a `synthetic-fixture` catalog.
