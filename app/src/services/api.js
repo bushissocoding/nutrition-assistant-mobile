@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secure-storage';
 import { createApiClient, createApiMethods } from './api-client.cjs';
 import { createDemoNamespaceStore } from './demo-namespace-storage.cjs';
 import { authClient } from './auth-client';

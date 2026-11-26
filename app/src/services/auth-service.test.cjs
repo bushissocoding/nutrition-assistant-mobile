@@ -99,6 +99,13 @@ test('recovery callback exchanges PKCE code and rejects malformed callback', asy
   await assert.rejects(service.completeCallback('nutritionassistant://auth/callback'), error => error.code === 'INVALID_CALLBACK');
 });
 
+test('recognizes only the configured deep-link path as an auth callback', () => {
+  const service = createAuthService({ client: { auth: fakeAuth() }, callbackUrl: () => 'nutritionassistant://auth/callback' });
+  assert.equal(service.isCallbackUrl('nutritionassistant://auth/callback?code=synthetic-code'), true);
+  assert.equal(service.isCallbackUrl('http://127.0.0.1:8765/'), false);
+  assert.equal(service.isCallbackUrl('nutritionassistant://auth/other?code=synthetic-code'), false);
+});
+
 test('missing provider configuration fails explicitly instead of claiming success', async () => {
   const service = createAuthService({ client: null });
   await assert.rejects(service.login({ email: 'user@example.com', password: 'anything' }), error => error.code === 'AUTH_NOT_CONFIGURED');

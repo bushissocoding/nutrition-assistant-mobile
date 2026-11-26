@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../../services/notifications';
 import { api } from '../../services/api';
 import { colors } from '../../theme/tokens';
 

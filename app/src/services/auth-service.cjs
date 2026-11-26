@@ -23,6 +23,21 @@ function toAuthUser(user) {
 
 function createAuthService({ client, callbackUrl = () => '', parseUrl = value => new URL(value) } = {}) {
   return {
+    isCallbackUrl(url) {
+      let candidate;
+      let expected;
+      try {
+        candidate = parseUrl(url);
+        expected = parseUrl(callbackUrl());
+      } catch {
+        return false;
+      }
+      const normalizePath = pathname => String(pathname || '/').replace(/\/+$/, '') || '/';
+      return candidate.protocol === expected.protocol
+        && candidate.host === expected.host
+        && normalizePath(candidate.pathname) === normalizePath(expected.pathname);
+    },
+
     async register({ email, username, password, confirmPassword }) {
       const normalizedEmail = validateEmail(email);
       const normalizedUsername = validateUsername(username);

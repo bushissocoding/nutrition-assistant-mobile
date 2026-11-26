@@ -1,15 +1,17 @@
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from './notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secure-storage';
 import { createPushDeviceStorage } from './push-device-storage.cjs';
 
 const pushDeviceStorage = createPushDeviceStorage({ storage: SecureStore });
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
-});
+if (Platform.OS !== 'web') {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: false, shouldSetBadge: false }),
+  });
+}
 
 function getProjectId(constants = Constants) {
   return constants.expoConfig?.extra?.eas?.projectId || constants.easConfig?.projectId || null;

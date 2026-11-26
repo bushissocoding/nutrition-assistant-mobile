@@ -17,6 +17,7 @@
   },
   "plugins": [
     "expo-secure-store",
+    ["expo-splash-screen", { "backgroundColor": "#F4F7FF" }],
     "expo-status-bar",
     "expo-sharing",
     [
