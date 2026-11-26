@@ -135,6 +135,13 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
         if (!provenance.sourceRecordId || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
           fail(`${path}.provenance.groups.${group} external source requires an exact sourceRecordId and edition.`);
         }
+        if (typeof provenance.sourceReference !== 'string' || !provenance.sourceReference.trim()
+          || /unknown|not-recorded|uncaptured/i.test(provenance.sourceReference)) {
+          fail(`${path}.provenance.groups.${group} external source requires an exact source row/cell reference.`);
+        }
+        if (!isIsoDate(provenance.accessedOn)) {
+          fail(`${path}.provenance.groups.${group} external source requires a valid source access date.`);
+        }
       }
       if (strictImport && source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') {
         fail(`${path}.provenance.groups.${group} synthetic fixture data cannot be imported into a non-fixture catalog.`);

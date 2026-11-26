@@ -22,11 +22,11 @@
 **Description:** Require each external provenance group to retain an exact source record/edition, row or cell reference, access date, and transformation method while preserving nutrient units and explicit missingness.
 
 **Acceptance criteria:**
-- [ ] Strict validation rejects absent, malformed, or unknown external references and access dates.
-- [ ] Synthetic test records demonstrate accepted provenance and each rejected omission.
-- [ ] The validator does not convert missing nutrient values into zero.
+- [x] Strict validation rejects absent, malformed, or unknown external references and access dates.
+- [x] Synthetic test records demonstrate accepted provenance and each rejected omission.
+- [x] The validator does not convert missing nutrient values into zero.
 
-**Verification:** `npm run test:unit` and focused food-catalog tests.
+**Verification:** [x] `node --test server/tests/food-catalog.test.js` (13 passed); [x] `npm run catalog:fixture`.
 
 **Dependencies:** Task 1.
 

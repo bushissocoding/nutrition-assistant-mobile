@@ -163,6 +163,8 @@ test('strict external-source imports require evidence, explicit reuse permission
     sourceId: 'synthetic-permission-test-source',
     sourceRecordId: 'synthetic-test-row',
     edition: 'synthetic-test-edition',
+    sourceReference: 'test-only#nutrition-table-row-1',
+    accessedOn: '2026-01-15',
     method: 'Synthetic permission-gate test only.',
   };
   const externalSource = {
@@ -204,6 +206,52 @@ test('strict external-source imports require evidence, explicit reuse permission
       strictImport: true,
     });
     assert.match(result.errors.join('\n'), expectedError);
+  }
+});
+
+test('strict external provenance requires an exact row reference and access date for every group', () => {
+  const groups = ['identity', 'preparation', 'serving', 'nutrition'];
+  const catalog = makeCatalog();
+  for (const group of groups) {
+    catalog.foods[0].provenance.groups[group] = {
+      sourceId: 'synthetic-provenance-test-source',
+      sourceRecordId: `synthetic-row-${group}`,
+      edition: 'synthetic-test-edition',
+      sourceReference: `test-only#${group}-table-row-1`,
+      accessedOn: '2026-01-15',
+      method: `Synthetic ${group} test method.`,
+    };
+  }
+  const registry = {
+    records: [{
+      id: 'synthetic-provenance-test-source',
+      kind: 'external',
+      name: 'Synthetic provenance-gate source',
+      url: 'https://example.test/food-table',
+      rights: {
+        license: { name: 'Synthetic test permission' },
+        redistributionStatus: 'permitted',
+        evidenceReference: 'test-only:permission-record',
+        permittedActions: ['copy', 'transform', 'redistribute'],
+        verifiedBy: 'synthetic-test-reviewer',
+        verifiedOn: '2026-01-15',
+        attribution: 'Synthetic test attribution only.',
+      },
+    }],
+  };
+
+  assert.deepEqual(validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true }).errors, []);
+
+  for (const group of groups) {
+    for (const [mutate, expectedError] of [
+      [provenance => { provenance.sourceReference = 'unknown'; }, /exact source row\/cell reference/i],
+      [provenance => { provenance.accessedOn = 'not-recorded'; }, /valid source access date/i],
+    ]) {
+      const invalidCatalog = structuredClone(catalog);
+      mutate(invalidCatalog.foods[0].provenance.groups[group]);
+      const result = validateFoodCatalog(invalidCatalog, { sourceRegistry: registry, strictImport: true });
+      assert.match(result.errors.join('\n'), new RegExp(`provenance\\.groups\\.${group} .*${expectedError.source}`));
+    }
   }
 });
 

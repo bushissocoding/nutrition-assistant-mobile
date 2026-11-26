@@ -20,12 +20,12 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 ### Phase 1: Rights and provenance validation
 
 - [x] Task 1: Validate explicit source rights evidence and permission scope.
-- [ ] Task 2: Require auditable provenance for external source records.
+- [x] Task 2: Require auditable provenance for external source records.
 
 ### Checkpoint: Source validation
 
-- [ ] Pending NIN remains unimportable; tests use synthetic records only.
-- [ ] A synthetic licensed-source test record passes only when rights and provenance fields are complete.
+- [x] Pending NIN remains unimportable; tests use synthetic records only.
+- [x] A synthetic licensed-source test record passes only when rights and provenance fields are complete.
 
 ### Phase 2: Safe import and publication gates
 
