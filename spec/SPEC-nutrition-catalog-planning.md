@@ -22,6 +22,8 @@ Use NIN as the preferred source for Vietnamese food composition when reuse right
 4. Import using the strict catalog validator, inspect and approve its deterministic change report, then implement an authorized source adapter that preserves the route contract.
 5. Add focused tests for the real approved source manifest without copying protected table values into unauthorized fixtures.
 
+The strict source registry gate requires `rights.evidenceReference`, `rights.permittedActions` containing `copy`, `transform`, and `redistribute`, `rights.verifiedBy`, `rights.verifiedOn`, and the exact `rights.attribution` text alongside a license or written-permission name. External provenance groups require `sourceRecordId`, `edition`, `sourceReference` for the row/cell, `accessedOn`, and `method`. Imports produce candidate catalogs; the output cannot overwrite the active catalog, and the runtime loader will not serve external records until reviewer approval is recorded. The synthetic fixture is accepted only in check/test mode and cannot be written as a catalog.
+
 ## Boundaries
 
 - Do not scrape, transcribe, bundle, or serve table values before rights are confirmed.

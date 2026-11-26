@@ -57,11 +57,11 @@
 **Description:** Align the source research and developer docs with the structured gate, explain how to stage a licensed candidate without activating it, and run catalog validation/fixture checks in CI.
 
 **Acceptance criteria:**
-- [ ] Documentation states that written rights and qualified review are still outstanding and does not imply that NIN values are imported.
-- [ ] The documented workflow keeps permission documents private and uses a reference in the registry.
-- [ ] CI validates the empty active catalog and synthetic fixture without writing fixture data into the active catalog.
+- [x] Documentation states that written rights and qualified review are still outstanding and does not imply that NIN values are imported.
+- [x] The documented workflow keeps permission documents private and uses a reference in the registry.
+- [x] CI validates the empty active catalog and synthetic fixture without writing fixture data into the active catalog.
 
-**Verification:** `npm run test:unit`, `npm run test:ui`, `npm run test:api`, `npm run catalog:validate`, `npm run catalog:fixture`, and workflow YAML review.
+**Verification:** [x] `npm run test:unit` (331 passed); [x] `npm run test:ui` (25 suites, 142 passed); [x] `npm run test:api`; [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] GitHub Actions YAML parsed; [x] `git diff --check`.
 
 **Dependencies:** Tasks 1–3.
 

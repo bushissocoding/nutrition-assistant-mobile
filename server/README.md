@@ -123,6 +123,8 @@ The Institute's 2007/2017 tables and the 2013 SMILING Vietnam table were reviewe
 
 The dependency-free pipeline accepts canonical JSON and validates required fields, units, nutrient ranges, duplicate identities, provenance and source rights before writing deterministic candidate JSON and an added/updated/removed/unchanged report. Strict external imports require an HTTPS source URL, confirmed redistribution status, a license or written-permission name, an evidence reference, verified permissions to copy, transform and redistribute, the verifier/date, and exact attribution text. Every external provenance group must include its source record, edition, row/cell reference, access date and method. The import command creates a candidate; the serving loader also requires an approved reviewer and date before external records can become active. `--allow-legacy` is validation-only and cannot write output.
 
+The source registry field names are `rights.license.name`, `rights.redistributionStatus`, `rights.evidenceReference`, `rights.permittedActions`, `rights.verifiedBy`, `rights.verifiedOn`, and `rights.attribution`. A future permission record must set `permittedActions` to include `copy`, `transform`, and `redistribute`; keep the evidence document private and store only its controlled reference. Each `provenance.groups.<group>` entry for external data includes `sourceId`, `sourceRecordId`, `edition`, `sourceReference`, `accessedOn`, and `method`.
+
 ```sh
 npm run catalog:validate
 npm run catalog:fixture

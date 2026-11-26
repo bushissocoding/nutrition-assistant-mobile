@@ -39,8 +39,8 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 ### Phase 3: Documentation and acceptance
 
-- [ ] Task 4: Document the rights checklist, candidate review workflow, and synthetic-only fixture boundary; add CI catalog checks.
-- [ ] Run all required tests and catalog checks, review the diff, and confirm no real dataset or secrets were added.
+- [x] Task 4: Document the rights checklist, candidate review workflow, and synthetic-only fixture boundary; add CI catalog checks.
+- [x] Run all required tests and catalog checks, review the diff, and confirm no real dataset or secrets were added.
 
 ## Risks and Mitigations
 

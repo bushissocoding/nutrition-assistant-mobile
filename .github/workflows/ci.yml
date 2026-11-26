@@ -41,6 +41,12 @@ jobs:
       - name: Run API smoke tests
         run: npm run test:api
 
+      - name: Validate active food catalog
+        run: npm run catalog:validate
+
+      - name: Validate synthetic food import fixture
+        run: npm run catalog:fixture
+
       - name: Export Android app bundle
         run: npx expo export --platform android
 
