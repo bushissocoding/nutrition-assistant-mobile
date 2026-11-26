@@ -18,6 +18,7 @@ test('shows the username as the signed-in account and keeps health profile detai
   expect(screen.queryByText('Chiều cao')).toBeNull();
   expect(screen.queryByText('Dị ứng / cần tránh')).toBeNull();
   expect(screen.queryByRole('button', { name: /Chỉnh sửa hồ sơ/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Thông báo' })).toBeNull();
   expect(screen.queryByRole('button', { name: 'Thoát về màn chào mừng' })).toBeNull();
 });
 

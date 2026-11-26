@@ -31,7 +31,6 @@ export default function ProfileScreen({ profile, account, onSaveProfile, onNavig
         <ProfileLink icon="▣" label="Phương thức thanh toán" onPress={() => onNavigate?.('payment-methods')} />
         <ProfileLink icon="▢" label="Chính sách và quyền riêng tư" onPress={() => onNavigate?.('settings-privacy')} />
         <ProfileLink icon="⚙" label="Cài đặt tài khoản" onPress={() => onNavigate?.('settings')} />
-        <ProfileLink icon="♧" label="Thông báo" onPress={() => onNavigate?.('notifications')} />
         <ProfileLink icon="?" label="Hỗ trợ" onPress={() => onNavigate?.('settings-help')} />
         <ProfileLink icon="↪" label="Đăng xuất" onPress={() => setShowExitConfirm(true)} />
       </View>
