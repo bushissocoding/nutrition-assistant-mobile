@@ -172,7 +172,7 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
 
     <View style={styles.noteCard}>
       <Text style={styles.noteIcon}>ⓘ</Text>
-      <Text style={styles.noteText}>Giá trị được tính từ snapshot USDA trong nhật ký tài khoản. Ngày chưa ghi món và dưỡng chất nguồn không báo cáo được hiển thị riêng; thông tin không thay thế tư vấn chuyên môn.</Text>
+      <Text style={styles.noteText}>Giá trị lấy từ các snapshot nguồn đã lưu trong nhật ký tài khoản. Tra cứu nguồn dinh dưỡng mới đang chờ xác nhận quyền sử dụng dữ liệu của Viện Dinh dưỡng; thông tin không thay thế tư vấn chuyên môn.</Text>
     </View>
     <View style={styles.loggedSummary}>
       <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>

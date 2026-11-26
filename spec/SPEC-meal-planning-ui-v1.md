@@ -32,7 +32,7 @@ Rebuild the meal-planning result and recipe detail screens to follow the supplie
 - Screen job: let users scan the day's suggested meals and open one meal's ingredients and preparation details.
 - Hierarchy: title and meal schedule; horizontally browsable meal cards with circular imagery/placeholder, slot, meal name, calories, and recipe affordance; a rounded daily calorie/macro tracker; recipe detail with centered food hero, serving facts, ingredient cards, and description.
 - Use the existing blue, white, navy, and light-blue palette and rounded card language. Preserve comfortable touch targets and accessible labels.
-- Preserve current generated-plan form, profile/allergy warnings, loading/error/infeasible/unavailable states, USDA source attribution, saved plans, grocery navigation, and non-clinical disclaimer. Add focused entry/exit navigation for the reference screen.
+- Preserve the plan form, profile/allergy warnings, unavailable state, historical plan source attribution, saved plans, grocery navigation, and non-clinical disclaimer. While the catalog is pending, show the NIN data-rights notice and do not present a generated plan.
 - Outside the disclosed UI sample, do not invent ingredient values, prices, nutrient totals, or targets. Present missing values as unavailable. Keep source/provenance and estimate disclaimers available in the result/detail flow.
 
 ## Testing Strategy

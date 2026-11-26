@@ -17,6 +17,8 @@ const { createChatRouter } = require('./chat');
 const { createHealthRecordRouter } = require('./health-records');
 const { createNotificationRouter } = require('./notifications');
 const { createPersonalizationRouter } = require('./personalization');
+const { PENDING_DATASET_MESSAGE } = require('../services/food-source');
+const { unavailable } = require('../services/sourced-meal-plans');
 
 function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, paymentRepository, payosGateway, payosConfig, requireCurrentConsent, chatRepository, assistantProvider, healthRecordRepository, notificationRepository, personalizationRepository } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
@@ -71,6 +73,9 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authM
     } catch (error) {
       if (error.code !== 'INVALID_MEAL_PLAN_REQUEST') throw error;
       return res.status(400).json({ error: 'Dữ liệu tạo thực đơn không hợp lệ.', code: error.code, issues: error.issues });
+    }
+    if (catalog?.status === 'pending') {
+      return res.json({ ...unavailable('FOOD_SOURCE_UNAVAILABLE', PENDING_DATASET_MESSAGE, catalog.version), catalog });
     }
     return res.json({ ...generatePlan({ foods, mealTemplates, catalog, request }), catalog });
   });

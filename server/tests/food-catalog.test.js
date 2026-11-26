@@ -71,6 +71,14 @@ test('catalog validation preserves reported zero separately from missing null', 
   assert.equal(result.catalog.foods[0].nutrition.values.carbohydrateG.status, 'missing');
 });
 
+test('pending catalogs are valid only while they contain no food values', () => {
+  const pending = { ...makeCatalog(), version: 'vietnam-nin-pending-v1', status: 'pending', foods: [] };
+  assert.deepEqual(validateFoodCatalog(pending, { sourceRegistry }).errors, []);
+
+  const invalid = { ...pending, foods: makeCatalog().foods };
+  assert.match(validateFoodCatalog(invalid, { sourceRegistry }).errors.join(' '), /pending catalogs cannot contain food records/i);
+});
+
 test('missing nutrient fields, unexplained nulls and missing provenance are rejected', () => {
   for (const mutate of [
     catalog => { delete catalog.foods[0].nutrition.values.proteinG; },

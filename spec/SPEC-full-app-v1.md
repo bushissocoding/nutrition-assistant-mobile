@@ -13,7 +13,7 @@ The current Expo/React Native client and Express `/api/v1` API remain the produc
 - Keep Expo SDK 58, React Native, Express, the feature-first client layout, and layered server structure.
 - Use Supabase Auth and Postgres with RLS for managed identity and persistence. The Express API remains the only client path for private application records; it validates provider JWTs and creates user-scoped database operations. Use the current publishable key in the app and keep the secret key (the service-role equivalent that bypasses RLS) on the server for tightly limited operations only. Store auth sessions with a SecureStore adapter that handles provider token size and partial writes safely.
 - Use Supabase private Storage for uploaded health records, PayOS hosted checkout/webhooks for Vietnamese payments, Expo Push for notifications, and OpenAI Responses for the optional non-clinical assistant. Provider credentials and accounts are external deployment configuration, never source code.
-- Use a server-side FoodData Central adapter with source/edition attribution for licensed catalog records. Vietnamese national food tables remain disabled until reuse rights and qualified review are verified.
+- Prefer the National Institute of Nutrition's Vietnamese food-composition tables with source/edition attribution after reuse rights and qualified review are verified. Until then the active catalog remains empty and source lookup/meal generation return unavailable.
 - Keep OCR on-device. Extract editable candidates from a captured lab image; never interpret a result as a diagnosis or write candidates into a health profile until the user confirms them.
 - The missing wireframe figures are not available in this request; use the current screens and design tokens as the reference while implementing the named states and flows.
 - A provider-facing role mode is part of care bookings and chat so real availability and clinician responses have an operational user interface.
@@ -34,7 +34,7 @@ The current Expo/React Native client and Express `/api/v1` API remain the produc
 
 - Expo SDK 58, React Native 0.88, React 19; existing `expo-secure-store`, `expo-print`, `expo-sharing`.
 - Express 4 on supported Node 24; Supabase Auth, Postgres, RLS and private Storage.
-- PayOS hosted payment link with server-verified signed webhook; Expo Push delivery; OpenAI Responses API with `store: false`; on-device camera/OCR; server-side FoodData Central API adapter.
+- PayOS hosted payment link with server-verified signed webhook; Expo Push delivery; OpenAI Responses API with `store: false`; on-device camera/OCR; source lookup that remains disabled until NIN data rights and qualified review are confirmed.
 - Add dependencies only when the first module spec names the need and the version is verified against official documentation and the existing Expo/Node compatibility.
 
 ## Commands
@@ -108,11 +108,11 @@ Never accept an owner ID from a request body/path as authority. Do not log bodie
 
 ## Open Questions
 
-- No repository question blocks implementation. Local configuration currently has no Supabase, PayOS, OpenAI, SMTP/SMS, FoodData Central or Expo push credential; production accounts, Vietnamese food-data reuse permission, provider roster, review owners and deployment operator remain external release prerequisites.
+- No repository question blocks implementation. Local configuration currently has no Supabase, PayOS, OpenAI, SMTP/SMS or Expo push credentials; production accounts, written permission to reuse Vietnamese food-composition data, provider roster, review owners and deployment operator remain external release prerequisites.
 
 ## Source notes
 
 - Supabase Expo Auth, current API keys, RLS and SecureStore constraints: [Expo React Native quickstart](https://supabase.com/docs/guides/getting-started/quickstarts/expo-react-native), [API keys](https://supabase.com/docs/guides/getting-started/api-keys), [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security), [Expo SecureStore SDK 58](https://docs.expo.dev/versions/v58.0.0/sdk/securestore/).
 - Payment and push lifecycle: [PayOS API](https://payos.vn/docs/api/), [PayOS webhook signature](https://payos.vn/docs/tich-hop-webhook/kiem-tra-du-lieu-voi-signature/), [Expo Push setup](https://docs.expo.dev/push-notifications/push-notifications-setup/), [Expo Push sending](https://docs.expo.dev/push-notifications/sending-notifications/).
-- AI and food provenance: [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data) (including endpoint-specific retention and ZDR eligibility), [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [USDA FoodData Central](https://fdc.nal.usda.gov/).
+- AI and food provenance: [OpenAI API data controls](https://developers.openai.com/api/docs/guides/your-data) (including endpoint-specific retention and ZDR eligibility), [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), and the NIN/FAO source notes in [`issue-4-food-data-sources.md`](../docs/research/issue-4-food-data-sources.md).
 - Applicable privacy obligations and effective dates must be verified by a qualified Vietnam privacy/legal owner against [Law 91/2025/QH15](https://vanban.chinhphu.vn/?docid=214590&pageid=27160) and [Decree 356/2025/NĐ-CP](https://vanban.chinhphu.vn/?classid=1&docid=216387&pageid=27160); this project makes no compliance determination.

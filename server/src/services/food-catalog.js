@@ -28,8 +28,10 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
   }
   if (input.schemaVersion !== 1) fail('schemaVersion must be 1.');
   if (typeof input.version !== 'string' || !input.version.trim()) fail('version is required.');
-  if (!['prototype', 'synthetic-fixture', 'licensed'].includes(input.status)) fail('status must be prototype, synthetic-fixture, or licensed.');
-  if (!Array.isArray(input.foods) || input.foods.length === 0) fail('foods must be a non-empty array.');
+  if (!['pending', 'prototype', 'synthetic-fixture', 'licensed'].includes(input.status)) fail('status must be pending, prototype, synthetic-fixture, or licensed.');
+  if (!Array.isArray(input.foods)) fail('foods must be an array.');
+  else if (input.status === 'pending' && input.foods.length > 0) fail('pending catalogs cannot contain food records.');
+  else if (input.status !== 'pending' && input.foods.length === 0) fail('foods must be a non-empty array unless the catalog is pending.');
   const sourceRows = Array.isArray(sourceRegistry?.records) ? sourceRegistry.records : [];
   const sources = new Map(sourceRows.map(source => [source.id, source]));
   if (!Array.isArray(sourceRegistry?.records)) fail('source registry records must be an array.');

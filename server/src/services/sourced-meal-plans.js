@@ -1,3 +1,4 @@
+const { PENDING_DATASET_MESSAGE } = require('./food-source');
 const { generatePlan, validateMealPlanRequest } = require('./meal-planner');
 
 function normalizeMatch(value) {
@@ -5,8 +6,9 @@ function normalizeMatch(value) {
 }
 
 function foodSearchTerm(food) {
+  if (typeof food?.sourceSearchTerm === 'string' && food.sourceSearchTerm.trim()) return food.sourceSearchTerm.trim();
   const description = food?.preparation?.description;
-  const match = typeof description === 'string' && /(?:Mục đối chiếu|Comparator):\s*([^.]*)/i.exec(description);
+  const match = typeof description === 'string' && /Source query:\s*([^.]*)/i.exec(description);
   return match?.[1]?.trim() || '';
 }
 
@@ -28,11 +30,13 @@ function unavailable(code, message, catalogVersion = null) {
 
 function toPlannerFood(templateFood, sourcedFood) {
   const values = sourcedFood?.nutrition?.values;
-  if (!values || typeof values !== 'object') return null;
+  const source = sourcedFood?.source;
+  const sourceRecordId = source?.recordId;
+  if (!values || typeof values !== 'object' || !source?.id || !sourceRecordId || !source.edition) return null;
   const per100g = Object.fromEntries(Object.entries(values).map(([key, nutrient]) => [key, nutrient?.value ?? null]));
   return {
     id: sourcedFood.id,
-    version: `${sourcedFood.source?.recordId || sourcedFood.fdcId}-${sourcedFood.source?.edition || 'live'}`,
+    version: `${sourceRecordId}-${source.edition}`,
     name: sourcedFood.name,
     aliases: [],
     category: templateFood.category,
@@ -44,24 +48,27 @@ function toPlannerFood(templateFood, sourcedFood) {
     per100g,
     provenance: { groups: {
       nutrition: {
-        sourceId: 'USDA-FDC',
-        sourceRecordId: sourcedFood.source?.recordId || sourcedFood.fdcId,
-        edition: sourcedFood.source?.edition || `live-record-${sourcedFood.fdcId}`,
-        method: 'Nutrient values mapped from the USDA FoodData Central food-detail record by nutrient ID and unit.',
+        sourceId: source.id,
+        sourceRecordId,
+        edition: source.edition,
+        method: 'Nutrient values mapped from the licensed food-detail record by nutrient ID and unit.',
       },
       serving: null,
     } },
-    source: sourcedFood.source,
+    source,
     review: { status: 'needs-source-verification' },
   };
 }
 
 async function createSourcedMealPlan({ foods, mealTemplates, catalog, profile, foodSource, input } = {}) {
-  const currentCatalogVersion = 'USDA-FDC-live-v1';
+  const currentCatalogVersion = catalog?.version || null;
   if (!profile) return unavailable('PROFILE_REQUIRED', 'Hãy hoàn tất hồ sơ trước khi tạo kế hoạch.', currentCatalogVersion);
   if (Array.isArray(profile.red_flags) && profile.red_flags.length) return unavailable('HEALTH_REVIEW_REQUIRED', 'Hồ sơ có dấu hiệu cần được nhân viên y tế đánh giá; chưa tạo kế hoạch.', currentCatalogVersion);
+  if (catalog?.status === 'pending' || !foodSource) {
+    return unavailable('FOOD_SOURCE_UNAVAILABLE', PENDING_DATASET_MESSAGE, currentCatalogVersion);
+  }
   const allergies = Array.isArray(profile.allergies) ? profile.allergies : [];
-  if (allergies.length) return unavailable('ALLERGEN_COVERAGE_UNAVAILABLE', 'USDA FoodData Central không xác minh đầy đủ thành phần gây dị ứng hoặc nhiễm chéo; chưa tạo kế hoạch.', currentCatalogVersion);
+  if (allergies.length) return unavailable('ALLERGEN_COVERAGE_UNAVAILABLE', 'Nguồn thực phẩm chưa xác minh đầy đủ thành phần gây dị ứng hoặc nhiễm chéo; chưa tạo kế hoạch.', currentCatalogVersion);
 
   let request;
   try {
@@ -90,44 +97,40 @@ async function createSourcedMealPlan({ foods, mealTemplates, catalog, profile, f
   for (const templateFoodId of referencedIds) {
     const templateFood = templateFoodById.get(templateFoodId);
     const query = foodSearchTerm(templateFood);
-    if (!query || !foodSource) return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Nguồn thực phẩm có nguồn chưa sẵn sàng.', currentCatalogVersion);
+    if (!query) return unavailable('FOOD_MATCH_UNVERIFIED', 'Thành phần mẫu chưa được ánh xạ tới một bản ghi của Viện Dinh dưỡng.', currentCatalogVersion);
     let search;
     try { search = await foodSource.search(query, { page: 1 }); }
-    catch { return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Không thể đối chiếu một thành phần với nguồn thực phẩm USDA.', currentCatalogVersion); }
+    catch { return unavailable('FOOD_SOURCE_UNAVAILABLE', PENDING_DATASET_MESSAGE, currentCatalogVersion); }
     const exact = (search.items || []).filter(item => normalizeMatch(item.name) === normalizeMatch(query));
-    if (exact.length !== 1) return unavailable('FOOD_MATCH_UNVERIFIED', 'Nguồn USDA không có một bản ghi khớp duy nhất cho thành phần kế hoạch.', currentCatalogVersion);
+    if (exact.length !== 1) return unavailable('FOOD_MATCH_UNVERIFIED', 'Không tìm thấy một bản ghi duy nhất khớp với thành phần mẫu.', currentCatalogVersion);
     let detail;
-    try { detail = await foodSource.getFood(exact[0].fdcId); }
-    catch { return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Không thể tải chi tiết dinh dưỡng từ nguồn USDA.', currentCatalogVersion); }
-    if (detail.id !== exact[0].id || detail.catalogVersion !== currentCatalogVersion) return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Bản ghi chi tiết không khớp kết quả tìm kiếm.', currentCatalogVersion);
+    try { detail = await foodSource.getFood(exact[0].recordId); }
+    catch { return unavailable('FOOD_SOURCE_UNAVAILABLE', PENDING_DATASET_MESSAGE, currentCatalogVersion); }
+    if (detail.id !== exact[0].id || detail.catalogVersion !== currentCatalogVersion) return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Chi tiết thực phẩm không khớp với bản ghi đã tìm thấy.', currentCatalogVersion);
     const food = toPlannerFood(templateFood, detail);
-    if (!food) return unavailable('NUTRIENT_DATA_UNAVAILABLE', 'Nguồn USDA không trả về bảng dưỡng chất hợp lệ.', currentCatalogVersion);
+    if (!food) return unavailable('NUTRIENT_DATA_UNAVAILABLE', 'Bản ghi nguồn chưa có bảng dưỡng chất hợp lệ.', currentCatalogVersion);
     sourcedFoods.push(food);
     mappedIds.set(templateFoodId, detail.id);
+  }
+
+  const sourceIds = new Set(sourcedFoods.map(food => food.source.id));
+  if (sourceIds.size !== 1) return unavailable('FOOD_SOURCE_UNAVAILABLE', 'Các thành phần không thuộc cùng một nguồn dữ liệu.', currentCatalogVersion);
+  const sourceId = [...sourceIds][0];
+  const registeredSource = (catalog?.sources || []).find(source => source.id === sourceId);
+  if (!registeredSource || registeredSource.kind === 'external' && registeredSource.rights?.redistributionStatus !== 'permitted') {
+    return unavailable('FOOD_SOURCE_UNAVAILABLE', PENDING_DATASET_MESSAGE, currentCatalogVersion);
   }
 
   const remappedTemplates = mealTemplates.map(template => ({
     ...template,
     items: (template.items || []).map(item => ({ ...item, foodId: mappedIds.get(item.foodId) })),
   }));
-  const fdcRegistry = {
-    id: 'USDA-FDC',
-    kind: 'external',
-    name: 'USDA FoodData Central',
-    url: 'https://fdc.nal.usda.gov/',
-    rights: { redistributionStatus: 'permitted', license: { name: 'CC0 1.0 Universal', url: 'https://creativecommons.org/publicdomain/zero/1.0/' } },
-  };
-  const liveCatalog = {
-    ...catalog,
-    version: currentCatalogVersion,
-    status: 'live',
-    sources: [...(catalog?.sources || []).filter(source => source.id !== fdcRegistry.id), fdcRegistry],
-  };
+  const liveCatalog = { ...catalog, status: 'licensed' };
   const result = generatePlan({ foods: sourcedFoods, mealTemplates: remappedTemplates, catalog: liveCatalog, request });
   result.constraintsApplied.profileUpdatedAt = profile.updated_at || null;
   result.metadata.catalogVersion = currentCatalogVersion;
   result.metadata.profileUpdatedAt = profile.updated_at || null;
-  result.limitations = [...(result.limitations || []), 'Dữ liệu USDA không cung cấp xác nhận nhiễm chéo dị ứng; không dùng kế hoạch này để điều trị bệnh.', 'Mẫu bữa do dự án biên soạn; khẩu phần và mô tả chưa được chuyên gia dinh dưỡng thẩm định.'];
+  result.limitations = [...(result.limitations || []), 'Nguồn dữ liệu không xác nhận nhiễm chéo dị ứng; không dùng kế hoạch này để điều trị bệnh.', 'Mẫu bữa do dự án biên soạn; khẩu phần và mô tả chưa được chuyên gia dinh dưỡng thẩm định.'];
   return result;
 }
 

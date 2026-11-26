@@ -75,12 +75,12 @@ export default function GroceryScreen({ savedPlanId = null, onBack }) {
 
   async function searchPantryFood() {
     const query = pantryDraft.trim();
-    if (query.length < 2) { setPantryError('Nhập ít nhất 2 ký tự để tìm trong USDA.'); return; }
+    if (query.length < 2) { setPantryError('Nhập ít nhất 2 ký tự để tra cứu.'); return; }
     setPantrySearchLoading(true); setPantryError(''); setPantryResults([]);
     try {
       const result = await api.searchSourcedFoods(query, { page: 1 });
       setPantryResults(Array.isArray(result?.items) ? result.items : []);
-    } catch (error) { setPantryError(error?.message || 'Không thể tìm thực phẩm từ USDA.'); }
+    } catch (error) { setPantryError(error?.message || 'Tra cứu đang chờ dữ liệu được cấp quyền sử dụng.'); }
     finally { setPantrySearchLoading(false); }
   }
 
@@ -339,7 +339,7 @@ export default function GroceryScreen({ savedPlanId = null, onBack }) {
       <View style={styles.headerCopy}><Text accessibilityRole="header" style={styles.title}>Nguyên liệu</Text><Text style={styles.subtitle}>Kho nhà & danh sách đi chợ</Text></View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel="Thêm nguyên liệu" style={styles.addHeaderButton} onPress={() => { setAddingPantryItem(value => !value); setPantryError(''); }}><Text style={styles.addHeaderText}>{addingPantryItem ? '×' : '+'}</Text></TouchableOpacity>
     </View>
-    <Text style={styles.disclaimer}>Kho nhà và danh sách đi chợ thuộc tài khoản hiện tại; nguyên liệu mới được đối chiếu với USDA FoodData Central.</Text>
+    <Text style={styles.disclaimer}>Kho nhà và danh sách đi chợ thuộc tài khoản hiện tại. Tra cứu thực phẩm đang tạm dừng trong khi chờ xác nhận quyền sử dụng dữ liệu của Viện Dinh dưỡng; tên tự nhập chỉ dùng để theo dõi kho.</Text>
 
     <View style={styles.pantrySummary}>
       <View style={styles.pantrySummaryTop}><View><Text style={styles.pantrySummaryTitle}>Tóm tắt kho</Text><Text style={styles.pantrySummaryCopy}>{pantryItems.length}/{pantryTotal} món đã tải · {lowStockCount} món sắp hết trong phần đã tải</Text></View><View style={styles.needBadge}><Text style={styles.needBadgeText}>{lowStockCount} cần mua</Text></View></View>
@@ -348,21 +348,21 @@ export default function GroceryScreen({ savedPlanId = null, onBack }) {
     <View style={styles.sectionHeader}><Text accessibilityRole="header" style={styles.section}>Nguyên liệu trong nhà</Text><Text style={styles.sectionCount}>{pantryItems.length}/{pantryTotal}</Text></View>
     {pantryLoading ? <View style={styles.loadingRow}><ActivityIndicator color={colors.primary} /><Text style={styles.stateText}>Đang tải kho nhà…</Text></View> : !pantryItems.length ? <View style={styles.empty}><Text style={styles.small}>Kho nhà chưa có nguyên liệu đã lưu.</Text></View> : <View style={styles.pantryList}>{pantryItems.map(item => <View key={item.id} style={styles.pantryRow}>
       <View style={styles.pantryState}><Text style={styles.pantryStateText}>{item.amount <= 1 ? '!' : '✓'}</Text></View>
-      <View style={styles.pantryCopy}><Text style={styles.pantryName}>{item.name}</Text><Text style={styles.pantryHint}>{item.source?.id === 'USER-ENTERED' ? 'Tự nhập · không dùng trong tính toán dinh dưỡng' : `USDA FDC #${item.source?.recordId || item.foodId.replace('fdc:', '')} · Đã lưu trong tài khoản`}</Text></View>
+      <View style={styles.pantryCopy}><Text style={styles.pantryName}>{item.name}</Text><Text style={styles.pantryHint}>{item.source?.id === 'USER-ENTERED' ? 'Tự nhập · không dùng trong tính toán dinh dưỡng' : `${item.source?.label || item.source?.id || 'Snapshot nguồn'} · ${item.source?.recordId || item.foodId} · Đã lưu trong tài khoản`}</Text></View>
       <View style={styles.amountControls}><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Giảm ${item.name}`} disabled={pendingItemId === item.id} style={styles.amountButton} onPress={() => changePantryAmount(item, item.unit === 'g' ? -100 : -1)}><Text style={styles.amountButtonText}>−</Text></TouchableOpacity><Text accessibilityLabel={`${item.name}, ${item.amount} ${item.unit}`} style={styles.amountValue}>{item.amount} {item.unit}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel={`Tăng ${item.name}`} disabled={pendingItemId === item.id} style={styles.amountButton} onPress={() => changePantryAmount(item, item.unit === 'g' ? 100 : 1)}><Text style={styles.amountButtonText}>＋</Text></TouchableOpacity></View>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Xóa ${item.name} khỏi kho`} style={styles.smallButton} disabled={pendingItemId === item.id} onPress={() => Alert.alert('Xóa nguyên liệu?', `Xóa ${item.name} khỏi kho nhà?`, [{ text: 'Hủy', style: 'cancel' }, { text: 'Xóa', style: 'destructive', onPress: () => removePantryItem(item) }])}><Text style={styles.deleteText}>×</Text></TouchableOpacity>
     </View>)}</View>}
     {pantryOffset < pantryTotal && <TouchableOpacity accessibilityRole="button" style={styles.secondary} disabled={pantryPageLoading} onPress={loadMorePantry}>{pantryPageLoading ? <ActivityIndicator color="white" /> : <Text style={styles.secondaryText}>Tải thêm nguyên liệu ({pantryOffset}/{pantryTotal})</Text>}</TouchableOpacity>}
     {addingPantryItem && <View>
-      <View style={styles.addPantryRow}><TextInput accessibilityLabel="Tìm nguyên liệu hoặc nhập tên tự do" value={pantryDraft} onChangeText={value => { setPantryDraft(value); setPantryResults([]); }} placeholder="Tìm USDA hoặc nhập tên tự do…" style={styles.pantryInput} returnKeyType="search" maxLength={100} /><TouchableOpacity accessibilityRole="button" style={styles.addPantryButton} disabled={pantrySearchLoading} onPress={searchPantryFood}>{pantrySearchLoading ? <ActivityIndicator color="white" /> : <Text style={styles.addPantryButtonText}>Tìm USDA</Text>}</TouchableOpacity></View>
+      <View style={styles.addPantryRow}><TextInput accessibilityLabel="Tìm nguyên liệu hoặc nhập tên tự do" value={pantryDraft} onChangeText={value => { setPantryDraft(value); setPantryResults([]); }} placeholder="Tra cứu chờ cấp quyền · hoặc nhập tên tự do" style={styles.pantryInput} returnKeyType="search" maxLength={100} /><TouchableOpacity accessibilityRole="button" style={styles.addPantryButton} disabled={pantrySearchLoading} onPress={searchPantryFood}>{pantrySearchLoading ? <ActivityIndicator color="white" /> : <Text style={styles.addPantryButtonText}>Tra cứu</Text>}</TouchableOpacity></View>
       <View style={styles.addPantryRow}><TextInput accessibilityLabel="Số lượng trong kho (g)" value={pantryAmount} onChangeText={setPantryAmount} keyboardType="decimal-pad" placeholder="Số gram" style={styles.pantryInput} /><Text style={styles.small}>g</Text></View>
       <TouchableOpacity accessibilityRole="button" style={styles.smallButton} disabled={!!pendingItemId || !pantryDraft.trim()} onPress={addCustomPantryItem}><Text style={styles.actionText}>Thêm tên tự nhập vào kho</Text></TouchableOpacity>
       <Text style={styles.pantryHint}>Nguyên liệu tự nhập chỉ để theo dõi kho; không được dùng để tính dinh dưỡng.</Text>
-      {pantryResults.map(food => <View key={food.id} style={styles.searchResult}><View><Text style={styles.pantryName}>{food.name}</Text><Text style={styles.pantryHint}>USDA FDC #{food.source?.recordId}</Text></View><View style={styles.actions}><TouchableOpacity accessibilityRole="button" style={styles.smallButton} disabled={!!pendingItemId} onPress={() => addPantryItem(food)}><Text style={styles.actionText}>Thêm vào kho</Text></TouchableOpacity>{list && <TouchableOpacity accessibilityRole="button" style={styles.smallButton} disabled={!!pendingItemId} onPress={() => addShoppingItem(food)}><Text style={styles.actionText}>Thêm vào danh sách</Text></TouchableOpacity>}</View></View>)}
+      {pantryResults.map(food => <View key={food.id} style={styles.searchResult}><View><Text style={styles.pantryName}>{food.name}</Text><Text style={styles.pantryHint}>{food.source?.label || food.source?.id} #{food.source?.recordId}</Text></View><View style={styles.actions}><TouchableOpacity accessibilityRole="button" style={styles.smallButton} disabled={!!pendingItemId} onPress={() => addPantryItem(food)}><Text style={styles.actionText}>Thêm vào kho</Text></TouchableOpacity>{list && <TouchableOpacity accessibilityRole="button" style={styles.smallButton} disabled={!!pendingItemId} onPress={() => addShoppingItem(food)}><Text style={styles.actionText}>Thêm vào danh sách</Text></TouchableOpacity>}</View></View>)}
     </View>}
     {!!pantryError && <Text accessibilityRole="alert" style={styles.error}>{pantryError}</Text>}
     {!!pantryRetry && <TouchableOpacity accessibilityRole="button" style={styles.secondary} onPress={pantryRetry}><Text style={styles.secondaryText}>Thử lưu kho lại</Text></TouchableOpacity>}
-    <View style={styles.actions}><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => { setAddingPantryItem(value => !value); setPantryError(''); }}><Text style={styles.actionText}>{addingPantryItem ? 'Đóng tìm kiếm' : 'Thêm từ USDA'}</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => setLoadVersion(value => value + 1)}><Text style={styles.actionText}>Đồng bộ</Text></TouchableOpacity></View>
+    <View style={styles.actions}><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => { setAddingPantryItem(value => !value); setPantryError(''); }}><Text style={styles.actionText}>{addingPantryItem ? 'Đóng tìm kiếm' : 'Thêm nguyên liệu'}</Text></TouchableOpacity><TouchableOpacity accessibilityRole="button" style={styles.smallButton} onPress={() => setLoadVersion(value => value + 1)}><Text style={styles.actionText}>Đồng bộ</Text></TouchableOpacity></View>
 
     <Text style={styles.disclaimer}>Giá trị dinh dưỡng trong thực đơn chỉ là ước tính, không phải tư vấn y tế.</Text>
 

@@ -29,8 +29,8 @@ test('exposes the existing API methods with their original v1 paths and payloads
   const plan = { servings: 2, allergies: ['peanut'] };
   const foods = await api.getFoods('rau muống');
   await api.searchSourcedFoods('beans', { page: 2 });
-  await api.getSourcedFood('fdc:12345');
-  await api.calculateSourcedNutrition([{ foodId: 'fdc:12345', grams: 100 }]);
+  await api.getSourcedFood('synthetic-test-source:12345');
+  await api.calculateSourcedNutrition([{ foodId: 'synthetic-test-source:12345', grams: 100 }]);
   await api.calculateNutrition([{ foodId: 'food-1', grams: 150 }]);
   await api.generateMealPlan(plan);
   await api.getCurrentUser();
@@ -48,8 +48,8 @@ test('exposes the existing API methods with their original v1 paths and payloads
   assert.deepEqual(calls, [
     { path: '/api/v1/foods?q=rau%20mu%E1%BB%91ng', options: undefined },
     { path: '/api/v1/foods/search?q=beans&page=2', options: { signal: undefined } },
-    { path: '/api/v1/foods/fdc/12345', options: { signal: undefined } },
-    { path: '/api/v1/nutrition/calculate-sourced', options: { method: 'POST', signal: undefined, body: JSON.stringify({ items: [{ foodId: 'fdc:12345', grams: 100 }] }) } },
+    { path: '/api/v1/foods/synthetic-test-source/12345', options: { signal: undefined } },
+    { path: '/api/v1/nutrition/calculate-sourced', options: { method: 'POST', signal: undefined, body: JSON.stringify({ items: [{ foodId: 'synthetic-test-source:12345', grams: 100 }] }) } },
     { path: '/api/v1/nutrition/calculate', options: { method: 'POST', body: '{"items":[{"foodId":"food-1","grams":150}]}' } },
     { path: '/api/v1/meal-plans/generate', options: { method: 'POST', body: JSON.stringify(plan) } },
     { path: '/api/v1/me', options: { authenticated: true } },
@@ -68,7 +68,7 @@ test('exposes the existing API methods with their original v1 paths and payloads
 test('account diary and report methods require bearer authentication without demo namespaces', async () => {
   const calls = [];
   const api = createApiMethods({ async request(path, options) { calls.push({ path, options }); return null; } });
-  const entry = { foodId: 'fdc:12345', portion: { amount: 120, unit: 'g' }, mealType: 'LUNCH' };
+  const entry = { foodId: 'synthetic-test-source:12345', portion: { amount: 120, unit: 'g' }, mealType: 'LUNCH' };
   await api.createMyMealEntry(entry, 'diary-intent-0001');
   await api.getMyMealEntries({ date: '2026-11-24', timeZone: 'Asia/Saigon', limit: 25, offset: 50 });
   await api.getMyMealEntry('entry/one');
@@ -285,7 +285,7 @@ test('account pantry and shopping-list methods use authenticated /me routes with
   await api.getMyShoppingList();
   await api.createMyShoppingList('82b4fefe-81fd-44f1-8be0-905e33f10b16', 'grocery-intent-1');
   await api.getMyPantry();
-  await api.createMyPantryItem({ foodId: 'fdc:12345', amount: 100, unit: 'g' });
+  await api.createMyPantryItem({ foodId: 'synthetic-test-source:12345', amount: 100, unit: 'g' });
   assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
     '/api/v1/me/grocery/shopping-list',
     '/api/v1/me/grocery/shopping-list',

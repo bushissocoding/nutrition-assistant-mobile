@@ -1,5 +1,6 @@
 const { calculateFood } = require('./nutrition');
 const { createDateFormatter, localDateKey, normalizeConsumedAt } = require('./meal-entries');
+const { parseFoodId } = require('./food-source');
 
 const NUTRIENT_KEYS = ['energyKcal', 'proteinG', 'carbohydrateG', 'fatG', 'fiberG', 'sodiumMg'];
 const MEAL_TYPES = new Set(['BREAKFAST', 'LUNCH', 'DINNER', 'SNACK']);
@@ -25,8 +26,8 @@ function normalizeAccountMealEntryInput(input) {
   if (['foodId', 'portion', 'mealType', 'consumedAt', 'timeZone'].some(key => !(key in input))) {
     throw new AccountMealEntryValidationError('Thiếu thông tin bắt buộc của bản ghi bữa ăn.');
   }
-  if (typeof input.foodId !== 'string' || !/^fdc:\d{1,12}$/.test(input.foodId)) {
-    throw new AccountMealEntryValidationError('foodId phải là mã thực phẩm USDA hợp lệ.');
+  if (!parseFoodId(input.foodId)) {
+    throw new AccountMealEntryValidationError('foodId phải là mã thực phẩm có nguồn hợp lệ.');
   }
   if (!isRecord(input.portion) || Object.keys(input.portion).some(key => !['amount', 'unit'].includes(key))
     || !Number.isFinite(input.portion.amount) || input.portion.amount <= 0 || input.portion.amount > 5000 || input.portion.unit !== 'g') {
@@ -61,8 +62,9 @@ function normalizeAccountMealEntryInput(input) {
 }
 
 function entryFromFood(input, food, id, createdAt, previous = {}) {
-  if (!food || food.id !== input.foodId || typeof food.catalogVersion !== 'string' || !food.catalogVersion.startsWith('USDA-FDC-')
-    || !food.nutrition?.values || !food.source?.recordId) {
+  if (!food || food.id !== input.foodId || typeof food.catalogVersion !== 'string' || !food.catalogVersion.trim()
+    || !food.nutrition?.values || typeof food.source?.id !== 'string' || !food.source.id.trim()
+    || !food.source.recordId || !food.source.edition) {
     throw new AccountMealEntryValidationError('Không có bản ghi dinh dưỡng có nguồn khớp với foodId.');
   }
   return {

@@ -18,7 +18,7 @@ app/
         ├── home/                   # Home shortcuts, selected-date diary, and daily summary
         ├── meal-planning/           # Preferences, plan generation and results
         ├── grocery/                 # Account-owned pantry and saved-plan shopping list
-        ├── diary/                   # USDA-sourced account diary, edits, local-date history and totals
+        ├── diary/                   # Account diary snapshots, edits, local-date history and totals
         ├── dashboard/               # Account API report and daily nutrient progress
         ├── profile/                 # Account profile, consent and lifecycle screens
         ├── chat/                    # Account-backed non-clinical assistant and appointment messages
@@ -47,7 +47,7 @@ server/
 │   │   ├── security-headers.js      # API security response headers
 │   │   └── supabase-auth.js         # Provider-verified principal and user DB client
 │   ├── routes/api.js                # API composition and existing route mapping
-│   ├── routes/sourced-foods.js      # USDA search/detail and server nutrient calculation
+│   ├── routes/sourced-foods.js      # Authorized-source lookup and server nutrient calculation (currently pending)
 │   ├── routes/meal-plans.js        # Consent-gated, account-owned plan snapshots
 │   ├── routes/meal-entries.js       # Namespaced demo diary CRUD
 │   ├── routes/shopping-lists.js     # Grocery CRUD and boundary validation
@@ -69,8 +69,8 @@ server/
 │       │   ├── user-client.js       # Request-scoped publishable client with caller JWT
 │       │   └── privileged-client.js # Separate server-secret client for internal operations
 │       ├── nutrition.js             # Deterministic nutrient calculations
-│       ├── fdc-food-source.js       # Server-only FoodData Central adapter and normalization
-│       ├── sourced-meal-plans.js    # Exact FDC ingredient mapping and profile constraints
+│       ├── food-source.js           # Pending Institute source contract and unavailable response
+│       ├── sourced-meal-plans.js    # Exact registered-source ingredient mapping and profile constraints
 │       ├── food-catalog.js          # Catalog schema, source-rights checks and diff report
 │       ├── meal-entries.js          # Diary schema and timezone/date rules
 │       ├── shopping-lists.js        # Grocery schema and item patch rules
@@ -88,7 +88,7 @@ Startup configuration is read and validated before opening the listener. `npm ru
 ## Current mobile-to-API contract
 
 - `GET /api/v1/foods?q=...` — search the demonstration food catalog; response includes additive catalog version, source, unit and limitation metadata. The existing `/api/v1` food and nutrition fields remain available.
-- `GET /api/v1/foods/search?q=...&page=1`, `GET /api/v1/foods/fdc/:fdcId`, `POST /api/v1/nutrition/calculate-sourced` — server-side FDC search/detail and nutrient calculation with source record/version and missing-value metadata. They return unavailable when the provider key/data is unavailable; they do not fall back to the demo catalog.
+- `GET /api/v1/foods/search?q=...&page=1`, `GET /api/v1/foods/vietnam-nin/:recordId`, `POST /api/v1/nutrition/calculate-sourced` — server-side source lookup and nutrient calculation with record/version and missing-value metadata. These routes currently return unavailable while redistribution permission for the Institute dataset remains unconfirmed; they do not fall back to the demo catalog.
 - `POST /api/v1/nutrition/calculate` — deterministic nutrients for `{ items: [{ foodId, grams }] }`.
 - `POST /api/v1/meal-plans/generate` — versioned deterministic meal result with per-food source/version provenance. Responses distinguish feasible, infeasible and unavailable results; allergies and `hardLimits` stay strict, while missed `targets` produce warnings. A supplied budget is evaluated only when recipe prices have registered source/version metadata; otherwise the response is unavailable and contains no plan.
 - `/api/v1/meal-entries` — demo-only diary CRUD, date filtering by IANA timezone, backend-calculated nutrients and idempotent create. The caller-provided demo namespace is not authentication or account ownership.
@@ -97,8 +97,8 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `GET/PUT /api/v1/me/consent` — reads the latest account receipt or appends explicit choices with a database timestamp.
 - `GET/PUT/DELETE /api/v1/me/profile` — reads, validates, saves or deletes the caller's own health profile after current required consent.
 - `GET /api/v1/me/export` and `DELETE /api/v1/me` — export current identity, profile, consent, meal plans, diary, pantry and shopping lists; account deletion cascades owned rows before privileged Auth deletion.
-- `POST/GET /api/v1/me/meal-plans` — create feasible snapshots from exact live FDC records and list owner-scoped history; allergies/hard limits come from the consented account profile. The migration enables owner RLS and per-account idempotency.
-- `/api/v1/me/meal-entries` and `/api/v1/me/nutrition-report` — authenticated diary CRUD and local-timezone daily summaries from server-resolved USDA snapshots.
+- `POST/GET /api/v1/me/meal-plans` — create feasible snapshots from exact authorized source records and list owner-scoped history. Creation remains unavailable while the catalog is pending; allergies/hard limits come from the consented account profile. The migration enables owner RLS and per-account idempotency.
+- `/api/v1/me/meal-entries` and `/api/v1/me/nutrition-report` — authenticated diary CRUD and local-timezone daily summaries from server-resolved snapshots, preserving the source/version originally saved with each entry.
 - `/api/v1/me/grocery/shopping-list` and `/api/v1/me/grocery/pantry` — account-owned list generation from a saved plan, sourced item creation, quantity/purchased editing and pantry CRUD.
 - `GET/PUT /api/v1/me/personalization` — owner-scoped meal preferences, reminder choice and target-display choice; the planner treats preferences as soft ranking hints.
 - `/api/v1/me/care` — consent-gated verified-provider directory/availability, provider application/workspace, transactional appointment holds, patient/provider lists and lifecycle actions. Booking information is shared with the selected provider only after explicit consent.
@@ -108,7 +108,7 @@ Startup configuration is read and validated before opening the listener. `npm ru
 - `/api/v1/me/notifications` — paginated account event inbox, read/read-all, notification preferences and Expo token register/unregister. `npm run push:worker` runs durable outbox delivery separately from the API.
 - `GET /health` — process liveness only; does not prove database or provider health.
 
-Auth sessions use a chunked, failure-safe SecureStore adapter. Consent, profile, meal plans, diary/report, grocery, care, chat, health records, notification state and nutrition preferences use verified bearer identity, request-scoped Supabase RLS and owner/role filters. Export covers the registered account modules; account deletion removes private record objects before Auth deletion and cascades the owned rows. Appointment reservations are transactional and expire after 20 minutes. PayOS checkout uses hosted pages and server-side signed webhooks; merchant credentials and callback URLs are external. FDC lookup requires a server-only `FDC_API_KEY` and exact source matches. The Expo Push worker runs separately using Supabase service credentials and an optional Expo access token. Local RLS integration and physical-device OCR have not been run. Do not enter real health information until database, privacy, security and qualified reviews are complete. The catalog is not the Vietnam National Institute of Nutrition database and the planner is not a clinical recommendation engine.
+Auth sessions use a chunked, failure-safe SecureStore adapter. Consent, profile, meal plans, diary/report, grocery, care, chat, health records, notification state and nutrition preferences use verified bearer identity, request-scoped Supabase RLS and owner/role filters. Export covers the registered account modules; account deletion removes private record objects before Auth deletion and cascades the owned rows. Appointment reservations are transactional and expire after 20 minutes. PayOS checkout uses hosted pages and server-side signed webhooks; merchant credentials and callback URLs are external. The preferred nutrition source is the Vietnamese food-composition table published by the National Institute of Nutrition. The active catalog is empty until redistribution permission and qualified review are confirmed, so source lookup and plan generation remain unavailable. The Expo Push worker runs separately using Supabase service credentials and an optional Expo access token. Local RLS integration and physical-device OCR have not been run. Do not enter real health information until database, privacy, security and qualified reviews are complete. The planner is not a clinical recommendation engine.
 
 ## Release gates
 

@@ -38,12 +38,12 @@ test('account meal-plan create scopes owner and replays same normalized intent',
   const db = fakeDatabase();
   const repo = createMealPlanRepository();
   const input = { preferences: 'rice', contractVersion: 1 };
-  const created = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, plan: { status: 'feasible' }, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1' });
-  const replay = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input: { contractVersion: 1, preferences: 'rice' }, plan: { status: 'new' }, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1' });
+  const created = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, plan: { status: 'feasible' }, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'synthetic-test-v1' });
+  const replay = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input: { contractVersion: 1, preferences: 'rice' }, plan: { status: 'new' }, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'synthetic-test-v1' });
   assert.equal(created.record.id, replay.record.id);
   assert.equal(replay.record.plan.status, 'feasible');
   assert.equal(replay.replayed, true);
-  const earlyReplay = await repo.replay({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1' });
+  const earlyReplay = await repo.replay({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, profileUpdatedAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'synthetic-test-v1' });
   assert.equal(earlyReplay.record.id, created.record.id);
   assert.equal(earlyReplay.replayed, true);
   assert.equal(db.rows[0].user_id, 'synthetic-user-a');
@@ -53,16 +53,35 @@ test('account meal-plan create scopes owner and replays same normalized intent',
 test('same account cannot reuse an idempotency key for changed profile intent', async () => {
   const db = fakeDatabase();
   const repo = createMealPlanRepository();
-  const base = { db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input: { preferences: '' }, plan: {}, catalogVersion: 'USDA-FDC-live-v1' };
+  const base = { db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input: { preferences: '' }, plan: {}, catalogVersion: 'synthetic-test-v1' };
   await repo.create({ ...base, profileUpdatedAt: 'before' });
   await assert.rejects(repo.replay({ db, userId: base.userId, requestKey: base.requestKey, input: base.input, profileUpdatedAt: 'after', catalogVersion: base.catalogVersion }), error => error.code === 'IDEMPOTENCY_CONFLICT' && error.status === 409);
   await assert.rejects(repo.create({ ...base, profileUpdatedAt: 'after' }), error => error.code === 'IDEMPOTENCY_CONFLICT' && error.status === 409);
 });
 
+test('replays the saved plan after the active catalog version changes without changing its source snapshot', async () => {
+  const db = fakeDatabase();
+  const repo = createMealPlanRepository();
+  const input = { contractVersion: 1, preferences: 'rice' };
+  const created = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, plan: { status: 'feasible', metadata: { source: 'historical' } }, profileUpdatedAt: 'profile-v1', catalogVersion: 'legacy-snapshot-v1' });
+
+  const replay = await repo.replay({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, profileUpdatedAt: 'profile-v1', catalogVersion: 'vietnam-nin-pending-v1' });
+
+  assert.equal(replay.record.id, created.record.id);
+  assert.equal(replay.record.catalogVersion, 'legacy-snapshot-v1');
+  assert.equal(replay.record.plan.metadata.source, 'historical');
+  assert.equal(replay.replayed, true);
+
+  const createRetry = await repo.create({ db, userId: 'synthetic-user-a', requestKey: 'plan-intent-0001', input, plan: { status: 'unavailable' }, profileUpdatedAt: 'profile-v1', catalogVersion: 'vietnam-nin-pending-v1' });
+  assert.equal(createRetry.record.id, created.record.id);
+  assert.equal(createRetry.record.plan.status, 'feasible');
+  assert.equal(createRetry.replayed, true);
+});
+
 test('plan history is paginated and only returns the requested account rows', async () => {
   const db = fakeDatabase();
   const repo = createMealPlanRepository();
-  for (const userId of ['synthetic-user-a', 'synthetic-user-b']) await repo.create({ db, userId, requestKey: `plan-intent-${userId}`, input: {}, plan: { owner: userId }, catalogVersion: 'USDA-FDC-live-v1' });
+  for (const userId of ['synthetic-user-a', 'synthetic-user-b']) await repo.create({ db, userId, requestKey: `plan-intent-${userId}`, input: {}, plan: { owner: userId }, catalogVersion: 'synthetic-test-v1' });
   const result = await repo.list({ db, userId: 'synthetic-user-a', limit: 1, offset: 0 });
   assert.equal(result.total, 1);
   assert.equal(result.items.length, 1);

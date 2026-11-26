@@ -207,7 +207,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     try {
       const result = await api.searchSourcedFoods(query.trim());
       setFoods(Array.isArray(result?.items) ? result.items : []);
-      setCatalogInfo(result?.catalogVersion ? { version: result.catalogVersion, status: 'live', notice: 'Kết quả được lấy trực tiếp từ USDA FoodData Central.', limitations: [] } : null);
+      setCatalogInfo(result?.catalogVersion ? { version: result.catalogVersion, status: 'live', notice: 'Kết quả từ nguồn dữ liệu đã đăng ký.', limitations: [] } : null);
     } catch (error) {
       setSearchError(error?.message || 'Không tìm được thực phẩm. Hãy kiểm tra kết nối rồi thử lại.');
     } finally {

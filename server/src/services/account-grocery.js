@@ -1,4 +1,5 @@
-const FOOD_ID_PATTERN = /^fdc:\d{1,12}$/;
+const { FOOD_ID_PATTERN, parseFoodId } = require('./food-source');
+
 const CUSTOM_NAME_MAX_LENGTH = 100;
 const UNITS = new Set(['g', 'kg', 'ml', 'l', 'piece', 'bunch', 'pack']);
 const MAX_AMOUNT = 1_000_000;
@@ -37,7 +38,7 @@ function normalizePantryMutation(input) {
   }
   if (Object.keys(input).some(key => !['foodId', 'amount', 'unit'].includes(key))
     || typeof input.foodId !== 'string' || !FOOD_ID_PATTERN.test(input.foodId)) {
-    throw new AccountGroceryValidationError('Kho nhận thực phẩm USDA đã chọn hoặc tên tự nhập cùng số lượng; nguồn và chủ sở hữu do máy chủ xác định.');
+    throw new AccountGroceryValidationError('Chọn thực phẩm có mã nguồn hợp lệ hoặc nhập tên cùng số lượng; nguồn và chủ sở hữu do máy chủ xác định.');
   }
   return { foodId: input.foodId, ...normalizeGroceryAmount({ amount: input.amount, unit: input.unit }) };
 }
@@ -79,10 +80,11 @@ function combineSavedPlanPortions(savedResult) {
     if (!Array.isArray(meal?.portions)) throw new AccountGroceryValidationError('Snapshot thực đơn không có thành phần hợp lệ.', 'PLAN_INVALID', 422);
     for (const portion of meal.portions) {
       const provenance = portion?.provenance;
-      if (typeof portion?.foodId !== 'string' || !FOOD_ID_PATTERN.test(portion.foodId)
+      if (!parseFoodId(portion?.foodId)
         || typeof portion.food !== 'string' || !portion.food.trim() || portion.food.length > 500
         || !Number.isFinite(portion.grams) || portion.grams <= 0 || portion.grams > 5000
-        || provenance?.sourceId !== 'USDA-FDC' || typeof provenance.sourceRecordId !== 'string'
+        || typeof provenance?.sourceId !== 'string' || !/^[A-Za-z][A-Za-z0-9._-]{0,63}$/.test(provenance.sourceId)
+        || typeof provenance.sourceRecordId !== 'string'
         || typeof provenance.edition !== 'string' || typeof provenance.catalogVersion !== 'string') {
         throw new AccountGroceryValidationError('Snapshot có thành phần thiếu nguồn hoặc số lượng.', 'PLAN_INVALID', 422);
       }

@@ -27,7 +27,7 @@ test('grocery endpoints derive lists from owned saved plans and pass only the re
   await withServer(createAccountGroceryRouter({ repository, foodSource: { getFood() {} }, requireCurrentConsent: consent }), async base => {
     const get = await fetch(`${base}/shopping-list`);
     assert.deepEqual(await get.json(), { list });
-    const invalid = await fetch(`${base}/shopping-list`, { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': 'grocery-intent-1' }, body: JSON.stringify({ savedPlanId, items: [{ foodId: 'fdc:1' }] }) });
+    const invalid = await fetch(`${base}/shopping-list`, { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': 'grocery-intent-1' }, body: JSON.stringify({ savedPlanId, items: [{ foodId: 'synthetic-test-source:1' }] }) });
     assert.equal(invalid.status, 400);
     assert.equal(calls.some(([name]) => name === 'create'), false);
     const created = await fetch(`${base}/shopping-list`, { method: 'POST', headers: { 'content-type': 'application/json', 'Idempotency-Key': 'grocery-intent-1' }, body: JSON.stringify({ savedPlanId }) });
@@ -38,11 +38,11 @@ test('grocery endpoints derive lists from owned saved plans and pass only the re
   assert.deepEqual(calls[1], ['create', { db: { scoped: true }, userId: user.id, savedPlanId, requestKey: 'grocery-intent-1' }]);
 });
 
-test('pantry writes use a verified USDA detail record instead of client supplied names or sources', async () => {
+test('pantry writes use a verified nguồn thử nghiệm detail record instead of client supplied names or sources', async () => {
   let createCall;
   let shoppingCall;
   let providerCalls = 0;
-  const food = { id: 'fdc:12345', name: 'Oats', source: { id: 'USDA-FDC', recordId: '12345', edition: '2025-04-01' }, catalogVersion: 'USDA-FDC-live-v1' };
+  const food = { id: 'synthetic-test-source:12345', name: 'Oats', source: { id: 'synthetic-test-source', recordId: '12345', edition: '2025-04-01' }, catalogVersion: 'synthetic-test-v1' };
   const repository = {
     async createPantryItem(input) { createCall = input; return { replayed: false, item: { id: 'pantry-1', foodId: input.item.foodId, name: input.item.name, amount: input.item.amount, unit: input.item.unit, source: input.item.source, catalogVersion: input.item.catalogVersion } }; },
     async addShoppingItem(input) { shoppingCall = input; return { id: 'item-1', foodId: input.item.foodId, name: input.item.name, amount: input.item.amount, unit: input.item.unit, purchased: false, source: input.item.source, catalogVersion: input.item.catalogVersion }; },
@@ -60,8 +60,8 @@ test('pantry writes use a verified USDA detail record instead of client supplied
   });
   assert.equal(providerCalls, 2);
   assert.equal(createCall.userId, user.id);
-  assert.deepEqual(createCall.item.source, { id: 'USDA-FDC', recordId: '12345', edition: '2025-04-01' });
-  assert.equal(createCall.item.catalogVersion, 'USDA-FDC-live-v1');
+  assert.deepEqual(createCall.item.source, { id: 'synthetic-test-source', recordId: '12345', edition: '2025-04-01' });
+  assert.equal(createCall.item.catalogVersion, 'synthetic-test-v1');
   assert.equal(shoppingCall.userId, user.id);
   assert.equal(shoppingCall.item.amount, 250);
   assert.deepEqual(shoppingCall.item.source, createCall.item.source);
@@ -105,7 +105,7 @@ test('shopping mutations constrain owner and parent identifiers and allow only s
 
 test('pantry pages are bounded, report total rows and preserve account filters for detail reads', async () => {
   const calls = [];
-  const item = { id: '82b4fefe-81fd-44f1-8be0-905e33f10b16', foodId: 'fdc:12345', name: 'Oats', amount: 100, unit: 'g' };
+  const item = { id: '82b4fefe-81fd-44f1-8be0-905e33f10b16', foodId: 'synthetic-test-source:12345', name: 'Oats', amount: 100, unit: 'g' };
   const repository = {
     async listPantry(input) { calls.push(['list', input]); return { items: [item], total: 101, limit: input.limit, offset: input.offset }; },
     async getPantryItem(input) { calls.push(['get', input]); return item; },
@@ -117,11 +117,11 @@ test('pantry pages are bounded, report total rows and preserve account filters f
     const invalid = await fetch(`${base}/pantry?limit=1001`);
     assert.equal(invalid.status, 400);
     assert.equal((await (await fetch(`${base}/pantry/${item.id}`)).json()).item.id, item.id);
-    assert.equal((await (await fetch(`${base}/pantry/food/fdc%3A12345`)).json()).item.id, item.id);
+    assert.equal((await (await fetch(`${base}/pantry/food/synthetic-test-source%3A12345`)).json()).item.id, item.id);
   });
   assert.deepEqual(calls, [
     ['list', { db: { scoped: true }, userId: user.id, limit: 100, offset: 100 }],
     ['get', { db: { scoped: true }, userId: user.id, itemId: item.id }],
-    ['food', { db: { scoped: true }, userId: user.id, foodId: 'fdc:12345' }],
+    ['food', { db: { scoped: true }, userId: user.id, foodId: 'synthetic-test-source:12345' }],
   ]);
 });

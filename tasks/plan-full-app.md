@@ -11,7 +11,7 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 - Use Supabase Auth/Postgres/Storage with request-scoped user JWTs, explicit owner filters, and RLS; privileged service-role operations use a separate internal seam.
 - Keep Express as the private-record API and preserve the current public nutrition contract. Legacy demo namespaces remain local-only.
 - Integrate PayOS hosted checkout with signed/idempotent webhooks; do not collect or store card credentials.
-- Integrate Expo Push, OpenAI Responses with `store: false`, on-device OCR, and FoodData Central behind server/device adapters. Fail clearly when configuration is unavailable.
+- Integrate Expo Push, OpenAI Responses with `store: false`, and on-device OCR behind server/device adapters. Keep food lookup unavailable until the NIN dataset's redistribution permission and qualified review are complete.
 - Build a role-gated provider mode within the Expo app for schedule, appointment and chat operations.
 - Follow module specs recursively: finish each module's spec, plan/task acceptance, implementation and review before expanding to the next independent module.
 
@@ -42,7 +42,7 @@ Build account-secured end-to-end patient and provider workflows in dependency or
 ### Phase 3: Nutrition and personal tracking
 
 - [x] Task 3.0: Specify, plan, and task `nutrition-catalog-planning` before implementation
-- [x] Task 3.1: FoodData Central adapter, source metadata and attribution UI/API
+- [x] Task 3.1: Source-aware food API and metadata (the active third-party adapter is now retired pending NIN redistribution permission)
 - [x] Task 3.2: Owner-scoped, idempotent meal-plan snapshots with profile-derived hard-limit rules; report depends on account-owned diary below
 - [x] Task 3.3: Specify, plan, and task `diary-grocery-analytics` before implementation
 - [x] Task 3.4: Authenticated diary CRUD, local timezone summaries and meal statistics
@@ -109,4 +109,4 @@ Delta spec: [`SPEC-delta-authenticated-api-e2e-v1.md`](../spec/SPEC-delta-authen
 
 ## External Release Gates
 
-Supabase and secret provisioning; PayOS merchant verification; SMS/custom SMTP and Expo push credentials; OpenAI account/policy review; FoodData Central key and any dataset permission; verified provider roster/staffing; qualified privacy/security/nutrition/clinical review; deployment domain, support owner and backup/restore operator. These gates do not block code work but must block real-data or production claims until proven.
+Supabase and secret provisioning; PayOS merchant verification; SMS/custom SMTP and Expo push credentials; OpenAI account/policy review; written NIN dataset redistribution permission; verified provider roster/staffing; qualified privacy/security/nutrition/clinical review; deployment domain, support owner and backup/restore operator. These gates do not block code work but must block real-data or production claims until proven.

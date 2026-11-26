@@ -15,9 +15,9 @@ const {
 const { createCurrentConsentMiddleware } = require('../middleware/current-consent');
 const { validIdempotencyKey } = require('../repositories/meal-plan-repository');
 const { sendFoodSourceError } = require('./sourced-foods');
-const { FoodSourceError } = require('../services/fdc-food-source');
+const { FoodSourceError, parseFoodId } = require('../services/food-source');
 
-const DISCLAIMER = 'Giá trị dinh dưỡng được tính từ dữ liệu USDA đã lưu tại thời điểm ghi nhận; đây không phải tư vấn y tế.';
+const DISCLAIMER = 'Giá trị dinh dưỡng là ước tính tham khảo từ nguồn thực phẩm đã lưu tại thời điểm ghi nhận; đây không phải tư vấn y tế.';
 const MAX_DAILY_ROWS = 500;
 const MAX_REPORT_DAYS = 31;
 const MAX_REPORT_ROWS = 2000;
@@ -67,11 +67,15 @@ function asyncRoute(handler) {
   return (req, res) => Promise.resolve(handler(req, res)).catch(error => sendAccountDiaryError(req, res, error));
 }
 
-async function resolveFood(foodSource, fdcId) {
+async function resolveFood(foodSource, foodId) {
   if (!foodSource || typeof foodSource.getFood !== 'function') {
-    throw new FoodSourceError('FOOD_SOURCE_UNAVAILABLE', 'Nguồn thực phẩm USDA chưa được cấu hình.');
+    throw new FoodSourceError('FOOD_SOURCE_UNAVAILABLE');
   }
-  return foodSource.getFood(fdcId);
+  const parsed = parseFoodId(foodId);
+  if (!parsed) throw new FoodSourceError('INVALID_FOOD_ID', 'Mã thực phẩm không hợp lệ.');
+  const food = await foodSource.getFood(parsed.recordId);
+  if (food?.id !== foodId) throw new FoodSourceError('INVALID_FOOD_ID', 'Mã thực phẩm không khớp bản ghi của nguồn đã đăng ký.');
+  return food;
 }
 
 function createAccountMealEntryRouter({ foodSource, repository = createAccountMealEntryRepository(), requireCurrentConsent = createCurrentConsentMiddleware() } = {}) {
@@ -84,7 +88,7 @@ function createAccountMealEntryRouter({ foodSource, repository = createAccountMe
     if (!validIdempotencyKey(requestKey)) return res.status(400).json({ error: 'Cần Idempotency-Key dài 8–128 ký tự ASCII.', code: 'INVALID_IDEMPOTENCY_KEY' });
     const replay = await repository.replay({ db: req.userDatabase, userId: req.auth.user.id, requestKey, input });
     if (replay) return res.json({ item: replay.item, disclaimer: DISCLAIMER });
-    const food = await resolveFood(foodSource, input.foodId.slice(4));
+    const food = await resolveFood(foodSource, input.foodId);
     const item = createAccountMealEntry(input, food, randomUUID());
     const result = await repository.create({ db: req.userDatabase, userId: req.auth.user.id, requestKey, input, item });
     return res.status(result.replayed ? 200 : 201).json({ item: result.item, disclaimer: DISCLAIMER });
@@ -116,7 +120,7 @@ function createAccountMealEntryRouter({ foodSource, repository = createAccountMe
     const current = await repository.get({ db: req.userDatabase, userId: req.auth.user.id, id: req.params.id });
     if (!current) return res.status(404).json({ error: 'Không tìm thấy bản ghi nhật ký.', code: 'MEAL_ENTRY_NOT_FOUND' });
     const input = normalizeAccountMealEntryInput(req.body);
-    const food = await resolveFood(foodSource, input.foodId.slice(4));
+    const food = await resolveFood(foodSource, input.foodId);
     const item = updateAccountMealEntry(current, input, food);
     const updated = await repository.update({ db: req.userDatabase, userId: req.auth.user.id, id: req.params.id, item });
     if (!updated) return res.status(404).json({ error: 'Không tìm thấy bản ghi nhật ký.', code: 'MEAL_ENTRY_NOT_FOUND' });

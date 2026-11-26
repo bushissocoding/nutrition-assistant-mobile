@@ -4,11 +4,11 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createDemoStore } = require('../src/repositories/demo-store');
-const { loadCatalog } = require('../src/repositories/catalog');
+const { createSyntheticPlannerFixture } = require('./helpers/synthetic-planner-data');
 const { normalizeShoppingListInput } = require('../src/services/shopping-lists');
 const { createShoppingListRepository, ShoppingListRepositoryError } = require('../src/repositories/shopping-list-repository');
 
-const { foods } = loadCatalog();
+const { foods } = createSyntheticPlannerFixture();
 const items = normalizeShoppingListInput({ items: [{ foodId: 'rice-steamed', amount: 300, unit: 'g' }] }, foods);
 
 async function repositoryFixture(t) {

@@ -13,11 +13,10 @@ const {
   normalizeShoppingItemPatch,
 } = require('../services/account-grocery');
 const { validIdempotencyKey } = require('../repositories/meal-plan-repository');
-const { FoodSourceError } = require('../services/fdc-food-source');
+const { FOOD_ID_PATTERN, FoodSourceError, parseFoodId } = require('../services/food-source');
 const { sendFoodSourceError } = require('./sourced-foods');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const FDC_ID = /^fdc:\d{1,12}$/;
 
 function parsePantryPage(query) {
   if (Object.keys(query).some(key => !['limit', 'offset'].includes(key))) throw new AccountGroceryRepositoryError('Truy vấn kho nhà không hợp lệ.', 400, 'INVALID_PAGINATION');
@@ -33,11 +32,15 @@ function parsePantryPage(query) {
   return { limit, offset };
 }
 
-async function resolveFood(foodSource, fdcId) {
+async function resolveFood(foodSource, foodId) {
   if (!foodSource || typeof foodSource.getFood !== 'function') {
-    throw new FoodSourceError('FOOD_SOURCE_UNAVAILABLE', 'Nguồn thực phẩm USDA chưa được cấu hình.');
+    throw new FoodSourceError('FOOD_SOURCE_UNAVAILABLE');
   }
-  return foodSource.getFood(fdcId);
+  const parsed = parseFoodId(foodId);
+  if (!parsed) throw new FoodSourceError('INVALID_FOOD_ID', 'Mã thực phẩm không hợp lệ.');
+  const food = await foodSource.getFood(parsed.recordId);
+  if (food?.id !== foodId) throw new FoodSourceError('INVALID_FOOD_ID', 'Mã thực phẩm không khớp bản ghi của nguồn đã đăng ký.');
+  return food;
 }
 
 function asyncRoute(handler) {
@@ -83,7 +86,7 @@ function createAccountGroceryRouter({ foodSource, repository = createAccountGroc
 
   router.post('/shopping-list/items', asyncRoute(async (req, res) => {
     const input = normalizePantryMutation(req.body);
-    const food = await resolveFood(foodSource, input.foodId.slice(4));
+    const food = await resolveFood(foodSource, input.foodId);
     const item = await repository.addShoppingItem({
       db: req.userDatabase,
       userId: req.auth.user.id,
@@ -122,7 +125,7 @@ function createAccountGroceryRouter({ foodSource, repository = createAccountGroc
   }));
 
   router.get('/pantry/food/:foodId', asyncRoute(async (req, res) => {
-    if (!FDC_ID.test(req.params.foodId)) return res.status(404).json({ error: 'Không tìm thấy nguyên liệu trong kho.', code: 'PANTRY_ITEM_NOT_FOUND' });
+    if (!FOOD_ID_PATTERN.test(req.params.foodId)) return res.status(404).json({ error: 'Không tìm thấy nguyên liệu trong kho.', code: 'PANTRY_ITEM_NOT_FOUND' });
     const item = await repository.getPantryItemByFoodId({ db: req.userDatabase, userId: req.auth.user.id, foodId: req.params.foodId });
     if (!item) return res.status(404).json({ error: 'Không tìm thấy nguyên liệu trong kho.', code: 'PANTRY_ITEM_NOT_FOUND' });
     return res.json({ item });
@@ -137,7 +140,7 @@ function createAccountGroceryRouter({ foodSource, repository = createAccountGroc
 
   router.post('/pantry', asyncRoute(async (req, res) => {
     const input = normalizePantryMutation(req.body);
-    const food = input.customName ? null : await resolveFood(foodSource, input.foodId.slice(4));
+    const food = input.customName ? null : await resolveFood(foodSource, input.foodId);
     const result = await repository.createPantryItem({
       db: req.userDatabase,
       userId: req.auth.user.id,
@@ -178,4 +181,4 @@ function createAccountGroceryRouter({ foodSource, repository = createAccountGroc
   return router;
 }
 
-module.exports = { FDC_ID, UUID, createAccountGroceryRouter, createCustomPantryFoodId, parsePantryPage, resolveFood };
+module.exports = { FOOD_ID_PATTERN, UUID, createAccountGroceryRouter, createCustomPantryFoodId, parsePantryPage, resolveFood };

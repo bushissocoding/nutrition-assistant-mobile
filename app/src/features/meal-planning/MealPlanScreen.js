@@ -243,7 +243,7 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
         if (searchRequest.current === requestId) setFoodResults(Array.isArray(data?.items) ? data.items : []);
       } catch (requestError) {
         if (requestError?.code !== 'API_REQUEST_ABORTED' && searchRequest.current === requestId) {
-          setFoodResults([]); setFoodSearchError(requestError?.message || 'Không tìm được thực phẩm từ nguồn USDA.');
+          setFoodResults([]); setFoodSearchError(requestError?.message || 'Tra cứu đang chờ dữ liệu được cấp quyền sử dụng.');
         }
       } finally {
         if (searchRequest.current === requestId) setFoodSearchLoading(false);
@@ -346,25 +346,25 @@ export default function MealPlanScreen({ profile, onOpenProfile, onOpenGrocery, 
       : !result && <PlanResult result={SAMPLE_PLAN} isSample onViewRecipe={(meal) => setSelectedMeal({ ...meal, isSamplePreview: true })} />}
     <Text style={styles.disclaimer}>Thông tin dinh dưỡng chỉ mang tính tham khảo, không thay thế tư vấn y tế.</Text>
     <View style={styles.card}>
-      <Text accessibilityRole="header" style={styles.heading}>Tra cứu USDA FoodData Central</Text>
-      <Text style={styles.helper}>Tìm bản ghi nguồn và tính lại theo khối lượng. USDA không xác nhận nhiễm chéo hoặc khả năng phù hợp cho điều trị.</Text>
-      <TextInput accessibilityLabel="Tìm thực phẩm USDA" value={foodQuery} onChangeText={setFoodQuery} placeholder="Nhập tên thực phẩm (ít nhất 2 ký tự)" style={styles.input} maxLength={100} />
-      {foodSearchLoading && <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tìm thực phẩm" /><Text style={styles.helper}>Đang tìm trong nguồn USDA…</Text></View>}
+      <Text accessibilityRole="header" style={styles.heading}>Tra cứu thành phần thực phẩm</Text>
+      <Text style={styles.helper}>Tra cứu và tính dinh dưỡng đang tạm dừng. Dữ liệu của Viện Dinh dưỡng sẽ chỉ được tích hợp sau khi xác nhận quyền sử dụng và tái phân phối.</Text>
+      <TextInput accessibilityLabel="Tìm thực phẩm" value={foodQuery} onChangeText={setFoodQuery} placeholder="Tra cứu hiện chưa khả dụng" style={styles.input} maxLength={100} editable={false} />
+      {foodSearchLoading && <View style={styles.loadingRow}><ActivityIndicator accessibilityLabel="Đang tìm thực phẩm" /><Text style={styles.helper}>Đang tra cứu nguồn dữ liệu…</Text></View>}
       {!!foodSearchError && <Text accessibilityRole="alert" style={styles.error}>{foodSearchError}</Text>}
-      {!foodSearchLoading && !foodSearchError && foodQuery.trim().length >= 2 && !foodResults.length && <Text style={styles.helper}>Không có kết quả phù hợp từ USDA FoodData Central.</Text>}
+      {!foodSearchLoading && !foodSearchError && foodQuery.trim().length >= 2 && !foodResults.length && <Text style={styles.helper}>Tra cứu sẽ mở lại khi dữ liệu được cấp quyền sử dụng.</Text>}
       {foodResults.map(food => <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Thêm ${food.name}`} key={food.id} style={styles.searchResult} onPress={() => addSourcedFood(food)}>
         <Text style={styles.heading}>{food.name}</Text>
-        <Text style={styles.provenance}>{food.dataType} · USDA FDC #{food.source?.recordId} · {food.source?.edition}</Text>
+        <Text style={styles.provenance}>{food.dataType} · {food.source?.label || food.source?.id} #{food.source?.recordId} · {food.source?.edition}</Text>
       </TouchableOpacity>)}
       <Text style={styles.label}>Thực phẩm đã chọn</Text>
       {!selectedFoods.length && <Text style={styles.helper}>Chọn một kết quả để bắt đầu tính dinh dưỡng theo khẩu phần.</Text>}
       {selectedFoods.map(({ food, grams }) => <View key={food.id} style={styles.selectedFood}>
-        <View style={styles.selectedFoodCopy}><Text style={styles.profileValue}>{food.name}</Text><Text style={styles.provenance}>USDA FDC #{food.source?.recordId} · {food.dataType}</Text></View>
+        <View style={styles.selectedFoodCopy}><Text style={styles.profileValue}>{food.name}</Text><Text style={styles.provenance}>{food.source?.label || food.source?.id} #{food.source?.recordId} · {food.dataType}</Text></View>
         <TextInput accessibilityLabel={`Khối lượng ${food.name} (g)`} value={grams} onChangeText={value => updateSourcedFood(food.id, { grams: value })} keyboardType="decimal-pad" maxLength={7} style={styles.gramsInput} />
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Bỏ ${food.name}`} onPress={() => { setSelectedFoods(current => current.filter(item => item.food.id !== food.id)); setNutritionResult(null); }}><Text style={styles.editLink}>Bỏ</Text></TouchableOpacity>
       </View>)}
       <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: nutritionLoading || !selectedFoods.length }} disabled={nutritionLoading || !selectedFoods.length} style={styles.secondary} onPress={calculateSourcedSelection}>
-        {nutritionLoading ? <ActivityIndicator color="white" /> : <Text style={styles.secondaryText}>Tính dinh dưỡng theo USDA</Text>}
+        {nutritionLoading ? <ActivityIndicator color="white" /> : <Text style={styles.secondaryText}>Tính dinh dưỡng theo nguồn dữ liệu</Text>}
       </TouchableOpacity>
       {!!nutritionError && <Text accessibilityRole="alert" style={styles.error}>{nutritionError}</Text>}
       {nutritionResult && <View accessibilityLiveRegion="polite" style={styles.sourceBox}>

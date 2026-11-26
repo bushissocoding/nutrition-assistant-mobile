@@ -119,15 +119,15 @@ test('loads the selected date from the visible week strip', async () => {
 
 test('shows catalog version, food source, units and serving limits in search results', async () => {
   api.searchSourcedFoods.mockResolvedValue({
-    catalogVersion: 'USDA-FDC-live-v1',
+    catalogVersion: 'synthetic-test-v1',
     items: [{
-      id: 'fdc:12345',
+      id: 'synthetic-test-source:12345',
       name: 'Synthetic food',
-      fdcId: '12345',
+      recordId: '12345',
       nutrition: { values: { energyKcal: { value: 10 } } },
       basis: { amount: 100, unit: 'g' },
       source: {
-        label: 'USDA FoodData Central',
+        label: 'Nguồn thử nghiệm',
         edition: '2025-04-01',
         recordId: '12345',
       },
@@ -137,15 +137,15 @@ test('shows catalog version, food source, units and serving limits in search res
 
   await openAddFood(screen);
   await pressLabel(screen, 'Tìm thực phẩm');
-  expect(screen.getByText(/Danh mục USDA-FDC-live-v1 · live/)).toBeTruthy();
-  expect(screen.getByText(/USDA FoodData Central · #12345 · edition 2025-04-01/)).toBeTruthy();
+  expect(screen.getByText(/Danh mục synthetic-test-v1 · live/)).toBeTruthy();
+  expect(screen.getByText(/Nguồn thử nghiệm · #12345 · edition 2025-04-01/)).toBeTruthy();
   await press(screen, 'Synthetic food');
   await press(screen, 'Xem khẩu phần (1) →');
   expect(screen.getByText(/Dữ liệu nguồn theo 100 g/)).toBeTruthy();
 });
 
 test('preserves the form on create failure and retries the same intent with the same key', async () => {
-  api.searchSourcedFoods.mockResolvedValue({ items: [{ id: 'fdc:12345', name: 'Cơm trắng', nutrition: { values: { energyKcal: { value: 130 } } } }] });
+  api.searchSourcedFoods.mockResolvedValue({ items: [{ id: 'synthetic-test-source:12345', name: 'Cơm trắng', nutrition: { values: { energyKcal: { value: 130 } } } }] });
   api.createMyMealEntry.mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });
   api.getMyMealEntries.mockResolvedValueOnce(emptyDiary).mockResolvedValueOnce(savedDiary);
   const screen = renderDiary();
@@ -180,8 +180,8 @@ test('preserves the form on create failure and retries the same intent with the 
 test('confirms multiple selected foods sequentially with separate idempotency keys', async () => {
   api.searchSourcedFoods.mockResolvedValue({
     items: [
-      { id: 'fdc:rice', name: 'Cơm gạo lứt', basis: { amount: 100, unit: 'g' }, source: { label: 'USDA FoodData Central', recordId: 'rice', edition: '2025' } },
-      { id: 'fdc:fish', name: 'Cá hồi', basis: { amount: 100, unit: 'g' }, source: { label: 'USDA FoodData Central', recordId: 'fish', edition: '2025' } },
+      { id: 'synthetic-test-source:rice', name: 'Cơm gạo lứt', basis: { amount: 100, unit: 'g' }, source: { label: 'Nguồn thử nghiệm', recordId: 'rice', edition: '2025' } },
+      { id: 'synthetic-test-source:fish', name: 'Cá hồi', basis: { amount: 100, unit: 'g' }, source: { label: 'Nguồn thử nghiệm', recordId: 'fish', edition: '2025' } },
     ],
   });
   api.createMyMealEntry.mockResolvedValueOnce({ item: savedEntry }).mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });
@@ -204,8 +204,8 @@ test('confirms multiple selected foods sequentially with separate idempotency ke
   const first = api.createMyMealEntry.mock.calls[0];
   const second = api.createMyMealEntry.mock.calls[1];
   const retry = api.createMyMealEntry.mock.calls[2];
-  expect(first[0].foodId).toBe('fdc:rice');
-  expect(second[0].foodId).toBe('fdc:fish');
+  expect(first[0].foodId).toBe('synthetic-test-source:rice');
+  expect(second[0].foodId).toBe('synthetic-test-source:fish');
   expect(first[1]).not.toBe(second[1]);
   expect(retry).toEqual(second);
   expect(first[0]).not.toHaveProperty('nutrients');

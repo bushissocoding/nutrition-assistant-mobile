@@ -8,7 +8,7 @@ The user can scan a daily plan, open a meal, review its ingredients and descript
 
 ## Assumptions and approved scope
 
-- The request is limited to meal schedule and recipe presentation. The existing preference form, profile/allergy constraints, API, saved-plan behavior, USDA lookup, and grocery handoff remain intact.
+- The request is limited to meal schedule and recipe presentation. The existing preference form, profile/allergy constraints, API, saved-plan behavior, pending NIN lookup state, and grocery handoff remain intact.
 - Use `app/src/theme/tokens.js` for the existing blue, white, navy, light-blue, spacing, and radius values. Follow the platform-default font and weight hierarchy used by adjacent screens; do not introduce a new font or dependency.
 - Use native `View`, `Text`, and existing React Native controls for meal art, cards, facts, ingredients, and nutrient progress. Reference images remain read-only acceptance material and are not imported into the screen.
 - Sample meal/ingredient/nutrient values remain illustrative only, never become a saved plan or a personalized claim, and are labeled without referring to screenshot images.

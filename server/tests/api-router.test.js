@@ -31,9 +31,9 @@ test('makes the composed demo context available to downstream feature routers', 
   assert.deepEqual(await response.json(), { sameContext: true });
 });
 
-test('mounts sourced USDA search routes without changing the existing food route', async t => {
+test('mounts generic sourced search routes without changing the existing food route', async t => {
   const demoContext = { store: { readCollection() {}, updateCollection() {}, writeCollection() {} }, requireScope() {} };
-  const foodSource = { async search(query, options) { return { items: [], query, page: options.page, source: { id: 'USDA-FDC' } }; } };
+  const foodSource = { async search(query, options) { return { items: [], query, page: options.page, source: { id: 'synthetic-test-source' } }; } };
   const router = createApiRouter({ foods: [], mealTemplates: [], catalog: {} }, demoContext, { foodSource });
   const app = express(); app.use('/api/v1', router);
   const server = app.listen(0, '127.0.0.1');
@@ -41,7 +41,29 @@ test('mounts sourced USDA search routes without changing the existing food route
   t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/v1/foods/search?q=beans&page=3`);
   assert.equal(response.status, 200);
-  assert.deepEqual(await response.json(), { items: [], query: 'beans', page: 3, source: { id: 'USDA-FDC' } });
+  assert.deepEqual(await response.json(), { items: [], query: 'beans', page: 3, source: { id: 'synthetic-test-source' } });
+});
+
+test('returns an unavailable meal plan while the Institute catalog is pending', async t => {
+  const demoContext = { store: { readCollection() {}, updateCollection() {}, writeCollection() {} }, requireScope() {} };
+  const catalog = { version: 'vietnam-nin-pending-v1', status: 'pending', sources: [] };
+  const router = createApiRouter({ foods: [], mealTemplates: [], catalog }, demoContext);
+  const app = express(); app.use(express.json()); app.use('/api/v1', router);
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => { server.close(resolve); server.closeAllConnections(); }));
+
+  const response = await fetch('http://127.0.0.1:' + server.address().port + '/api/v1/meal-plans/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contractVersion: 1 }),
+  });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, 'unavailable');
+  assert.equal(body.unavailability.code, 'FOOD_SOURCE_UNAVAILABLE');
+  assert.equal(body.catalog.status, 'pending');
+  assert.deepEqual(body.plan, []);
 });
 
 test('mounts account chat behind authentication and current-consent checks', async t => {

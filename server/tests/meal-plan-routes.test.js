@@ -4,9 +4,9 @@ const express = require('express');
 const { createMealPlanRouter } = require('../src/routes/meal-plans');
 
 const profile = { id: 'synthetic-user-a', username: 'patient_a', mode: 'healthy', allergies: [], red_flags: [], hard_limits: {}, updated_at: '2026-11-24T00:00:00.000Z' };
-const food = { id: 'rice-steamed', name: 'Cơm', category: 'Grain', tags: [], preparation: { description: 'Mục đối chiếu: rice, white, long-grain, regular, cooked.' } };
+const food = { id: 'rice-steamed', name: 'Cơm', category: 'Grain', tags: [], preparation: { description: 'Source query: rice, white, long-grain, regular, cooked.' } };
 const template = { id: 'meal-1', version: 'template-1', name: 'Bữa sáng', slot: 'Bữa sáng', provenance: { sourceId: 'recipe-source', sourceRecordId: 'meal-1', edition: 'sample-v1', method: 'Project sample.' }, price: { unit: 'VND', status: 'missing' }, items: [{ foodId: food.id, grams: 100 }] };
-const catalog = { sources: [{ id: 'recipe-source', kind: 'internal', name: 'Recipes', url: null }], nutrientUnits: {} };
+const catalog = { version: 'synthetic-test-v1', status: 'licensed', sources: [{ id: 'recipe-source', kind: 'internal', name: 'Recipes', url: null }, { id: 'synthetic-test-source', kind: 'external', name: 'Synthetic test provider', url: null, rights: { redistributionStatus: 'permitted' } }], nutrientUnits: {} };
 const nutrients = { energyKcal: { value: 220, unit: 'kcal' }, proteinG: { value: 4, unit: 'g' }, carbohydrateG: { value: 45, unit: 'g' }, fatG: { value: 1, unit: 'g' }, fiberG: { value: 1, unit: 'g' }, sodiumMg: { value: 2, unit: 'mg' } };
 
 async function withServer(router, run) {
@@ -22,8 +22,8 @@ function requestContext() {
     return { select: () => ({ eq: (_key, owner) => ({ maybeSingle: async () => ({ data: owner === profile.id ? profile : null, error: null }) }) }) };
   } };
   const foodSource = {
-    async search(query) { return { items: [{ id: 'fdc:12345', fdcId: '12345', name: query }] }; },
-    async getFood() { return { id: 'fdc:12345', fdcId: '12345', name: 'Rice, white, long-grain, regular, cooked', catalogVersion: 'USDA-FDC-live-v1', source: { id: 'USDA-FDC', recordId: '12345', edition: '2025-01-01' }, nutrition: { values: nutrients } }; },
+    async search(query) { return { items: [{ id: 'synthetic-test-source:12345', recordId: '12345', name: query }] }; },
+    async getFood() { return { id: 'synthetic-test-source:12345', recordId: '12345', name: 'Rice, white, long-grain, regular, cooked', catalogVersion: 'synthetic-test-v1', source: { id: 'synthetic-test-source', recordId: '12345', edition: '2025-01-01' }, nutrition: { values: nutrients } }; },
   };
   return { db, foodSource };
 }
@@ -48,7 +48,7 @@ test('meal-plan route stores only feasible account-owned sourced snapshots with 
     assert.equal(body.savedPlan.id, 'saved-plan-1');
     assert.equal(stored.userId, profile.id);
     assert.deepEqual(stored.input, { contractVersion: 1, preferences: 'rice', dietaryVariety: 'balanced' });
-    assert.equal(stored.plan.plan[0].portions[0].foodId, 'fdc:12345');
+    assert.equal(stored.plan.plan[0].portions[0].foodId, 'synthetic-test-source:12345');
   });
 });
 
@@ -71,7 +71,7 @@ test('meal-plan API rejects client-provided allergies or hard limits and require
 test('saved plan retries replay before contacting the food provider', async () => {
   const { db } = requestContext();
   let providerCalls = 0;
-  const saved = { id: 'saved-plan-1', plan: { status: 'feasible', planFeasible: true, plan: [] }, createdAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1', profileUpdatedAt: profile.updated_at };
+  const saved = { id: 'saved-plan-1', plan: { status: 'feasible', planFeasible: true, plan: [] }, createdAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'synthetic-test-v1', profileUpdatedAt: profile.updated_at };
   const repository = {
     async replay(input) { assert.equal(input.userId, profile.id); return { record: saved, replayed: true }; },
     async create() { assert.fail('a replay must not insert again'); },

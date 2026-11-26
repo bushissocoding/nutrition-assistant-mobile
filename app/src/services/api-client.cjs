@@ -164,7 +164,11 @@ function createApiMethods(apiClient) {
     calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
     getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
     searchSourcedFoods: (query, { page = 1, signal } = {}) => request(`/api/v1/foods/search?q=${encodeURIComponent(query)}&page=${page}`, { signal }),
-    getSourcedFood: (fdcId, signal) => request(`/api/v1/foods/fdc/${encodeURIComponent(String(fdcId).replace(/^fdc:/, ''))}`, { signal }),
+    getSourcedFood: (foodId, signal) => {
+      const [sourceId, ...recordParts] = String(foodId).split(':');
+      const recordId = recordParts.join(':');
+      return request(`/api/v1/foods/${encodeURIComponent(sourceId)}/${encodeURIComponent(recordId)}`, { signal });
+    },
     calculateSourcedNutrition: (items, signal) => request('/api/v1/nutrition/calculate-sourced', { method: 'POST', signal, body: JSON.stringify({ items }) }),
     createMealEntry: (payload, idempotencyKey) => request('/api/v1/meal-entries', {
       demo: true,

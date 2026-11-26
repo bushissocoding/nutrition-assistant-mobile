@@ -58,7 +58,6 @@ function startApi(port, settings) {
     SUPABASE_URL: settings.url,
     SUPABASE_PUBLISHABLE_KEY: settings.publishableKey,
     SUPABASE_SECRET_KEY: settings.secretKey,
-    FDC_API_KEY: '',
     PAYOS_CLIENT_ID: '',
     PAYOS_API_KEY: '',
     PAYOS_CHECKSUM_KEY: '',

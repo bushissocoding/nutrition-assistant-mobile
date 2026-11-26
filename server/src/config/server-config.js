@@ -89,15 +89,6 @@ function readSupabaseConfig(env, environment) {
   return values;
 }
 
-function readFdcApiKey(value) {
-  if (value === undefined || value === null) return null;
-  if (typeof value !== 'string') throw invalidConfig('FDC_API_KEY', 'must be a valid server-side API key.');
-  const key = value.trim();
-  if (!key) return null;
-  if (key.length > 200 || /[\r\n\0]/.test(key)) throw invalidConfig('FDC_API_KEY', 'must be a valid server-side API key.');
-  return key;
-}
-
 function readPayosConfig(env) {
   const names = ['PAYOS_CLIENT_ID', 'PAYOS_API_KEY', 'PAYOS_CHECKSUM_KEY', 'PAYOS_RETURN_URL', 'PAYOS_CANCEL_URL', 'PAYOS_WEBHOOK_URL'];
   const present = names.filter(name => typeof env[name] === 'string' && env[name].trim()).length;
@@ -156,7 +147,6 @@ function readServerConfig(env = process.env) {
     demoDataEnabled,
     environment,
     supabase: readSupabaseConfig(env, environment),
-    fdcApiKey: readFdcApiKey(env.FDC_API_KEY),
     payos: readPayosConfig(env),
     assistant: readAssistantConfig(env),
     expoPush: readExpoPushConfig(env),

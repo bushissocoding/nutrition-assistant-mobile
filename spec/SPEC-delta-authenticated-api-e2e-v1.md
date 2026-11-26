@@ -26,13 +26,13 @@ Exercise the mobile app's shared API client, Express routes, Supabase Auth, Post
 - The real local auth JWT reaches Express verification and account-owned profile/data survive API process restart.
 - A second account cannot read the first account's profile, pantry entry, or health record; export contains only the current account's data.
 - Account deletion removes the first account while the second account remains functional.
-- Missing FDC/OpenAI configuration produces the expected unavailable response and no fabricated success.
+- A pending food catalog and missing OpenAI configuration produce the expected unavailable responses and no fabricated success.
 - The integration command runs in the Supabase CI job after `supabase start`, `supabase db reset`, and `supabase test db`; standard unit/UI/API jobs remain intact.
 
 ## Boundaries
 
 - Always create short-lived `example.test` accounts and synthetic records in the local Supabase stack only.
-- Always disable demo storage and external FDC, PayOS, OpenAI, and push integrations in the spawned API process.
+- Always disable demo storage and external data providers, PayOS, OpenAI, and push integrations in the spawned API process.
 - Never print access tokens, local secret keys, emails, record values, or child-process environments.
 - Never run destructive account lifecycle calls against a non-loopback Supabase URL.
 - This API integration complements UI component tests; it does not claim physical-device, camera/OCR, payment-sandbox, push-delivery, or hosted-production verification.

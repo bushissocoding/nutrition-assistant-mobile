@@ -9,8 +9,8 @@ const {
 } = require('../src/services/account-meal-entries');
 
 const food = {
-  id: 'fdc:12345',
-  fdcId: '12345',
+  id: 'synthetic-test-source:12345',
+  recordId: '12345',
   name: 'Beans, cooked',
   basis: { amount: 100, unit: 'g' },
   nutrition: { values: {
@@ -21,8 +21,8 @@ const food = {
     fiberG: { value: null, unit: 'g', status: 'missing' },
     sodiumMg: { value: 2, unit: 'mg', status: 'reported' },
   } },
-  source: { id: 'USDA-FDC', label: 'USDA FoodData Central', recordId: '12345', edition: '2025-04-01' },
-  catalogVersion: 'USDA-FDC-live-v1',
+  source: { id: 'synthetic-test-source', label: 'Nguồn thử nghiệm', recordId: '12345', edition: '2025-04-01' },
+  catalogVersion: 'synthetic-test-v1',
 };
 
 const input = {
@@ -46,21 +46,21 @@ test('account diary input validates and normalizes fields without accepting clie
 test('account diary snapshots source attribution and computes portion nutrients on the server', () => {
   const item = createAccountMealEntry(normalizeAccountMealEntryInput(input), food, 'entry-1', new Date('2026-11-24T06:00:00Z'));
   assert.equal(item.foodName, 'Beans, cooked');
-  assert.equal(item.foodId, 'fdc:12345');
+  assert.equal(item.foodId, 'synthetic-test-source:12345');
   assert.equal(item.nutrients.energyKcal, 190.5);
   assert.equal(item.nutrients.fiberG, null);
   assert.equal(item.source.recordId, '12345');
-  assert.equal(item.catalogVersion, 'USDA-FDC-live-v1');
+  assert.equal(item.catalogVersion, 'synthetic-test-v1');
   assert.equal(item.createdAt, '2026-11-24T06:00:00.000Z');
 });
 
 test('entry edits recalculate from the new server source record and ignore any supplied totals', () => {
   const original = createAccountMealEntry(normalizeAccountMealEntryInput(input), food, 'entry-1');
   const changed = { ...input, portion: { amount: 50, unit: 'g' }, notes: null };
-  const updated = updateAccountMealEntry(original, normalizeAccountMealEntryInput(changed), { ...food, name: 'Beans, retested', catalogVersion: 'USDA-FDC-live-v2' }, new Date('2026-11-25T00:00:00Z'));
+  const updated = updateAccountMealEntry(original, normalizeAccountMealEntryInput(changed), { ...food, name: 'Beans, retested', catalogVersion: 'synthetic-test-source-live-v2' }, new Date('2026-11-25T00:00:00Z'));
   assert.equal(updated.foodName, 'Beans, retested');
   assert.equal(updated.nutrients.energyKcal, 63.5);
-  assert.equal(updated.catalogVersion, 'USDA-FDC-live-v2');
+  assert.equal(updated.catalogVersion, 'synthetic-test-source-live-v2');
   assert.equal(updated.notes, null);
 });
 
@@ -83,5 +83,5 @@ test('nutrition report groups only requested local days and retains empty versus
   assert.equal(report.days[0].totals.fiberG, null);
   assert.equal(report.days[1].hasEntries, true);
   assert.equal(report.days[1].totals.energyKcal, 190.5);
-  assert.deepEqual(report.sources.map(source => source.catalogVersion), ['USDA-FDC-live-v1']);
+  assert.deepEqual(report.sources.map(source => source.catalogVersion), ['synthetic-test-v1']);
 });

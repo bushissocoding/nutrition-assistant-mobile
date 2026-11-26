@@ -7,7 +7,7 @@ Rebuild the food diary screen to follow supplied references `assets/design/ui-re
 ## Assumptions and approved scope
 
 - The request covers diary history, food search, portion selection, and meal confirmation as represented by references 18.1–18.3.
-- Existing account-authenticated API calls and their response semantics remain unchanged. The diary screen continues to search exact USDA-sourced food records and submits only food ID, portion, meal type, time, timezone, and notes; nutrient totals remain server-resolved.
+- Existing account-authenticated API calls and their response semantics remain unchanged. The diary screen shows the pending NIN data-rights status and does not offer food search until an authorized catalog is integrated. Saved snapshots retain their source attribution; nutrient totals remain server-resolved.
 - Food selection supports multiple sourced records like reference 18.2. The screen confirms portions sequentially, creating one API entry per record with a distinct idempotency intent; no batch endpoint or contract change is introduced.
 - This spec, plan, and task list are self-reviewed under the user's explicit authorization to approve these artifacts autonomously.
 
@@ -31,7 +31,7 @@ Rebuild the food diary screen to follow supplied references `assets/design/ui-re
 
 - Screen job: let users check food entries and daily totals, then record one source-backed meal with an appropriate portion and meal slot.
 - History: a compact week/date strip, a daily calorie and macronutrient summary, and meal-grouped entry cards with time, serving, nutrients, and edit/delete actions.
-- Add flow: rounded search field, category chips, and searchable USDA results; multi-select with a selected count; compact portion controls and meal-type chips for each selected item; a prominent confirm action.
+- Add flow: explain that source lookup is pending written data permission; keep source-backed entry creation unavailable until an authorized catalog is integrated. Preserve saved-entry editing and historical source attribution.
 - Use the existing blue, white, navy, and light-blue palette and rounded card language. Keep accessible date navigation, selection states, live feedback, and usable touch targets.
 - Preserve estimate/non-medical and data-source notices, API-provided totals, account boundaries, local-day timezone query behavior, and retry intent/idempotency.
 - Do not fabricate food records, nutrient totals, or prices. Show unavailable source values as unavailable.
