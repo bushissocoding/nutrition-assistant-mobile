@@ -1,50 +1,60 @@
 # Security and Operations Baseline
 
-Last reviewed: 2026-11-17
+Last reviewed: 2026-11-24
 
-This repository is a demonstration prototype. It is not an authenticated health service and is not approved for real personal or health data, public deployment, clinical use, or legal-compliance claims.
+## Release status
+
+The repository contains authenticated client/server workflows for identity, consent/profile, nutrition, diary/grocery, care/payment, chat, records, notifications and personalization. This is implementation evidence, not evidence of a deployed production service. Use synthetic data only until all external gates in [`SPEC-release-operations-v1.md`](../spec/SPEC-release-operations-v1.md) are closed and qualified reviewers approve the relevant use.
 
 ## Dependency review
 
-The npm audit on 2026-11-17 reported 22 moderate package-path findings, no high or critical findings, and two distinct advisories. The affected paths are in Expo fingerprinting/build tooling and the Jest test toolchain; the findings concern denial-of-service in glob matching, not a report of exploitable API request handling.
+`npm audit --json` on 2026-11-24 reports 22 moderate findings, with no high or critical findings. The current direct versions are Expo `58.0.25`, Jest `30.5.2`, and jest-expo `58.0.14`. The findings are in the Expo fingerprint/build and Jest tooling dependency paths, including `glob` and `minimatch`. npm's available remediation downgrades Expo 58 to 52 or Jest 30 to 29, so it crosses supported major lines. Do not apply those forced downgrades; re-check advisories and compatibility when the supported dependency ranges provide a safe fix. No dependency was changed just to silence the audit.
 
-| Advisory | Affected package path | Severity | Review and disposition |
-|---|---|---:|---|
-| [GHSA-3g3m-2fjr-6pw4](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) | `glob` through Jest and related test packages (`glob` 10.5.0 and 13.0.7 in the lockfile) | Moderate | The advisory affects `glob` 9.0.0 through 14.0.1; its patched release is 14.0.2. `npm audit fix --dry-run` leaves the findings. The forced plan downgrades Jest 30 to 29.7.0, outside the project's tested line. Keep Jest 30; re-review when its dependency path has a compatible fix. |
-| [GHSA-g3hv-75wg-m249](https://github.com/advisories/GHSA-g3hv-75wg-m249) | `minimatch` through `@expo/fingerprint` and Jest tooling (`minimatch` 9.0.9 and 10.2.6 in the lockfile) | Moderate | The advisory affects `minimatch` 7.0.0 through versions before 11.0.1; its patched release is 11.0.1. The Expo fingerprint dependency accepts `^10.2.6`, so the patched major is outside that range. The forced plan downgrades Expo 58 to 52.0.49. Do not make that incompatible downgrade; re-review when Expo's SDK 58 dependency path has a compatible fix. |
+Before changing dependencies, run `npm audit --json`, inspect installed paths, classify severity and reachability, and check whether a fix stays within the supported Expo/Jest major lines. Run required checks after a targeted update. Never use `npm audit fix --force` as a blanket remediation. The dependency-risk owner remains unassigned and must be named before release.
 
-The audit currently aggregates these paths into 22 package findings. Direct top-level versions are Expo `58.0.25`, Jest `30.5.2`, and jest-expo `58.0.14`. Both findings are in development/build tooling; the API does not expose user-controlled glob patterns. No package versions were changed to silence them. The dependency risk owner is not assigned; the repository maintainer must review these findings before a public release or any new deployment target is selected.
+## Data and trust boundaries
 
-Before changing dependencies, run `npm audit --json`, inspect the installed dependency paths, classify severity and reachability, and check whether a fix stays within the supported Expo/Jest major lines. Run the required tests and Expo export after every targeted update. Never use `npm audit fix --force` as a blanket remediation.
+- Supabase Auth verifies identity when configured. The app stores its Auth SDK session in SecureStore. Private APIs use a request-scoped client and explicit owner/role filters; SQL migrations add RLS and narrow privileged RPCs. A dedicated CI job applies local migrations, runs pgTAP, and drives an authenticated two-account API journey through the Expo shared API client. This branch has no hosted result yet; static tests alone do not prove behavior against a running Postgres/Supabase project.
+- Account APIs cover profile/consent, meal plans, diary/report, pantry/shopping, care/payment, chats, health records, notifications and personalization. The old caller-selected `X-Demo-Namespace` routes exist only for synthetic local compatibility and are disabled by default and in production.
+- Account export is versioned and includes registered user-owned records. Account deletion runs registered cleanup steps and removes private health-record objects before deleting the Auth identity. This is not a tested legal retention/deletion guarantee; external replicas, provider records and backups need separately approved policies.
+- Health-record images stay on device during OCR candidate review. Upload is explicit and consent-gated; OCR candidates are not confirmed results until the person saves them. The app does not interpret lab values or diagnose.
+- OpenAI assistant history is account-owned, uses `store: false`, and sends only the user message after explicit consent; appointment messaging is participant-only. Push payloads are generic and contain no message or health detail. A push ticket is not proof that a device displayed a notification.
+- PayOS webhooks, not client redirects, confirm payment. The app does not collect card credentials. FDC values carry source metadata. The current prototype catalog is not an official Vietnamese nutrition dataset and the planner is not a clinical recommendation engine.
+- API and worker logs must not contain request bodies, headers, auth tokens, profile fields, diary/record contents, email or account identifiers. Request telemetry uses generated correlation IDs and route templates only.
 
-## Current data and trust boundaries
+## Configuration and service lifecycle
 
-- The Expo app stores a versioned, timestamped consent receipt and a minimal synthetic prototype profile locally through SecureStore. The receipt is device-local, is not account-linked, and is not server-verified proof of consent compliance.
-- Diary and grocery API data is persisted in `server/.local-data/demo-store.json` only when `DEMO_DATA_ENABLED=true`. Demo routes are disabled by default and always disabled in production.
-- `X-Demo-Namespace` is caller-controlled. It separates local demo collections but is not authentication, authorization, or account ownership.
-- Catalog and planner values are estimates with the source limitations recorded in `server/data/sources.json`. They are not clinical advice and the catalog does not claim to be official Vietnamese Institute of Nutrition data.
-- API routes validate request bodies and log only limited operational metadata. Do not add request bodies, headers, credentials, profile fields, diary entries, or grocery contents to logs.
+The root `.env` contains only client-visible `EXPO_PUBLIC_*` configuration; those values are embedded in the mobile bundle and must never hold credentials. API secrets belong in ignored `server/.env` locally or a deployment secret store. `.env.example` files contain safe names/defaults. Production config requires HTTPS origins and current Supabase URL/publishable/secret keys; provider adapters fail closed when their required configuration is absent.
 
-## Local configuration and API lifecycle
+The API's `/health` route reports process liveness only; it does not probe Supabase, storage or vendors. The API and `npm run push:worker` are separate supervised processes. Worker backlog, provider errors, process restart and receipt outcomes need monitoring from the selected host. Request JSON logs provide method, bounded route template, status, duration and generated request ID; this repository does not choose a log vendor, metrics backend, alert destination or on-call schedule.
 
-The root `.env` contains Expo `EXPO_PUBLIC_*` configuration. Expo embeds those values in the client bundle, so they are public and must never contain credentials. API-only values belong in ignored `server/.env`; the tracked `server/.env.example` contains development defaults and keeps demo storage disabled. Shell environment values take precedence over that file. The example's wildcard CORS origin is for local development; public deployment needs a reviewed origin policy and a separate deployment configuration.
+`SIGINT` and `SIGTERM` stop accepting new API connections and allow active requests to finish until the shutdown deadline. This is not process supervision or high availability. API request rate limits are in-process; use a shared limiter or edge control before scaling across instances. Provider timeouts and retry/idempotency behavior are described in module specs and tests.
 
-`GET /health` returns a fixed status and service name without probing user or health data. SIGINT and SIGTERM stop new connections and allow active requests to finish, with a 10-second deadline before remaining connections are closed. Shutdown logs contain fixed messages and error codes only. These controls do not provide process supervision, availability, authentication, or production readiness.
+## Storage, deletion, retention and recovery
 
-## Storage, deletion, and retention
+Private data is stored in Supabase tables with RLS; source images use a private Storage bucket. The local demo JSON store is not account storage and has no production durability, encryption, backup, retention or multi-instance guarantees. No Supabase project is configured in this checkout, so migrations, two-account RLS behavior, object policies and live account deletion have not been executed here. CI is configured to test local migrations, pgTAP and an authenticated API journey on a hosted runner; wait for a passing run before treating local-runtime RLS/API behavior as verified.
 
-The demo JSON store is local development data. It has no encryption guarantee, backup/restore service, retention scheduler, multi-instance synchronization, or production durability. App profile/consent deletion first requests the diary and grocery namespace purges; a failed purge must preserve local state and offer retry. The demo store can still remain in a developer-controlled file until that file is removed. The consent disclosure explains these limitations but has not been reviewed by a privacy/legal owner. No retention or deletion guarantee beyond these implemented prototype paths is claimed.
+The deployment operator must configure database/object backups, retention, encryption and access; run a restore drill; choose deletion/retention rules for backups and external providers; and record evidence, date and owner. The repository has no configured backup job or restore target and therefore makes no recoverability or deletion SLA claim. Apply schema migrations before compatible application code. Prefer additive changes; when new code has written data, use a corrective forward migration unless rollback compatibility has been demonstrated.
 
-Only synthetic data is allowed. No identity provider or auth SDK has been selected, and the server has no authenticated profile routes. Before real health data is considered, the project needs a selected provider, authenticated identity and ownership, qualified privacy/security review, an approved retention and deletion policy, transport/storage protections, and tested backup/restore and incident handling. Do not treat the local consent receipt or `X-Demo-Namespace` as authentication or ownership.
+## Incident response and ownership
 
-The CI Android export verifies that Metro can produce a bundle for Android; it does not verify installation, device networking, or physical-device behavior. The high/critical audit threshold is an automated dependency gate and does not remove the moderate findings recorded above.
+Before public deployment, assign named API/database, privacy/security, support and clinical/nutrition owners plus an incident contact. Follow the [release and recovery runbook](runbooks/release-operations.md) for deployment, rollback, restore-drill and incident steps. For suspected exposure, restrict or stop the affected service, preserve only privacy-safe logs, revoke/rotate exposed credentials with the issuer, assess affected data privately, and follow the approved notification process. Do not post credentials, exploit details or real health information in public issues. This checkout has no configured production incident channel or breach-notification service.
 
-## Incident reporting and unresolved ownership
+## External release gates
 
-Do not post credentials, exploit details, or real health information in a public issue. If GitHub private vulnerability reporting is enabled, report security issues there; otherwise contact the repository maintainer through a private channel. The maintainer/security contact and qualified privacy/security reviewer have not been assigned in this project. Assign them before public deployment or real-data use.
+The operator must attach evidence and an owner/date for each item before production claims or real-data use:
 
-For suspected exposure, stop the affected demo API, preserve only logs that contain no sensitive payloads, remove exposed credentials from their source, and ask the repository maintainer to assess scope and affected demo files. This repository has no production incident-response or breach-notification service.
+| Gate | Evidence required |
+|---|---|
+| Supabase deployment | Project/environment split, applied migrations, two-account RLS tests, private Storage policy tests, secret review |
+| Backup and recovery | Retention configuration, encrypted backup evidence and a successful restore drill |
+| Payments | PayOS merchant onboarding, webhook/callback configuration, sandbox payment and reconciliation/refund procedure |
+| Identity delivery | Verified SMTP/SMS sender, recovery-delivery and account-lockout checks |
+| AI and push | OpenAI account/policy approval and consent review; EAS/APNs/FCM configuration, opt-in and physical-device delivery check |
+| Food data | FDC key; documented redistribution rights for each source; qualified review of nutrition content and hard-limit behavior |
+| Care operations | Real provider roster, credential verification process, provider staffing and escalation coverage |
+| Native app | Android and iOS install/device checks, permission-denied paths, camera/image picker/OCR and notification checks |
+| Governance and support | Qualified privacy/legal, security and clinical/nutrition reviews; support contact, retention policy and incident owner |
+| Hosting and observability | TLS/domain, secret store, process supervision, log retention, symptom alerts, runbooks and on-call owner |
 
-### Credential exposure and rotation
-
-The current sample environment files contain no credentials, and no deployment credential provider is configured. If a credential is ever exposed, treat it as compromised: revoke or rotate it with its issuer immediately; deleting the value from the working tree alone does not invalidate it. Replace it only in the approved local or deployment environment configuration, never in `.env.example`, source code, or an `EXPO_PUBLIC_*` value. Remove the exposed value from tracked files and logs/artifacts where possible; if it was pushed, ask the repository maintainer to coordinate history cleanup and notify collaborators because old clones may still contain it. Review access and possible data exposure privately with the maintainer. The incident contact and owner still need to be assigned by the project maintainer.
+No credentials, vendor accounts, verified provider roster, data rights, reviewer sign-off or deployment operators were supplied by this repository. Do not infer that these gates are satisfied from adapter code or synthetic tests.

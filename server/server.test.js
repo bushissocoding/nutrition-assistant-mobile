@@ -71,14 +71,27 @@ async function verifySignalShutdown(signal, portOffset) {
       await sleep(100);
     }
     assert.equal(ready, true, 'server should start');
-    const health = await (await fetch(`${base}/health`)).json();
+    const healthResponse = await fetch(`${base}/health`);
+    const health = await healthResponse.json();
     assert.equal(health.status, 'ok');
+    assert.equal(healthResponse.headers.get('x-content-type-options'), 'nosniff');
+    assert.equal(healthResponse.headers.get('x-frame-options'), 'DENY');
+    assert.equal(healthResponse.headers.get('x-powered-by'), null);
+    const rejectedOrigin = await fetch(`${base}/api/v1/foods`, { headers: { origin: 'https://attacker.example.test' } });
+    assert.equal(rejectedOrigin.status, 403);
+    const anonymousIdentity = await fetch(`${base}/api/v1/me`);
+    assert.equal(anonymousIdentity.status, 401);
+    assert.equal((await anonymousIdentity.json()).code, 'AUTHENTICATION_REQUIRED');
+    const unconfiguredIdentity = await fetch(`${base}/api/v1/me`, { headers: { authorization: 'Bearer synthetic-test-token' } });
+    assert.equal(unconfiguredIdentity.status, 503);
+    assert.equal((await unconfiguredIdentity.json()).code, 'AUTH_PROVIDER_UNAVAILABLE');
     const preflight = await fetch(`${base}/api/v1/meal-entries`, { method: 'OPTIONS', headers: { origin: 'http://localhost', 'access-control-request-method': 'POST', 'access-control-request-headers': 'content-type,x-demo-namespace,idempotency-key' } });
     assert.equal(preflight.status, 204);
     const allowedHeaders = (preflight.headers.get('access-control-allow-headers') || '').toLowerCase().split(',').map(header => header.trim());
     assert.ok(allowedHeaders.includes('content-type'));
     assert.ok(allowedHeaders.includes('x-demo-namespace'));
     assert.ok(allowedHeaders.includes('idempotency-key'));
+    assert.ok(allowedHeaders.includes('authorization'));
     const allowedMethods = (preflight.headers.get('access-control-allow-methods') || '').toUpperCase().split(',').map(method => method.trim());
     for (const method of ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']) assert.ok(allowedMethods.includes(method));
     const search = await (await fetch(`${base}/api/v1/foods?q=cơm`)).json();

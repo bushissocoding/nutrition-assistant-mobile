@@ -28,14 +28,60 @@ test('exposes the existing API methods with their original v1 paths and payloads
   });
   const plan = { servings: 2, allergies: ['peanut'] };
   const foods = await api.getFoods('rau muống');
+  await api.searchSourcedFoods('beans', { page: 2 });
+  await api.getSourcedFood('fdc:12345');
+  await api.calculateSourcedNutrition([{ foodId: 'fdc:12345', grams: 100 }]);
   await api.calculateNutrition([{ foodId: 'food-1', grams: 150 }]);
   await api.generateMealPlan(plan);
+  await api.getCurrentUser();
+  await api.getMyConsent();
+  await api.saveMyConsent({ ai_processing: false });
+  await api.getMyProfile();
+  await api.saveMyProfile({ age: 30 });
+  await api.deleteMyProfile();
+  await api.getMyAccountExport();
+  await api.deleteMyAccount();
+  await api.getMyMealPlans({ limit: 10, offset: 20 });
+  await api.createMyMealPlan({ contractVersion: 1, preferences: 'rice' }, 'plan-intent-0001');
 
   assert.deepEqual(foods, { ok: true });
   assert.deepEqual(calls, [
     { path: '/api/v1/foods?q=rau%20mu%E1%BB%91ng', options: undefined },
+    { path: '/api/v1/foods/search?q=beans&page=2', options: { signal: undefined } },
+    { path: '/api/v1/foods/fdc/12345', options: { signal: undefined } },
+    { path: '/api/v1/nutrition/calculate-sourced', options: { method: 'POST', signal: undefined, body: JSON.stringify({ items: [{ foodId: 'fdc:12345', grams: 100 }] }) } },
     { path: '/api/v1/nutrition/calculate', options: { method: 'POST', body: '{"items":[{"foodId":"food-1","grams":150}]}' } },
     { path: '/api/v1/meal-plans/generate', options: { method: 'POST', body: JSON.stringify(plan) } },
+    { path: '/api/v1/me', options: { authenticated: true } },
+    { path: '/api/v1/me/consent', options: { authenticated: true } },
+    { path: '/api/v1/me/consent', options: { method: 'PUT', authenticated: true, body: JSON.stringify({ choices: { ai_processing: false } }) } },
+    { path: '/api/v1/me/profile', options: { authenticated: true } },
+    { path: '/api/v1/me/profile', options: { method: 'PUT', authenticated: true, body: JSON.stringify({ age: 30 }) } },
+    { path: '/api/v1/me/profile', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/export', options: { authenticated: true } },
+    { path: '/api/v1/me', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/meal-plans?limit=10&offset=20', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-plans', options: { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': 'plan-intent-0001' }, body: JSON.stringify({ contractVersion: 1, preferences: 'rice' }) } },
+  ]);
+});
+
+test('account diary and report methods require bearer authentication without demo namespaces', async () => {
+  const calls = [];
+  const api = createApiMethods({ async request(path, options) { calls.push({ path, options }); return null; } });
+  const entry = { foodId: 'fdc:12345', portion: { amount: 120, unit: 'g' }, mealType: 'LUNCH' };
+  await api.createMyMealEntry(entry, 'diary-intent-0001');
+  await api.getMyMealEntries({ date: '2026-11-24', timeZone: 'Asia/Saigon', limit: 25, offset: 50 });
+  await api.getMyMealEntry('entry/one');
+  await api.updateMyMealEntry('entry/one', entry);
+  await api.deleteMyMealEntry('entry/one');
+  await api.getMyNutritionReport({ date: '2026-11-24', timeZone: 'Asia/Saigon', days: 7 });
+  assert.deepEqual(calls, [
+    { path: '/api/v1/me/meal-entries', options: { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': 'diary-intent-0001' }, body: JSON.stringify(entry) } },
+    { path: '/api/v1/me/meal-entries?date=2026-11-24&timeZone=Asia%2FSaigon&limit=25&offset=50', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { authenticated: true } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { method: 'PATCH', authenticated: true, body: JSON.stringify(entry) } },
+    { path: '/api/v1/me/meal-entries/entry%2Fone', options: { method: 'DELETE', authenticated: true } },
+    { path: '/api/v1/me/nutrition-report?date=2026-11-24&timeZone=Asia%2FSaigon&days=7', options: { authenticated: true } },
   ]);
 });
 
@@ -53,12 +99,12 @@ test('exposes diary CRUD and purge methods through the shared API request client
   await api.purgeMealEntries();
 
   assert.deepEqual(calls, [
-    { path: '/api/v1/meal-entries', options: { method: 'POST', headers: { 'Idempotency-Key': 'intent-key-0001' }, body: JSON.stringify(input) } },
-    { path: '/api/v1/meal-entries?date=2026-11-16&timeZone=Asia%2FHo_Chi_Minh&limit=25&offset=50', options: undefined },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: undefined },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'PATCH', body: JSON.stringify({ notes: 'edited' }) } },
-    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'DELETE' } },
-    { path: '/api/v1/meal-entries', options: { method: 'DELETE' } },
+    { path: '/api/v1/meal-entries', options: { method: 'POST', demo: true, headers: { 'Idempotency-Key': 'intent-key-0001' }, body: JSON.stringify(input) } },
+    { path: '/api/v1/meal-entries?date=2026-11-16&timeZone=Asia%2FHo_Chi_Minh&limit=25&offset=50', options: { demo: true } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { demo: true } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'PATCH', demo: true, body: JSON.stringify({ notes: 'edited' }) } },
+    { path: '/api/v1/meal-entries/entry%2Fone', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/meal-entries', options: { method: 'DELETE', demo: true } },
   ]);
 });
 
@@ -76,12 +122,12 @@ test('exposes grocery list CRUD and namespace purge through the shared API reque
   await api.purgeShoppingLists();
 
   assert.deepEqual(calls, [
-    { path: '/api/v1/shopping-lists/current', options: undefined },
-    { path: '/api/v1/shopping-lists', options: { method: 'POST', headers: { 'Idempotency-Key': 'grocery-intent-0001' }, body: JSON.stringify(payload) } },
-    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'PATCH', body: JSON.stringify({ amount: 1.5, unit: 'kg', purchased: true }) } },
-    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'DELETE' } },
-    { path: '/api/v1/shopping-lists/current', options: { method: 'DELETE' } },
-    { path: '/api/v1/shopping-lists', options: { method: 'DELETE' } },
+    { path: '/api/v1/shopping-lists/current', options: { demo: true } },
+    { path: '/api/v1/shopping-lists', options: { method: 'POST', demo: true, headers: { 'Idempotency-Key': 'grocery-intent-0001' }, body: JSON.stringify(payload) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'PATCH', demo: true, body: JSON.stringify({ amount: 1.5, unit: 'kg', purchased: true }) } },
+    { path: '/api/v1/shopping-lists/current/items/item%2Fone', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/shopping-lists/current', options: { method: 'DELETE', demo: true } },
+    { path: '/api/v1/shopping-lists', options: { method: 'DELETE', demo: true } },
   ]);
 });
 
@@ -108,6 +154,7 @@ test('sends JSON request with the stable demo namespace and returns parsed data'
 
   const result = await client.request('/api/v1/meal-plans/generate', {
     method: 'POST',
+    demo: true,
     body: JSON.stringify({ servings: 2 }),
   });
 
@@ -200,10 +247,201 @@ test('applies the request deadline while loading the namespace and does not fetc
     namespaceStore: { async getNamespace() { await new Promise(resolve => setTimeout(resolve, 25)); return 'demo-test-device'; } },
   });
 
-  await assert.rejects(client.request('/api/v1/foods'), error => error.code === 'API_TIMEOUT');
+  await assert.rejects(client.request('/api/v1/meal-entries', { demo: true }), error => error.code === 'API_TIMEOUT');
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(fetchCalls, 0);
 }, { timeout: 1000 });
+
+test('private requests send only a bearer token and never request demo namespace state', async () => {
+  let request;
+  let namespaceReads = 0;
+  const client = createClient(async (_url, options) => {
+    request = options;
+    return createResponse(200, '{}');
+  }, {
+    namespaceStore: { async getNamespace() { namespaceReads += 1; return 'demo-test-device'; } },
+    getAccessToken: async () => 'synthetic-access-token',
+  });
+  await client.request('/api/v1/me/profile', { authenticated: true });
+  assert.equal(request.headers.Authorization, 'Bearer synthetic-access-token');
+  assert.equal(request.headers['X-Demo-Namespace'], undefined);
+  assert.equal(namespaceReads, 0);
+});
+
+test('private requests fail before network access when no account token exists', async () => {
+  let fetchCalls = 0;
+  const client = createClient(async () => { fetchCalls += 1; return createResponse(200, '{}'); }, { getAccessToken: async () => null });
+  await assert.rejects(client.request('/api/v1/me', { authenticated: true }), error => error.code === 'API_AUTH_REQUIRED');
+  assert.equal(fetchCalls, 0);
+});
+
+test('account pantry and shopping-list methods use authenticated /me routes without demo namespace state', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => {
+    calls.push({ url, options });
+    return createResponse(200, '{}');
+  }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  await api.getMyShoppingList();
+  await api.createMyShoppingList('82b4fefe-81fd-44f1-8be0-905e33f10b16', 'grocery-intent-1');
+  await api.getMyPantry();
+  await api.createMyPantryItem({ foodId: 'fdc:12345', amount: 100, unit: 'g' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/grocery/shopping-list',
+    '/api/v1/me/grocery/shopping-list',
+    '/api/v1/me/grocery/pantry',
+    '/api/v1/me/grocery/pantry',
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+  assert.equal(calls[1].options.headers['Idempotency-Key'], 'grocery-intent-1');
+  assert.deepEqual(JSON.parse(calls[1].options.body), { savedPlanId: '82b4fefe-81fd-44f1-8be0-905e33f10b16' });
+});
+
+test('care booking and provider workspace methods use authenticated account routes and stable booking idempotency', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  await api.getMyProviders({ query: 'Nguyễn An', limit: 10, offset: 0 });
+  await api.getMyProviderAvailability('provider-1', { from: '2026-11-25T00:00:00.000Z', to: '2026-12-02T00:00:00.000Z' });
+  await api.getMyProviderProfile();
+  await api.saveMyProviderApplication({ profile: {}, credentials: {} });
+  await api.getMyProviderAvailabilitySlots({ from: '2026-11-25T00:00:00.000Z', to: '2026-12-02T00:00:00.000Z' });
+  await api.createMyProviderAvailabilitySlot({ startsAt: '2026-11-25T09:00:00.000Z', endsAt: '2026-11-25T09:30:00.000Z' });
+  await api.deleteMyProviderAvailabilitySlot('slot-1');
+  await api.getMyAppointments();
+  await api.createMyAppointment({ patientName: 'An' }, 'appointment-intent-1');
+  await api.getMyAppointment('appointment-1');
+  await api.cancelMyAppointment('appointment-1', { reason: 'illness', note: '' });
+  await api.getMyProviderAppointments();
+  await api.completeMyProviderAppointment('appointment-1');
+  await api.cancelMyProviderAppointment('appointment-1', { reason: 'other', note: '' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/care/providers', '/api/v1/me/care/providers/provider-1/availability',
+    '/api/v1/me/care/provider-profile', '/api/v1/me/care/provider-profile',
+    '/api/v1/me/care/provider/availability', '/api/v1/me/care/provider/availability',
+    '/api/v1/me/care/provider/availability/slot-1', '/api/v1/me/care/appointments',
+    '/api/v1/me/care/appointments', '/api/v1/me/care/appointments/appointment-1',
+    '/api/v1/me/care/appointments/appointment-1/cancel', '/api/v1/me/care/provider/appointments',
+    '/api/v1/me/care/provider/appointments/appointment-1/complete', '/api/v1/me/care/provider/appointments/appointment-1/cancel',
+  ]);
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+  assert.equal(calls[8].options.headers['Idempotency-Key'], 'appointment-intent-1');
+});
+
+test('chat methods use authenticated account-scoped routes and send opaque client message identifiers', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  const clientMessageId = '01380e6e-b95f-4bd5-8f38-a1391ae3bda1';
+  await api.getMyAssistantThread();
+  await api.saveMyAssistantConsent({ version: 'ai-assistant-processing-v1', accepted: true });
+  await api.sendMyAssistantTurn({ clientMessageId, message: 'Xin chào' });
+  await api.getMyAppointmentMessages('appointment-1');
+  await api.sendMyAppointmentMessage('appointment-1', { clientMessageId, body: 'Xin chào bác sĩ' });
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/chat/assistant', '/api/v1/me/chat/assistant/consent', '/api/v1/me/chat/assistant/turns',
+    '/api/v1/me/chat/appointments/appointment-1/messages', '/api/v1/me/chat/appointments/appointment-1/messages',
+  ]);
+  assert.deepEqual(JSON.parse(calls[1].options.body), { version: 'ai-assistant-processing-v1', accepted: true });
+  assert.deepEqual(JSON.parse(calls[2].options.body), { clientMessageId, message: 'Xin chào' });
+  assert.deepEqual(JSON.parse(calls[4].options.body), { clientMessageId, body: 'Xin chào bác sĩ' });
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('health record methods use private account routes and binary source upload headers', async () => {
+  const calls = [];
+  const client = createClient(async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); }, { getAccessToken: async () => 'synthetic-access-token' });
+  const api = createApiMethods(client);
+  const payload = { title: 'Blood panel', sourceDate: '2026-11-24', note: '', results: [{ name: 'Glucose', value: '5.4', unit: 'mmol/L', referenceRange: '', confirmed: true }] };
+  const bytes = new Uint8Array([0xff, 0xd8, 0xff]);
+  await api.getMyHealthRecords({ limit: 10, offset: 20 });
+  await api.saveMyHealthRecord(payload, null, '01380e6e-b95f-4bd5-8f38-a1391ae3bda1');
+  await api.uploadMyHealthRecordSource('record-1', bytes, 'image/jpeg');
+  await api.getMyHealthRecordSource('record-1');
+  await api.deleteMyHealthRecord('record-1');
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/health-records', '/api/v1/me/health-records', '/api/v1/me/health-records/record-1/source',
+    '/api/v1/me/health-records/record-1/source', '/api/v1/me/health-records/record-1',
+  ]);
+  assert.equal(calls[2].options.headers['Content-Type'], 'application/octet-stream');
+  assert.equal(calls[2].options.headers['X-Record-Content-Type'], 'image/jpeg');
+  assert.equal(calls[2].options.body, bytes);
+  assert.deepEqual(JSON.parse(calls[1].options.body), payload);
+  assert.equal(calls[1].options.headers['Idempotency-Key'], '01380e6e-b95f-4bd5-8f38-a1391ae3bda1');
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer synthetic-access-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('notification methods use authenticated owner routes and server-backed preference/device state', async () => {
+  const calls = [];
+  const api = createApiMethods(createApiClient({
+    baseUrl: 'https://api.example.test', getAccessToken: async () => 'private-token',
+    fetchImpl: async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); },
+  }));
+  const preferences = { inAppAppointments: true, inAppPayments: false, inAppMessages: true, pushEnabled: true, pushAppointments: false, pushPayments: true, pushMessages: true };
+  const device = { expoPushToken: 'ExponentPushToken[device-token]', platform: 'ios' };
+  await api.getMyNotifications({ limit: 10, offset: 20, unread: true });
+  await api.markMyNotificationRead('notice-1');
+  await api.markAllMyNotificationsRead();
+  await api.getMyNotificationPreferences();
+  await api.saveMyNotificationPreferences(preferences);
+  await api.registerMyPushDevice(device);
+  await api.unregisterMyPushDevice(device);
+  assert.deepEqual(calls.map(call => new URL(call.url).pathname), [
+    '/api/v1/me/notifications', '/api/v1/me/notifications/notice-1/read', '/api/v1/me/notifications/read-all',
+    '/api/v1/me/notifications/preferences', '/api/v1/me/notifications/preferences',
+    '/api/v1/me/notifications/devices', '/api/v1/me/notifications/devices',
+  ]);
+  assert.equal(new URL(calls[0].url).search, '?limit=10&offset=20&unread=true');
+  assert.deepEqual(JSON.parse(calls[4].options.body), preferences);
+  assert.deepEqual(JSON.parse(calls[5].options.body), device);
+  assert.equal(calls[6].options.method, 'DELETE');
+  for (const call of calls) {
+    assert.equal(call.options.headers.Authorization, 'Bearer private-token');
+    assert.equal(call.options.headers['X-Demo-Namespace'], undefined);
+  }
+});
+
+test('personalization methods use the authenticated account boundary', async () => {
+  const calls = [];
+  const api = createApiMethods(createApiClient({ baseUrl: 'https://api.example.test', getAccessToken: async () => 'private-token', fetchImpl: async (url, options) => { calls.push({ url, options }); return createResponse(200, '{}'); } }));
+  const preferences = { dietaryVariety: 'varied', foodPreferences: ['Vietnamese', 'easy_cook'], allergyReminder: true, trackConfirmedTargets: false };
+  await api.getMyPersonalization();
+  await api.saveMyPersonalization(preferences);
+  assert.deepEqual(calls.map(call => call.url), ['https://api.example.test/api/v1/me/personalization', 'https://api.example.test/api/v1/me/personalization']);
+  assert.equal(calls[0].options.headers.Authorization, 'Bearer private-token');
+  assert.deepEqual(JSON.parse(calls[1].options.body), preferences);
+  assert.equal(calls[1].options.headers['X-Demo-Namespace'], undefined);
+});
+
+test('appointment payment methods are authenticated and carry a stable idempotency key', async () => {
+  const requests = [];
+  const api = createApiMethods(createApiClient({
+    baseUrl: 'https://api.example.test',
+    getAccessToken: async () => 'synthetic-user-token',
+    fetchImpl: async (url, options) => { requests.push({ url, options }); return createResponse(200, JSON.stringify({ payment: { status: 'pending' } })); },
+  }));
+  await api.createMyAppointmentPayment('appointment-id', 'appointment-payment-appointment-id');
+  await api.getMyAppointmentPayment('appointment-id');
+  assert.deepEqual(requests.map(request => request.url), [
+    'https://api.example.test/api/v1/me/care/appointments/appointment-id/payment',
+    'https://api.example.test/api/v1/me/care/appointments/appointment-id/payment',
+  ]);
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer synthetic-user-token');
+  assert.equal(requests[0].options.headers['Idempotency-Key'], 'appointment-payment-appointment-id');
+  assert.equal(requests[1].options.headers.Authorization, 'Bearer synthetic-user-token');
+});
 
 test('caller abort settles even when fetch ignores abort', async () => {
   const client = createClient(() => new Promise(() => {}));

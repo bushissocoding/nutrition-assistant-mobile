@@ -1,211 +1,104 @@
 import React from 'react';
-import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import AppShell from './AppShell';
 import { api } from '../services/api';
-import { clearStoredProfile, loadConsent, loadProfile, revokeConsentAndClear, saveConsent } from '../services/profile-storage';
+import { authService } from '../services/auth-client';
 
-jest.mock('../services/api', () => ({ api: { getMealEntries: jest.fn(), purgeMealEntries: jest.fn(), purgeShoppingLists: jest.fn() } }));
-jest.mock('../services/profile-storage', () => ({
-  clearStoredProfile: jest.fn(),
-  loadConsent: jest.fn(),
-  loadProfile: jest.fn(),
-  revokeConsentAndClear: jest.fn(),
-  saveConsent: jest.fn(),
-  saveProfile: jest.fn(),
+jest.mock('../services/api', () => ({ api: {
+  getCurrentUser: jest.fn(), getMyConsent: jest.fn(), saveMyConsent: jest.fn(), getMyProfile: jest.fn(), saveMyProfile: jest.fn(), deleteMyProfile: jest.fn(),
+  getMyMealEntries: jest.fn(),
+} }));
+jest.mock('../services/auth-client', () => ({ isAuthConfigured: true, authClient: {}, authService: {
+  restoreSession: jest.fn(), subscribe: jest.fn(() => jest.fn()), completeCallback: jest.fn(),
+  register: jest.fn(), login: jest.fn(), requestEmailRecovery: jest.fn(), requestSmsRecovery: jest.fn(),
+  verifySmsRecovery: jest.fn(), updateRecoveredPassword: jest.fn(), logout: jest.fn(),
+} }));
+jest.mock('../services/push-notifications', () => ({ unregisterPushDevice: jest.fn() }));
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  addNotificationResponseReceivedListener: jest.fn(() => ({ remove() {} })),
+  getLastNotificationResponseAsync: jest.fn(() => Promise.resolve(null)),
 }));
+jest.mock('expo-linking', () => ({ addEventListener: jest.fn(() => ({ remove() {} })), getInitialURL: jest.fn(() => Promise.resolve(null)) }));
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(() => Promise.resolve(null)), setItemAsync: jest.fn(() => Promise.resolve()), deleteItemAsync: jest.fn(() => Promise.resolve()) }));
+jest.mock('../features/onboarding/LaunchScreen', () => {
+  const React = require('react');
+  return function MockLaunch({ onComplete }) { React.useEffect(() => { onComplete(); }, [onComplete]); return null; };
+});
 jest.mock('../features/onboarding/ConsentScreen', () => {
-  const ReactNative = require('react-native');
-  return function MockConsent({ onContinue, onBack, onWithdraw }) {
-    return <>
-      <ReactNative.Text>Consent screen</ReactNative.Text>
-      <ReactNative.Pressable onPress={() => onContinue({ local_profile_storage: true })}><ReactNative.Text>Continue consent</ReactNative.Text></ReactNative.Pressable>
-      {!!onBack && <ReactNative.Pressable onPress={onBack}><ReactNative.Text>Back from consent</ReactNative.Text></ReactNative.Pressable>}
-      {!!onWithdraw && <ReactNative.Pressable onPress={onWithdraw}><ReactNative.Text>Withdraw from consent</ReactNative.Text></ReactNative.Pressable>}
-    </>;
-  };
+  const RN = require('react-native');
+  return function MockConsent({ onContinue }) { return <><RN.Text>Consent screen</RN.Text><RN.Pressable onPress={() => onContinue({ profile_processing: true, nutrition_processing: true, data_lifecycle: true, ai_processing: false, health_record_storage: false })}><RN.Text>Continue consent</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/onboarding/ProfileSetupScreen', () => {
-  const ReactNative = require('react-native');
-  return function MockProfileSetup({ onBack, onWithdrawConsent }) {
-    return <>
-      <ReactNative.Text>Profile setup</ReactNative.Text>
-      {!!onBack && <ReactNative.Pressable onPress={onBack}><ReactNative.Text>Back to consent</ReactNative.Text></ReactNative.Pressable>}
-      {!!onWithdrawConsent && <ReactNative.Pressable onPress={onWithdrawConsent}><ReactNative.Text>Withdraw from setup</ReactNative.Text></ReactNative.Pressable>}
-    </>;
-  };
+  const RN = require('react-native');
+  return function MockProfileSetup({ initialProfile, onComplete }) { return <><RN.Text>Profile setup</RN.Text><RN.Text>{initialProfile?.username || 'no username'}</RN.Text><RN.Pressable onPress={() => onComplete({ ...initialProfile, mode: 'healthy', gender: 'unspecified', age: '30', heightCm: '170', weightKg: '70', activityLevel: 'moderate', conditionType: 'unspecified', allergies: [], symptomNotes: '', redFlags: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false })}><RN.Text>Save profile</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/dashboard/DashboardScreen', () => () => null);
-jest.mock('../features/diary/DiaryScreen', () => {
-  const ReactNative = require('react-native');
-  return function MockDiary({ onDiaryMutation }) {
-    return <ReactNative.Pressable onPress={onDiaryMutation}><ReactNative.Text>Notify saved diary change</ReactNative.Text></ReactNative.Pressable>;
-  };
-});
+jest.mock('../features/diary/DiaryScreen', () => () => null);
 jest.mock('../features/grocery/GroceryScreen', () => () => null);
 jest.mock('../features/meal-planning/MealPlanScreen', () => () => null);
 jest.mock('../features/home/HomeScreen', () => {
-  const ReactNative = require('react-native');
-  return function MockHome({ diary, diaryTotals, onNavigate, onRetryDiary, diaryError }) {
-    return <>
-      <ReactNative.Text>{diary[0]?.foodName || 'No diary item'}</ReactNative.Text>
-      <ReactNative.Text>{diaryTotals.energyKcal} kcal</ReactNative.Text>
-      {!!diaryError && <ReactNative.Text>{diaryError}</ReactNative.Text>}
-      <ReactNative.Pressable onPress={() => onNavigate('profile')}><ReactNative.Text>Open profile</ReactNative.Text></ReactNative.Pressable>
-      <ReactNative.Pressable onPress={() => onNavigate('diary')}><ReactNative.Text>Open diary</ReactNative.Text></ReactNative.Pressable>
-      <ReactNative.Pressable onPress={onRetryDiary}><ReactNative.Text>Retry hydration</ReactNative.Text></ReactNative.Pressable>
-    </>;
-  };
+  const RN = require('react-native');
+  return function MockHome({ onNavigate }) { return <><RN.Text>Account Home</RN.Text><RN.Pressable onPress={() => onNavigate('profile')}><RN.Text>Open profile</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/profile/ProfileScreen', () => {
-  const ReactNative = require('react-native');
-  const React = require('react');
-  return function MockProfile({ onDeleted, onWithdrawConsent, onReviewConsent }) {
-    const [error, setError] = React.useState('');
-    async function remove() {
-      try { await onDeleted(); }
-      catch (failure) { setError(failure.message); }
-    }
-    return <>
-      <ReactNative.Pressable onPress={remove}><ReactNative.Text>Delete profile</ReactNative.Text></ReactNative.Pressable>
-      <ReactNative.Pressable onPress={onReviewConsent}><ReactNative.Text>Review consent</ReactNative.Text></ReactNative.Pressable>
-      <ReactNative.Pressable onPress={onWithdrawConsent}><ReactNative.Text>Withdraw consent</ReactNative.Text></ReactNative.Pressable>
-      {!!error && <ReactNative.Text>{error}</ReactNative.Text>}
-    </>;
-  };
+  const RN = require('react-native');
+  return function MockProfile({ account, onExitDemo }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable></>; };
 });
+jest.mock('../features/chat/ChatScreen', () => () => null);
+jest.mock('../features/notifications/NotificationsScreen', () => ({ __esModule: true, default: () => null }));
+jest.mock('../features/settings/SettingsScreen', () => () => null);
+jest.mock('../features/appointments/AppointmentScreen', () => () => null);
+jest.mock('../features/medical-record/MedicalRecordScreen', () => () => null);
+jest.mock('../features/personalization/PersonalizationScreen', () => () => null);
 
-const profile = { mode: 'healthy', age: 30, heightCm: 170, weightKg: 70, activityLevel: 'moderate', allergies: [], redFlags: [] };
-const entry = { id: 'entry-1', foodName: 'Đậu phụ', nutrients: { energyKcal: 80 } };
+const user = { id: 'synthetic-user-a', email: 'user@example.test', username: 'patient_a' };
+const choices = { profile_processing: true, nutrition_processing: true, data_lifecycle: true, ai_processing: false, health_record_storage: false };
+const consent = { version: '2026-11-24-v1', choices, acceptedAt: '2026-11-24T00:00:00.000Z' };
+const profile = { username: 'patient_a', mode: 'healthy', gender: 'unspecified', age: 30, heightCm: 170, weightKg: 70, activityLevel: 'moderate', conditionType: 'unspecified', allergies: [], symptomNotes: '', redFlags: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  loadConsent.mockResolvedValue(true);
-  loadProfile.mockResolvedValue(profile);
-  api.getMealEntries.mockResolvedValue({ items: [entry], totals: { energyKcal: 80 } });
-  api.purgeMealEntries.mockResolvedValue(null);
-  api.purgeShoppingLists.mockResolvedValue(null);
-  clearStoredProfile.mockResolvedValue(undefined);
-  revokeConsentAndClear.mockResolvedValue(undefined);
-  saveConsent.mockResolvedValue({ version: 'demo-consent-v1-2026-11-17', acceptedAt: '2026-11-17T01:02:03.000Z', choices: { local_profile_storage: true } });
+  authService.restoreSession.mockResolvedValue({ user, session: { access_token: 'synthetic' } });
+  api.getCurrentUser.mockResolvedValue({ user: { id: user.id } });
+  api.getMyConsent.mockResolvedValue({ consent, currentVersion: consent.version });
+  api.getMyProfile.mockResolvedValue({ profile });
+  api.saveMyConsent.mockResolvedValue({ consent, currentVersion: consent.version });
+  api.saveMyProfile.mockResolvedValue({ profile });
+  api.getMyMealEntries.mockResolvedValue({ items: [], hasEntries: false, totals: null });
 });
 
 async function press(screen, label) {
-  await act(async () => {
-    fireEvent.press(screen.getByText(label));
-    for (let index = 0; index < 8; index += 1) await Promise.resolve();
-  });
+  await act(async () => { fireEvent.press(screen.getByText(label)); await Promise.resolve(); await Promise.resolve(); });
 }
 
-test('hydrates Home from the API for the current local day after loading the saved profile', async () => {
+test('restores an account and loads server consent/profile before opening Home', async () => {
   const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
-  expect(screen.getByText('80 kcal')).toBeTruthy();
-  expect(api.getMealEntries).toHaveBeenCalledWith(expect.objectContaining({
-    date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
-    timeZone: expect.any(String),
-  }));
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+  expect(authService.restoreSession).toHaveBeenCalledTimes(1);
+  expect(api.getCurrentUser).toHaveBeenCalledTimes(1);
+  expect(api.getMyConsent).toHaveBeenCalledTimes(1);
+  expect(api.getMyProfile).toHaveBeenCalledTimes(1);
 });
 
-test('refreshes the Home cache after a diary mutation is confirmed by the server', async () => {
-  api.getMealEntries.mockResolvedValueOnce({ items: [entry], totals: { energyKcal: 80 } })
-    .mockResolvedValueOnce({ items: [{ ...entry, id: 'entry-2' }], totals: { energyKcal: 115 } });
+test('requires server consent and persists the assessment to the account API', async () => {
+  api.getMyConsent.mockResolvedValue({ consent: null, currentVersion: '2026-11-24-v1' });
   const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('80 kcal')).toBeTruthy());
-  await press(screen, 'Open diary');
-  await press(screen, 'Notify saved diary change');
-  await waitFor(() => expect(api.getMealEntries).toHaveBeenCalledTimes(2));
-  await press(screen, 'Trang chủ');
-  await waitFor(() => expect(screen.getByText('115 kcal')).toBeTruthy());
-});
-
-test('records the required choices before moving from consent to profile setup', async () => {
-  loadConsent.mockResolvedValue(null);
-  loadProfile.mockResolvedValue(null);
-  const choices = { local_profile_storage: true };
-  const screen = render(<AppShell />);
-
   await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
   await press(screen, 'Continue consent');
   await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
-  expect(saveConsent).toHaveBeenCalledWith(choices);
+  expect(api.saveMyConsent).toHaveBeenCalledWith(choices);
+  expect(screen.getByText('patient_a')).toBeTruthy();
+  await press(screen, 'Save profile');
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+  expect(api.saveMyProfile).toHaveBeenCalledWith(expect.objectContaining({ username: 'patient_a', age: 30, heightCm: 170, weightKg: 70 }));
 });
 
-test('lets the user review consent from the profile and return without leaving the profile', async () => {
+test('logout closes the identity session and returns to Welcome', async () => {
   const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
   await press(screen, 'Open profile');
-  await press(screen, 'Review consent');
-  expect(screen.getByText('Consent screen')).toBeTruthy();
-  await press(screen, 'Back from consent');
-  expect(screen.getByText('Delete profile')).toBeTruthy();
-});
-
-test('keeps consent when a withdrawal purge fails and clears it after a successful retry', async () => {
-  api.purgeShoppingLists.mockRejectedValueOnce(new Error('API đang ngoại tuyến.')).mockResolvedValueOnce(null);
-  const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, actions) => actions?.find(action => action.style === 'destructive')?.onPress());
-  const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
-  await press(screen, 'Open profile');
-  await press(screen, 'Withdraw consent');
-  await waitFor(() => expect(screen.getByText('API đang ngoại tuyến.')).toBeTruthy());
-  expect(revokeConsentAndClear).not.toHaveBeenCalled();
-  expect(screen.getByText('Delete profile')).toBeTruthy();
-
-  await press(screen, 'Withdraw consent');
-  await waitFor(() => expect(screen.getByText('Consent screen')).toBeTruthy());
-  expect(revokeConsentAndClear).toHaveBeenCalledTimes(1);
-  expect(alertSpy).toHaveBeenCalledWith('Đã rút đồng ý và xóa dữ liệu demo', expect.any(String));
-  alertSpy.mockRestore();
-});
-
-test('purges the server diary and grocery list before clearing the local profile', async () => {
-  const order = [];
-  api.purgeMealEntries.mockImplementation(async () => { order.push('diary-purge'); });
-  api.purgeShoppingLists.mockImplementation(async () => { order.push('grocery-purge'); });
-  clearStoredProfile.mockImplementation(async () => { order.push('local-profile-clear'); });
-  const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
-  await press(screen, 'Open profile');
-  await press(screen, 'Delete profile');
-  await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
-
-  expect(order).toEqual(['diary-purge', 'grocery-purge', 'local-profile-clear']);
-});
-
-test('keeps the local profile when the server refuses to purge the diary', async () => {
-  api.purgeMealEntries.mockRejectedValue(new Error('API đang ngoại tuyến.'));
-  const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
-  await press(screen, 'Open profile');
-  await press(screen, 'Delete profile');
-
-  await waitFor(() => expect(screen.getByText('API đang ngoại tuyến.')).toBeTruthy());
-  expect(clearStoredProfile).not.toHaveBeenCalled();
-  expect(screen.getByText('Delete profile')).toBeTruthy();
-});
-
-test('keeps the local profile when grocery purge fails and permits retry after a partial remote purge', async () => {
-  api.purgeShoppingLists.mockRejectedValueOnce(new Error('Không xóa được danh sách.')).mockResolvedValueOnce(null);
-  const screen = render(<AppShell />);
-
-  await waitFor(() => expect(screen.getByText('Đậu phụ')).toBeTruthy());
-  await press(screen, 'Open profile');
-  await press(screen, 'Delete profile');
-  await waitFor(() => expect(screen.getByText('Không xóa được danh sách.')).toBeTruthy());
-  expect(api.purgeMealEntries).toHaveBeenCalledTimes(1);
-  expect(api.purgeShoppingLists).toHaveBeenCalledTimes(1);
-  expect(clearStoredProfile).not.toHaveBeenCalled();
-
-  await press(screen, 'Delete profile');
-  await waitFor(() => expect(screen.getByText('Profile setup')).toBeTruthy());
-  expect(api.purgeMealEntries).toHaveBeenCalledTimes(2);
-  expect(api.purgeShoppingLists).toHaveBeenCalledTimes(2);
-  expect(clearStoredProfile).toHaveBeenCalledTimes(1);
+  await press(screen, 'Sign out');
+  await waitFor(() => expect(screen.getByText('Đăng Nhập')).toBeTruthy());
+  expect(authService.logout).toHaveBeenCalledTimes(1);
 });

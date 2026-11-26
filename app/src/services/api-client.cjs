@@ -46,18 +46,20 @@ async function parseResponse(response) {
 function createApiClient({
   baseUrl,
   namespaceStore,
+  getAccessToken = async () => null,
   fetchImpl = globalThis.fetch,
   AbortControllerImpl = globalThis.AbortController,
   timeoutMs = 15000,
 } = {}) {
-  if (!namespaceStore || typeof namespaceStore.getNamespace !== 'function') {
-    throw new TypeError('API client requires a demo namespace store.');
-  }
+  if (namespaceStore && typeof namespaceStore.getNamespace !== 'function') throw new TypeError('Demo namespace store is invalid.');
+  if (typeof getAccessToken !== 'function') throw new TypeError('API client requires an access-token provider.');
   if (typeof fetchImpl !== 'function') throw new TypeError('API client requires fetch.');
   if (typeof AbortControllerImpl !== 'function') throw new TypeError('API client requires AbortController.');
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new TypeError('API timeout must be a positive number.');
 
   async function request(path, options = {}) {
+    const requestTimeoutMs = options.timeoutMs === undefined ? timeoutMs : options.timeoutMs;
+    if (!Number.isFinite(requestTimeoutMs) || requestTimeoutMs <= 0) throw new ApiClientError('API_TIMEOUT_INVALID', 'Thời hạn yêu cầu API không hợp lệ.');
     let base;
     try {
       base = resolveApiBaseUrl(baseUrl);
@@ -93,20 +95,31 @@ function createApiClient({
       deadlineExpired = true;
       controller.abort();
       rejectTimeout(new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.'));
-    }, timeoutMs);
+    }, requestTimeoutMs);
 
-    const customHeaders = options.headers;
+    const { demo = false, authenticated = false, headers: customHeaders, timeoutMs: _timeoutMs, ...fetchOptions } = options;
 
     const work = (async () => {
-      let namespace;
-      try {
-        namespace = await namespaceStore.getNamespace();
-      } catch (cause) {
-        throw new ApiClientError(
-          'API_NAMESPACE_UNAVAILABLE',
-          cause?.message || 'Không đọc được mã phiên demo trên thiết bị. Hãy thử lại.',
-          { cause },
-        );
+      const headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...(customHeaders || {}),
+      };
+      if (authenticated) {
+        let token;
+        try { token = await getAccessToken(); }
+        catch (cause) { throw new ApiClientError('API_AUTH_UNAVAILABLE', 'Không thể đọc phiên đăng nhập. Hãy đăng nhập lại.', { cause }); }
+        if (typeof token !== 'string' || !token) throw new ApiClientError('API_AUTH_REQUIRED', 'Hãy đăng nhập để tiếp tục.');
+        headers.Authorization = `Bearer ${token}`;
+      }
+      if (demo) {
+        if (!namespaceStore) throw new ApiClientError('API_NAMESPACE_UNAVAILABLE', 'Chế độ dữ liệu demo chưa được cấu hình.');
+        let namespace;
+        try { namespace = await namespaceStore.getNamespace(); }
+        catch (cause) {
+          throw new ApiClientError('API_NAMESPACE_UNAVAILABLE', cause?.message || 'Không đọc được mã phiên demo trên thiết bị. Hãy thử lại.', { cause });
+        }
+        headers['X-Demo-Namespace'] = namespace;
       }
       if (deadlineExpired) {
         throw new ApiClientError('API_TIMEOUT', 'Máy chủ phản hồi quá lâu. Hãy kiểm tra kết nối rồi thử lại.');
@@ -115,16 +128,10 @@ function createApiClient({
         throw new ApiClientError('API_REQUEST_ABORTED', 'Yêu cầu đã bị hủy.');
       }
 
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json',
-        ...(customHeaders || {}),
-        'X-Demo-Namespace': namespace,
-      };
       let response;
       try {
         response = await fetchImpl(`${base}${path}`, {
-          ...options,
+          ...fetchOptions,
           headers,
           signal: controller.signal,
         });
@@ -156,35 +163,121 @@ function createApiMethods(apiClient) {
     generateMealPlan: payload => request('/api/v1/meal-plans/generate', { method: 'POST', body: JSON.stringify(payload) }),
     calculateNutrition: items => request('/api/v1/nutrition/calculate', { method: 'POST', body: JSON.stringify({ items }) }),
     getFoods: query => request(`/api/v1/foods${query ? `?q=${encodeURIComponent(query)}` : ''}`),
+    searchSourcedFoods: (query, { page = 1, signal } = {}) => request(`/api/v1/foods/search?q=${encodeURIComponent(query)}&page=${page}`, { signal }),
+    getSourcedFood: (fdcId, signal) => request(`/api/v1/foods/fdc/${encodeURIComponent(String(fdcId).replace(/^fdc:/, ''))}`, { signal }),
+    calculateSourcedNutrition: (items, signal) => request('/api/v1/nutrition/calculate-sourced', { method: 'POST', signal, body: JSON.stringify({ items }) }),
     createMealEntry: (payload, idempotencyKey) => request('/api/v1/meal-entries', {
+      demo: true,
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(payload),
     }),
     getMealEntries: ({ date, timeZone, limit = 50, offset = 0 }) => {
       const query = new URLSearchParams({ date, timeZone, limit: String(limit), offset: String(offset) });
-      return request(`/api/v1/meal-entries?${query.toString()}`);
+      return request(`/api/v1/meal-entries?${query.toString()}`, { demo: true });
     },
-    getMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`),
+    getMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { demo: true }),
     updateMealEntry: (id, payload) => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, {
       method: 'PATCH',
+      demo: true,
       body: JSON.stringify(payload),
     }),
-    deleteMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    purgeMealEntries: () => request('/api/v1/meal-entries', { method: 'DELETE' }),
-    getCurrentShoppingList: () => request('/api/v1/shopping-lists/current'),
+    deleteMealEntry: id => request(`/api/v1/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE', demo: true }),
+    purgeMealEntries: () => request('/api/v1/meal-entries', { method: 'DELETE', demo: true }),
+    getCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { demo: true }),
     createShoppingList: (payload, idempotencyKey) => request('/api/v1/shopping-lists', {
       method: 'POST',
+      demo: true,
       headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify(payload),
     }),
     updateShoppingListItem: (id, payload) => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, {
       method: 'PATCH',
+      demo: true,
       body: JSON.stringify(payload),
     }),
-    deleteShoppingListItem: id => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, { method: 'DELETE' }),
-    deleteCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { method: 'DELETE' }),
-    purgeShoppingLists: () => request('/api/v1/shopping-lists', { method: 'DELETE' }),
+    deleteShoppingListItem: id => request(`/api/v1/shopping-lists/current/items/${encodeURIComponent(id)}`, { method: 'DELETE', demo: true }),
+    deleteCurrentShoppingList: () => request('/api/v1/shopping-lists/current', { method: 'DELETE', demo: true }),
+    purgeShoppingLists: () => request('/api/v1/shopping-lists', { method: 'DELETE', demo: true }),
+    getCurrentUser: () => request('/api/v1/me', { authenticated: true }),
+    getMyConsent: () => request('/api/v1/me/consent', { authenticated: true }),
+    saveMyConsent: choices => request('/api/v1/me/consent', { method: 'PUT', authenticated: true, body: JSON.stringify({ choices }) }),
+    getMyProfile: () => request('/api/v1/me/profile', { authenticated: true }),
+    saveMyProfile: profile => request('/api/v1/me/profile', { method: 'PUT', authenticated: true, body: JSON.stringify(profile) }),
+    deleteMyProfile: () => request('/api/v1/me/profile', { method: 'DELETE', authenticated: true }),
+    getMyAccountExport: () => request('/api/v1/me/export', { authenticated: true }),
+    deleteMyAccount: () => request('/api/v1/me', { method: 'DELETE', authenticated: true }),
+    getMyMealPlans: ({ limit = 20, offset = 0 } = {}) => request(`/api/v1/me/meal-plans?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    createMyMealPlan: (payload, idempotencyKey) => request('/api/v1/me/meal-plans', {
+      method: 'POST',
+      authenticated: true,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
+    createMyMealEntry: (payload, idempotencyKey) => request('/api/v1/me/meal-entries', {
+      method: 'POST',
+      authenticated: true,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify(payload),
+    }),
+    getMyMealEntries: ({ date, timeZone, limit = 50, offset = 0 }) => request(`/api/v1/me/meal-entries?${new URLSearchParams({ date, timeZone, limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyMealEntry: id => request(`/api/v1/me/meal-entries/${encodeURIComponent(id)}`, { authenticated: true }),
+    updateMyMealEntry: (id, payload) => request(`/api/v1/me/meal-entries/${encodeURIComponent(id)}`, { method: 'PATCH', authenticated: true, body: JSON.stringify(payload) }),
+    deleteMyMealEntry: id => request(`/api/v1/me/meal-entries/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyNutritionReport: ({ date, timeZone, days = 7 }) => request(`/api/v1/me/nutrition-report?${new URLSearchParams({ date, timeZone, days: String(days) })}`, { authenticated: true }),
+    getMyShoppingList: () => request('/api/v1/me/grocery/shopping-list', { authenticated: true }),
+    createMyShoppingList: (savedPlanId, idempotencyKey) => request('/api/v1/me/grocery/shopping-list', {
+      method: 'POST',
+      authenticated: true,
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({ savedPlanId }),
+    }),
+    clearMyShoppingList: () => request('/api/v1/me/grocery/shopping-list', { method: 'DELETE', authenticated: true }),
+    createMyShoppingListItem: payload => request('/api/v1/me/grocery/shopping-list/items', { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    updateMyShoppingListItem: (id, payload) => request(`/api/v1/me/grocery/shopping-list/items/${encodeURIComponent(id)}`, { method: 'PATCH', authenticated: true, body: JSON.stringify(payload) }),
+    deleteMyShoppingListItem: id => request(`/api/v1/me/grocery/shopping-list/items/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyPantry: ({ limit = 100, offset = 0 } = {}) => request(`/api/v1/me/grocery/pantry?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyPantryItem: id => request(`/api/v1/me/grocery/pantry/${encodeURIComponent(id)}`, { authenticated: true }),
+    getMyPantryItemByFoodId: foodId => request(`/api/v1/me/grocery/pantry/food/${encodeURIComponent(foodId)}`, { authenticated: true }),
+    createMyPantryItem: payload => request('/api/v1/me/grocery/pantry', { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    updateMyPantryItem: (id, payload) => request(`/api/v1/me/grocery/pantry/${encodeURIComponent(id)}`, { method: 'PATCH', authenticated: true, body: JSON.stringify(payload) }),
+    deleteMyPantryItem: id => request(`/api/v1/me/grocery/pantry/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyProviders: ({ query = '', specialty = '', limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/providers?${new URLSearchParams({ ...(query ? { q: query } : {}), ...(specialty ? { specialty } : {}), limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyProviderAvailability: (providerId, { from, to }) => request(`/api/v1/me/care/providers/${encodeURIComponent(providerId)}/availability?${new URLSearchParams({ from, to })}`, { authenticated: true }),
+    getMyProviderProfile: () => request('/api/v1/me/care/provider-profile', { authenticated: true }),
+    saveMyProviderApplication: ({ profile, credentials }) => request('/api/v1/me/care/provider-profile', { method: 'PUT', authenticated: true, body: JSON.stringify({ profile, credentials }) }),
+    getMyProviderAvailabilitySlots: ({ from, to }) => request(`/api/v1/me/care/provider/availability?${new URLSearchParams({ from, to })}`, { authenticated: true }),
+    createMyProviderAvailabilitySlot: payload => request('/api/v1/me/care/provider/availability', { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    deleteMyProviderAvailabilitySlot: id => request(`/api/v1/me/care/provider/availability/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    createMyAppointment: (payload, idempotencyKey) => request('/api/v1/me/care/appointments', { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': idempotencyKey }, body: JSON.stringify(payload) }),
+    getMyAppointment: id => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}`, { authenticated: true }),
+    cancelMyAppointment: (id, payload) => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    createMyAppointmentPayment: (id, idempotencyKey) => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/payment`, { method: 'POST', authenticated: true, headers: { 'Idempotency-Key': idempotencyKey }, body: '{}' }),
+    getMyAppointmentPayment: id => request(`/api/v1/me/care/appointments/${encodeURIComponent(id)}/payment`, { authenticated: true }),
+    getMyProviderAppointments: ({ limit = 25, offset = 0 } = {}) => request(`/api/v1/me/care/provider/appointments?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    completeMyProviderAppointment: id => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/complete`, { method: 'POST', authenticated: true, body: '{}' }),
+    cancelMyProviderAppointment: (id, payload) => request(`/api/v1/me/care/provider/appointments/${encodeURIComponent(id)}/cancel`, { method: 'POST', authenticated: true, body: JSON.stringify(payload) }),
+    getMyHealthRecords: ({ limit = 50, offset = 0 } = {}) => request(`/api/v1/me/health-records?${new URLSearchParams({ limit: String(limit), offset: String(offset) })}`, { authenticated: true }),
+    getMyHealthRecord: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}`, { authenticated: true }),
+    saveMyHealthRecord: (payload, id, requestKey) => request(`/api/v1/me/health-records${id ? `/${encodeURIComponent(id)}` : ''}`, { method: id ? 'PUT' : 'POST', authenticated: true, ...(id ? {} : { headers: { 'Idempotency-Key': requestKey } }), body: JSON.stringify(payload) }),
+    uploadMyHealthRecordSource: (id, bytes, mimeType, timeoutMs = 60000) => request(`/api/v1/me/health-records/${encodeURIComponent(id)}/source`, { method: 'PUT', authenticated: true, timeoutMs, headers: { 'Content-Type': 'application/octet-stream', 'X-Record-Content-Type': mimeType }, body: bytes }),
+    getMyHealthRecordSource: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}/source`, { authenticated: true }),
+    deleteMyHealthRecord: id => request(`/api/v1/me/health-records/${encodeURIComponent(id)}`, { method: 'DELETE', authenticated: true }),
+    getMyNotifications: ({ limit = 25, offset = 0, unread = false } = {}) => request(`/api/v1/me/notifications?${new URLSearchParams({ limit: String(limit), offset: String(offset), unread: String(unread) })}`, { authenticated: true }),
+    markMyNotificationRead: id => request(`/api/v1/me/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', authenticated: true, body: '{}' }),
+    markAllMyNotificationsRead: () => request('/api/v1/me/notifications/read-all', { method: 'POST', authenticated: true, body: '{}' }),
+    getMyNotificationPreferences: () => request('/api/v1/me/notifications/preferences', { authenticated: true }),
+    saveMyNotificationPreferences: preferences => request('/api/v1/me/notifications/preferences', { method: 'PUT', authenticated: true, body: JSON.stringify(preferences) }),
+    registerMyPushDevice: ({ expoPushToken, platform }) => request('/api/v1/me/notifications/devices', { method: 'POST', authenticated: true, body: JSON.stringify({ expoPushToken, platform }) }),
+    unregisterMyPushDevice: ({ expoPushToken, platform }) => request('/api/v1/me/notifications/devices', { method: 'DELETE', authenticated: true, body: JSON.stringify({ expoPushToken, platform }) }),
+    getMyPersonalization: () => request('/api/v1/me/personalization', { authenticated: true }),
+    saveMyPersonalization: preferences => request('/api/v1/me/personalization', { method: 'PUT', authenticated: true, body: JSON.stringify(preferences) }),
+    getMyAssistantThread: () => request('/api/v1/me/chat/assistant', { authenticated: true }),
+    saveMyAssistantConsent: ({ version, accepted }) => request('/api/v1/me/chat/assistant/consent', { method: 'POST', authenticated: true, body: JSON.stringify({ version, accepted }) }),
+    sendMyAssistantTurn: ({ clientMessageId, message }) => request('/api/v1/me/chat/assistant/turns', { method: 'POST', authenticated: true, body: JSON.stringify({ clientMessageId, message }) }),
+    getMyAppointmentMessages: appointmentId => request(`/api/v1/me/chat/appointments/${encodeURIComponent(appointmentId)}/messages`, { authenticated: true }),
+    sendMyAppointmentMessage: (appointmentId, { clientMessageId, body }) => request(`/api/v1/me/chat/appointments/${encodeURIComponent(appointmentId)}/messages`, { method: 'POST', authenticated: true, body: JSON.stringify({ clientMessageId, body }) }),
   };
 }
 

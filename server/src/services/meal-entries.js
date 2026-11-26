@@ -187,8 +187,11 @@ function sortAndPaginateEntries(entries, { limit = 50, offset = 0 } = {}) {
 
 module.exports = {
   MealEntryValidationError,
+  createDateFormatter,
   createMealEntry,
   getLocalDateRange,
+  localDateKey,
+  normalizeConsumedAt,
   normalizeMealEntryInput,
   sortAndPaginateEntries,
   updateMealEntry,

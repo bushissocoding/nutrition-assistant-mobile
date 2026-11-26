@@ -1,6 +1,40 @@
 {
+  "name": "Nutrition Assistant",
+  "slug": "nutrition-assistant",
+  "version": "1.0.0",
+  "orientation": "portrait",
+  "userInterfaceStyle": "light",
+  "scheme": "nutritionassistant",
+  "ios": {
+    "supportsTablet": false
+  },
+  "android": {
+    "package": "com.anonymous.nutritionassistant",
+    "adaptiveIcon": {
+      "backgroundColor": "#F4F7FF"
+    },
+    "softwareKeyboardLayoutMode": "pan"
+  },
   "plugins": [
     "expo-secure-store",
-    "expo-status-bar"
+    "expo-status-bar",
+    "expo-sharing",
+    [
+      "expo-ai-kit",
+      {
+        "vision": [
+          "text-recognition"
+        ]
+      }
+    ],
+    [
+      "expo-image-picker",
+      {
+        "photosPermission": "Cho phép Nutrition Assistant chọn ảnh kết quả xét nghiệm để nhận diện chữ trên thiết bị.",
+        "cameraPermission": "Cho phép Nutrition Assistant chụp ảnh kết quả xét nghiệm để nhận diện chữ trên thiết bị.",
+        "microphonePermission": false
+      }
+    ],
+    "expo-notifications"
   ]
 }

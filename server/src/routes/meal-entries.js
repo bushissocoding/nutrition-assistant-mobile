@@ -1,4 +1,5 @@
 const express = require('express');
+const { logApiFailure } = require('../observability/request-telemetry');
 const { calculateTotals } = require('../services/nutrition');
 const {
   MealEntryValidationError,
@@ -42,7 +43,7 @@ function parseListQuery(query) {
 function sendRouteError(req, res, error) {
   const status = Number.isInteger(error?.status) ? error.status : 500;
   const code = typeof error?.code === 'string' ? error.code : 'INTERNAL_ERROR';
-  if (status >= 500) console.error('Meal diary API operation failed', { method: req.method, path: req.path, code });
+  if (status >= 500) logApiFailure(req, 'demo_meal_diary_operation_failed', code);
   const message = status === 500
     ? 'Không thể xử lý nhật ký lúc này. Hãy thử lại sau.'
     : error.message;

@@ -1,44 +1,53 @@
-const CONSENT_VERSION = 'demo-consent-v1-2026-11-17';
+const CONSENT_VERSION = '2026-11-24-v1';
 
 const CONSENT_CHOICES = Object.freeze([
   Object.freeze({
-    key: 'local_profile_storage',
-    label: 'Tôi đồng ý lưu hồ sơ ví dụ trên thiết bị này cho bản demo và hiểu rằng tôi có thể xóa hồ sơ đó trong ứng dụng.',
+    key: 'profile_processing',
+    required: true,
+    label: 'Tôi đồng ý xử lý hồ sơ sức khỏe do tôi nhập để cung cấp chức năng tài khoản.',
   }),
   Object.freeze({
-    key: 'demo_api_processing',
-    label: 'Tôi đồng ý gửi dị ứng, giới hạn dinh dưỡng, lựa chọn thực đơn, nhật ký và danh sách đi chợ đến API demo để xử lý các tính năng mẫu.',
+    key: 'nutrition_processing',
+    required: true,
+    label: 'Tôi đồng ý xử lý dị ứng, lựa chọn dinh dưỡng, bữa ăn và danh sách thực phẩm để cung cấp chức năng dinh dưỡng.',
   }),
   Object.freeze({
-    key: 'demo_retention',
-    label: 'Tôi đã đọc nơi lưu và giới hạn thời hạn lưu của dữ liệu demo; API hiện không có thời hạn xóa tự động.',
+    key: 'data_lifecycle',
+    required: true,
+    label: 'Tôi đã đọc thông tin về nơi xử lý, lưu trữ, xuất và xóa dữ liệu tài khoản.',
   }),
   Object.freeze({
-    key: 'synthetic_data_only',
-    label: 'Tôi chỉ dùng dữ liệu tổng hợp do tôi tự tạo, không nhập thông tin cá nhân hoặc hồ sơ sức khỏe thật.',
+    key: 'ai_processing',
+    required: false,
+    label: 'Tùy chọn: Tôi đồng ý gửi ngữ cảnh dinh dưỡng đã chọn tới dịch vụ AI để tạo câu trả lời. Có thể rút lại riêng lựa chọn này.',
+  }),
+  Object.freeze({
+    key: 'health_record_storage',
+    required: false,
+    label: 'Tùy chọn: Tôi đồng ý lưu hồ sơ khám và kết quả xét nghiệm trong vùng lưu trữ riêng của tài khoản.',
   }),
 ]);
 
 const CONSENT_DISCLOSURE = Object.freeze([
   Object.freeze({
     title: 'Dữ liệu và mục đích',
-    body: 'Hồ sơ có thể gồm tuổi, chiều cao, cân nặng, mức vận động, dị ứng, dấu hiệu hoặc ghi chú triệu chứng và khoảng dinh dưỡng bạn tự nhập. Ứng dụng dùng thông tin này để hiển thị hồ sơ và tạo kết quả thực đơn minh họa. Không nhập dữ liệu thật.',
+    body: 'Hồ sơ có thể gồm tuổi, chiều cao, cân nặng, mức vận động, dị ứng, tình trạng bạn chọn, dấu hiệu hoặc ghi chú triệu chứng và khoảng dinh dưỡng do bạn tự nhập. Ứng dụng xử lý dữ liệu để cung cấp hồ sơ, nhật ký và tính năng dinh dưỡng. Nội dung không phải chẩn đoán hay điều trị.',
   }),
   Object.freeze({
     title: 'Gửi tới đâu và ai nhận?',
-    body: 'Hồ sơ được lưu trên thiết bị. Khi dùng tính năng liên quan, dị ứng và giới hạn dinh dưỡng cùng lựa chọn/ngân sách thực đơn được gửi tới API demo do người chạy ứng dụng cấu hình. Nhật ký bữa ăn và danh sách đi chợ cũng gửi tới API demo. Bản hiện tại không gửi dữ liệu tới dịch vụ AI/LLM bên ngoài và không có tài khoản người dùng.',
+    body: 'Hồ sơ và biên nhận đồng ý gắn với tài khoản, được xử lý qua dịch vụ API và cơ sở dữ liệu do nhà vận hành cấu hình. Nội dung AI và hồ sơ khám chỉ được gửi/lưu nếu bạn bật lựa chọn tương ứng; các tính năng đó vẫn cần được cấu hình và kiểm tra riêng trước khi bật.',
   }),
   Object.freeze({
     title: 'Lưu trữ và thời hạn',
-    body: 'Hồ sơ và biên nhận lựa chọn được lưu trong SecureStore trên thiết bị này. Nếu API demo bật lưu trữ, nhật ký và danh sách đi chợ nằm trong tệp JSON phát triển của máy chủ theo namespace do ứng dụng gửi. Namespace này không phải tài khoản hay quyền sở hữu. Máy chủ chưa có thời hạn lưu tự động, sao lưu, hay dịch vụ lưu trữ/xóa production; dữ liệu demo có thể còn trong tệp máy chủ cho tới khi purge thành công hoặc người vận hành xóa tệp.',
+    body: 'Hồ sơ và biên nhận đồng ý được lưu trong cơ sở dữ liệu của tài khoản. Nhà vận hành triển khai phải công bố thời hạn lưu, nơi xử lý, sao lưu và đầu mối yêu cầu dữ liệu trước khi dùng dữ liệu thật; cấu hình ứng dụng không tự tạo ra thời hạn lưu hay bảo đảm pháp lý.',
   }),
   Object.freeze({
     title: 'Rút lựa chọn và xóa dữ liệu',
-    body: 'Bạn có thể xem lại lựa chọn, rút lại và yêu cầu xóa dữ liệu demo trong ứng dụng. Ứng dụng chỉ xóa hồ sơ và lựa chọn trên thiết bị sau khi API xác nhận purge cả nhật ký và danh sách đi chợ. Nếu API lỗi hoặc không phản hồi, dữ liệu trên thiết bị được giữ nguyên để bạn thử lại. Đây không phải quy trình xóa tài khoản vì bản hiện tại chưa có tài khoản.',
+    body: 'Bạn có thể xem lại hoặc rút từng lựa chọn tùy chọn. Yêu cầu xuất hoặc xóa tài khoản phải được máy chủ xác nhận; quá trình xóa có thể cần thời gian để hoàn tất trên các dịch vụ liên kết.',
   }),
   Object.freeze({
-    title: 'Giới hạn của bản demo',
-    body: 'Chỉ dùng giá trị giả lập. Gợi ý dinh dưỡng là ước tính, không phải chẩn đoán hay điều trị. Nội dung này mô tả cách prototype đang hoạt động, chưa được người phụ trách pháp lý/quyền riêng tư duyệt và không chứng minh tuân thủ pháp luật.',
+    title: 'Giới hạn sử dụng',
+    body: 'Thông tin dinh dưỡng chỉ mang tính tham khảo, không thay thế tư vấn chuyên môn. Chỉ bật tài khoản sản xuất sau khi nhà vận hành đã hoàn tất quyền dữ liệu, kiểm soát an toàn, bảo mật và đánh giá chuyên môn phù hợp.',
   }),
 ]);
 
@@ -49,8 +58,9 @@ function createEmptyConsentChoices() {
 function validateConsentChoices(choices) {
   const errors = {};
   const value = choices && typeof choices === 'object' && !Array.isArray(choices) ? choices : {};
-  for (const { key } of CONSENT_CHOICES) {
-    if (value[key] !== true) errors[key] = 'Cần chọn mục này để tiếp tục.';
+  for (const { key, required } of CONSENT_CHOICES) {
+    if (typeof value[key] !== 'boolean') errors[key] = 'Lựa chọn không hợp lệ.';
+    else if (required && value[key] !== true) errors[key] = 'Cần chọn mục này để tiếp tục.';
   }
   for (const key of Object.keys(value)) {
     if (!CONSENT_CHOICES.some(choice => choice.key === key)) errors[key] = 'Lựa chọn không được hỗ trợ.';
@@ -67,7 +77,7 @@ function createConsentRecord(choices, acceptedAt = new Date()) {
   return {
     version: CONSENT_VERSION,
     acceptedAt: date.toISOString(),
-    choices: Object.fromEntries(CONSENT_CHOICES.map(({ key }) => [key, true])),
+    choices: Object.fromEntries(CONSENT_CHOICES.map(({ key }) => [key, choices[key]])),
   };
 }
 

@@ -24,7 +24,7 @@ test('shows storage, retention, withdrawal disclosures and supports returning to
   const screen = render(<ConsentScreen onContinue={jest.fn()} onBack={onBack} initialChoices={Object.fromEntries(CONSENT_CHOICES.map(({ key }) => [key, true]))} />);
 
   expect(screen.getAllByText(/thời hạn/i).length).toBeGreaterThan(0);
-  expect(screen.getByText(/không liên kết với tài khoản/i)).toBeTruthy();
+  expect(screen.getByText(/gắn với tài khoản/i)).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Quay lại' }));
   expect(onBack).toHaveBeenCalledTimes(1);
 });

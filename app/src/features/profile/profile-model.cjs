@@ -13,13 +13,26 @@ const RED_FLAG_SYMPTOMS = [
   { key: 'fainting', label: 'Ngất hoặc lú lẫn đột ngột' },
 ];
 
+const CONDITION_TYPES = [
+  'unspecified',
+  'heart-failure-stage-1-2',
+  'heart-failure-stage-3',
+  'heart-failure-stage-4',
+  'acute-kidney-disease',
+  'chronic-kidney-disease-stage-1-2',
+  'chronic-kidney-disease-stage-3-4',
+  'diabetes',
+  'hypertension',
+  'other',
+];
+
 function createEmptyProfile() {
-  return { version: 1, mode: 'healthy', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
+  return { version: 1, mode: 'healthy', gender: 'unspecified', conditionType: 'unspecified', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
 }
 function normalizeProfile(profile = {}) {
   const empty = createEmptyProfile();
   const input = profile && typeof profile === 'object' ? profile : {};
-  return { ...empty, ...input, mode: input.mode === 'patient' ? 'patient' : 'healthy', redFlags: Array.isArray(input.redFlags) ? input.redFlags.filter(value => RED_FLAG_SYMPTOMS.some(item => item.key === value)) : [], allergies: Array.isArray(input.allergies) ? input.allergies.filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean) : [], hardLimits: input.hardLimits && typeof input.hardLimits === 'object' && !Array.isArray(input.hardLimits) ? input.hardLimits : {} };
+  return { ...empty, ...input, mode: input.mode === 'patient' ? 'patient' : 'healthy', gender: ['female', 'male', 'unspecified'].includes(input.gender) ? input.gender : 'unspecified', conditionType: CONDITION_TYPES.includes(input.conditionType) ? input.conditionType : 'unspecified', redFlags: Array.isArray(input.redFlags) ? input.redFlags.filter(value => RED_FLAG_SYMPTOMS.some(item => item.key === value)) : [], allergies: Array.isArray(input.allergies) ? input.allergies.filter(value => typeof value === 'string').map(value => value.trim()).filter(Boolean) : [], hardLimits: input.hardLimits && typeof input.hardLimits === 'object' && !Array.isArray(input.hardLimits) ? input.hardLimits : {} };
 }
 function validateProfile(profile, limitInputs = {}) {
   const errors = {};
@@ -70,4 +83,4 @@ function calculateAdultBmi(profile) {
   if (age < 18 || !Number.isFinite(age) || !Number.isFinite(height) || !Number.isFinite(weight) || height <= 0 || weight <= 0) return null;
   return Math.round((weight / (height * height)) * 10) / 10;
 }
-module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, createEmptyProfile, normalizeProfile, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };
+module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, CONDITION_TYPES, createEmptyProfile, normalizeProfile, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };

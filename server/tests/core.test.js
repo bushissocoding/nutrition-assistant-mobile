@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { loadCatalog } = require('../src/repositories/catalog');
 const { calculateFood, calculateTotals } = require('../src/services/nutrition');
-const { generatePlan, validateMealPlanRequest } = require('../src/services/meal-planner');
+const { dietaryVarietyPenalty, generatePlan, validateMealPlanRequest } = require('../src/services/meal-planner');
 
 const catalogData = loadCatalog();
 const { foods, mealTemplates, catalog } = catalogData;
@@ -42,6 +42,7 @@ test('meal planner returns complete portions, daily totals and traceable source 
   assert.equal(result.planFeasible, true);
   assert.equal(result.plan.length, new Set(mealTemplates.map(meal => meal.slot)).size);
   assert.ok(result.grocery.length > 0);
+  assert.equal(result.metadata.dietaryVariety, 'balanced');
   assert.equal(result.estimatedCostVnd, null);
   assert.ok(result.warnings.some(warning => warning.code === 'PRICE_DATA_UNAVAILABLE'));
   assert.equal(result.metadata.catalogVersion, catalog.version);
@@ -55,11 +56,21 @@ test('meal planner returns complete portions, daily totals and traceable source 
     assert.ok(meal.portions.every(portion => portion.provenance.foodVersion && portion.provenance.sourceId && portion.provenance.edition));
     assert.equal(meal.estimatedCostVnd, null);
     assert.ok(meal.explanation.length > 0);
+    assert.ok(meal.instructions.length > 0);
     assert.equal(meal.nutrientUnits.energyKcal, 'kcal');
   }
 
   const summedMeals = Object.fromEntries(nutrientKeys.map(key => [key, Math.round(result.plan.reduce((sum, meal) => sum + meal.nutrients[key], 0) * 10) / 10]));
   assert.deepEqual(result.dailyTotals, summedMeals);
+});
+
+test('meal variety remains a deterministic ranking hint rather than a hard constraint', () => {
+  const simplePlan = [{ portions: [{ foodId: 'rice' }, { foodId: 'rice' }, { foodId: 'egg' }] }];
+  const variedPlan = [{ portions: [{ foodId: 'rice' }, { foodId: 'egg' }, { foodId: 'cabbage' }] }];
+  assert.ok(dietaryVarietyPenalty(simplePlan, 'simple') < dietaryVarietyPenalty(variedPlan, 'simple'));
+  assert.ok(dietaryVarietyPenalty(variedPlan, 'varied') < dietaryVarietyPenalty(simplePlan, 'varied'));
+  assert.equal(validateMealPlanRequest({ dietaryVariety: 'varied' }).dietaryVariety, 'varied');
+  assert.throws(() => validateMealPlanRequest({ dietaryVariety: 'medical' }), error => error.issues[0].path === 'dietaryVariety');
 });
 
 test('meal planner excludes declared allergens and can choose a safe alternative for the same slot', () => {

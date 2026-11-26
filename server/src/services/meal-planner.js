@@ -25,8 +25,9 @@ const LIMITATIONS = [
   'Nguồn một số giá trị dinh dưỡng đối chiếu chưa giữ được mã bản ghi và phiên bản phát hành; xem provenance của từng thành phần.'
 ];
 const ALLOWED_REQUEST_FIELDS = new Set([
-  'contractVersion', 'budgetVnd', 'allergies', 'excludedFoodIds', 'preferences', 'targets', 'hardLimits'
+  'contractVersion', 'budgetVnd', 'allergies', 'excludedFoodIds', 'preferences', 'dietaryVariety', 'targets', 'hardLimits'
 ]);
+const DIETARY_VARIETY_VALUES = new Set(['simple', 'balanced', 'varied']);
 
 function round(value) {
   return Math.round((value + Number.EPSILON) * 10) / 10;
@@ -167,10 +168,15 @@ function validateMealPlanRequest(input, { foods } = {}) {
     else preferences = input.preferences.trim();
   }
 
+  const dietaryVariety = input.dietaryVariety === undefined ? 'balanced' : input.dietaryVariety;
+  if (!DIETARY_VARIETY_VALUES.has(dietaryVariety)) {
+    issues.push({ path: 'dietaryVariety', code: 'INVALID_ENUM', message: 'Mức độ phong phú thực đơn không hợp lệ.' });
+  }
+
   const targets = input.targets === undefined ? {} : validateRanges(input.targets, 'targets', issues);
   const hardLimits = input.hardLimits === undefined ? {} : validateRanges(input.hardLimits, 'hardLimits', issues);
   if (issues.length) throw new MealPlanValidationError(issues);
-  return { contractVersion: 1, ...(budgetVnd === undefined ? {} : { budgetVnd }), allergies, excludedFoodIds, preferences, targets, hardLimits };
+  return { contractVersion: 1, ...(budgetVnd === undefined ? {} : { budgetVnd }), allergies, excludedFoodIds, preferences, dietaryVariety, targets, hardLimits };
 }
 
 function registeredProvenance(provenance, sources) {
@@ -266,6 +272,18 @@ function preferenceMatches(meals, preferences) {
   return { words, matched: words.filter(word => text.includes(word)) };
 }
 
+function ingredientDiversity(meals) {
+  const foodIds = meals.flatMap(meal => meal.portions.map(portion => portion.foodId));
+  return { unique: new Set(foodIds).size, total: foodIds.length };
+}
+
+function dietaryVarietyPenalty(meals, dietaryVariety) {
+  const diversity = ingredientDiversity(meals);
+  if (dietaryVariety === 'simple') return diversity.unique;
+  if (dietaryVariety === 'varied') return -diversity.unique;
+  return Math.abs(diversity.unique - Math.ceil(diversity.total * 0.65));
+}
+
 function makeMeal(template, scale, foodById, sources, catalog) {
   const templateSource = templateProvenance(template, sources);
   if (!templateSource) return { unavailableCode: 'MEAL_TEMPLATE_PROVENANCE_UNAVAILABLE' };
@@ -307,6 +325,7 @@ function makeMeal(template, scale, foodById, sources, catalog) {
       id: template.id,
       slot: template.slot,
       name: template.name,
+      instructions: Array.isArray(template.instructions) ? template.instructions : [],
       portions: portions.map(({ aliases, allergens, ...portion }) => portion),
       nutrients: totalsForPortions(portions, foodById),
       nutrientUnits,
@@ -355,6 +374,7 @@ function buildBaseResult(request, catalog, blockedFoodIds) {
     metadata: {
       catalogVersion: catalog?.version || null,
       algorithmVersion: ALGORITHM_VERSION,
+      dietaryVariety: request.dietaryVariety,
       nutrientUnits: catalog?.nutrientUnits || Object.fromEntries(Object.entries(NUTRIENTS).map(([key, value]) => [key, value.unit]))
     }
   };
@@ -444,6 +464,7 @@ function generatePlan(input) {
         totalCost,
         score: targetPenalty(dailyTotals, base.goals),
         preference: preferenceMatches(meals, request.preferences),
+        varietyPenalty: dietaryVarietyPenalty(meals, request.dietaryVariety),
         stableKey: chosen.map(option => `${option.meal.id}:${option.scoreScale}`).join('|')
       };
       hardFeasiblePlans.push(candidate);
@@ -465,6 +486,7 @@ function generatePlan(input) {
   budgetFeasiblePlans.sort((left, right) =>
     left.score - right.score ||
     right.preference.matched.length - left.preference.matched.length ||
+    left.varietyPenalty - right.varietyPenalty ||
     (left.totalCost ?? Number.MAX_SAFE_INTEGER) - (right.totalCost ?? Number.MAX_SAFE_INTEGER) ||
     (left.stableKey < right.stableKey ? -1 : left.stableKey > right.stableKey ? 1 : 0));
   const best = budgetFeasiblePlans[0];
@@ -515,6 +537,7 @@ module.exports = {
   DEFAULT_TARGETS,
   NUTRIENT_KEYS,
   MealPlanValidationError,
+  dietaryVarietyPenalty,
   generatePlan,
-  validateMealPlanRequest
+  validateMealPlanRequest,
 };

@@ -46,3 +46,42 @@ jobs:
 
       - name: Audit high and critical vulnerabilities
         run: npm audit --audit-level=high
+
+  supabase-integration:
+    name: Supabase migrations, RLS and authenticated API
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v3
+        with:
+          version: 2.122.1
+
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Reset database from checked-in migrations
+        run: supabase db reset
+
+      - name: Run pgTAP database tests
+        run: supabase test db
+
+      - name: Run authenticated mobile API journey
+        run: npm run test:supabase-api
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup

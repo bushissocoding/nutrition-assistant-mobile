@@ -7,3 +7,10 @@ dist/
 !server/.env.example
 .DS_Store
 server/.local-data/
+
+# Local Supabase CLI state and generated secrets
+supabase/.branches/
+supabase/.temp/
+
+# Local Android debug signing key
+android/app/debug.keystore

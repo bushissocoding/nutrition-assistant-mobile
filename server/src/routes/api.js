@@ -3,8 +3,22 @@ const { calculateFood, calculateTotals } = require('../services/nutrition');
 const { generatePlan, validateMealPlanRequest } = require('../services/meal-planner');
 const { createMealEntryRouter } = require('./meal-entries');
 const { createShoppingListRouter } = require('./shopping-lists');
+const { createCurrentUserRouter } = require('./current-user');
+const { createProfileRouter } = require('./profiles');
+const { createConsentRouter } = require('./consent');
+const { createAccountRouter } = require('./account');
+const { createSourcedFoodRouter } = require('./sourced-foods');
+const { createMealPlanRouter } = require('./meal-plans');
+const { createAccountMealEntryRouter } = require('./account-meal-entries');
+const { createNutritionReportRouter } = require('./nutrition-report');
+const { createAccountGroceryRouter } = require('./account-grocery');
+const { createCareBookingRouter, createPayosWebhookRouter } = require('./care-bookings');
+const { createChatRouter } = require('./chat');
+const { createHealthRecordRouter } = require('./health-records');
+const { createNotificationRouter } = require('./notifications');
+const { createPersonalizationRouter } = require('./personalization');
 
-function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
+function createApiRouter({ foods, mealTemplates, catalog }, demoContext, { authMiddleware, deleteAccount, foodSource, careBookingRepository, paymentRepository, payosGateway, payosConfig, requireCurrentConsent, chatRepository, assistantProvider, healthRecordRepository, notificationRepository, personalizationRepository } = {}) {
   const hasStoreMethods = ['readCollection', 'updateCollection', 'writeCollection']
     .every(method => typeof demoContext?.store?.[method] === 'function');
   if (!hasStoreMethods || typeof demoContext.requireScope !== 'function') {
@@ -16,6 +30,23 @@ function createApiRouter({ foods, mealTemplates, catalog }, demoContext) {
     req.demoContext = demoContext;
     return next();
   });
+  if (authMiddleware) {
+    router.use('/me', createCurrentUserRouter(authMiddleware));
+    router.use('/me', createAccountRouter({ authMiddleware, deleteAccount }));
+    router.use('/me/consent', authMiddleware, createConsentRouter());
+    router.use('/me/profile', authMiddleware, createProfileRouter());
+    router.use('/me/meal-plans', authMiddleware, createMealPlanRouter({ foods, mealTemplates, catalog, foodSource }));
+    router.use('/me/meal-entries', authMiddleware, createAccountMealEntryRouter({ foodSource }));
+    router.use('/me/nutrition-report', authMiddleware, createNutritionReportRouter());
+    router.use('/me/grocery', authMiddleware, createAccountGroceryRouter({ foodSource }));
+    router.use('/me/care', authMiddleware, createCareBookingRouter({ repository: careBookingRepository, paymentRepository, payosGateway, requireCurrentConsent }));
+    router.use('/me/chat', authMiddleware, createChatRouter({ repository: chatRepository, assistantProvider, requireCurrentConsent }));
+    router.use('/me/health-records', authMiddleware, createHealthRecordRouter({ repository: healthRecordRepository }));
+    router.use('/me/notifications', authMiddleware, createNotificationRouter({ repository: notificationRepository }));
+    router.use('/me/personalization', authMiddleware, createPersonalizationRouter({ repository: personalizationRepository }));
+  }
+  router.use('/webhooks/payos', createPayosWebhookRouter({ paymentRepository, checksumKey: payosConfig?.checksumKey }));
+  router.use(createSourcedFoodRouter({ foodSource }));
   router.get('/foods', (req, res) => {
     const query = String(req.query.q || '').trim().toLocaleLowerCase('vi');
     const category = String(req.query.category || '').trim().toLocaleLowerCase('vi');

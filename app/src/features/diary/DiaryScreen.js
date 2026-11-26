@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
+import { NUTRIENTS } from '../profile/profile-model.cjs';
 import { colors, radius } from '../../theme/tokens';
 
 const MEAL_TYPES = [
@@ -77,10 +78,10 @@ function sourceEdition(food) {
 }
 
 function sourceLine(food) {
-  const name = food.source?.name || 'Nguồn chưa ghi';
-  const license = food.source?.license?.name;
-  const rowStatus = food.source?.sourceRecordId ? '' : ' · ID bản ghi cụ thể chưa được lưu';
-  return `Nguồn: ${name} · ${sourceEdition(food)}${license ? ` · ${license}` : ''}${rowStatus}`;
+  const source = food.source || {};
+  const name = source.label || source.name || 'Nguồn chưa ghi';
+  const recordId = source.recordId || source.sourceRecordId;
+  return `Nguồn: ${name}${recordId ? ` · #${recordId}` : ''} · ${sourceEdition(food)}`;
 }
 
 export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
@@ -90,6 +91,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [timeZone] = useState(getDeviceTimeZone);
   const [entries, setEntries] = useState([]);
   const [totals, setTotals] = useState(EMPTY_TOTALS);
+  const [hasEntries, setHasEntries] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
   const [reloadCount, setReloadCount] = useState(0);
@@ -108,19 +110,22 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [successMessage, setSuccessMessage] = useState('');
   const loadSequence = useRef(0);
   const createIntent = useRef(null);
+  const weekDates = Array.from({ length: 7 }, (_, index) => shiftDate(selectedDate, index - 3));
 
   useEffect(() => {
     const sequence = ++loadSequence.current;
     setListLoading(true);
     setListError('');
-    api.getMealEntries({ date: selectedDate, timeZone })
+    api.getMyMealEntries({ date: selectedDate, timeZone })
       .then(result => {
         if (sequence !== loadSequence.current) return;
         const nextEntries = Array.isArray(result?.items) ? result.items : [];
         const nextTotals = result?.totals || EMPTY_TOTALS;
         setEntries(nextEntries);
         setTotals(nextTotals);
-        onTodayDataLoaded?.(selectedDate, nextEntries, nextTotals);
+        const nextHasEntries = result?.hasEntries === true || nextEntries.length > 0;
+        setHasEntries(nextHasEntries);
+        onTodayDataLoaded?.(selectedDate, nextEntries, nextTotals, nextHasEntries);
       })
       .catch(error => {
         if (sequence === loadSequence.current) setListError(error?.message || 'Không tải được nhật ký. Hãy thử lại.');
@@ -136,9 +141,9 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSearchError('');
     setSuccessMessage('');
     try {
-      const result = await api.getFoods(query.trim());
+      const result = await api.searchSourcedFoods(query.trim());
       setFoods(Array.isArray(result?.items) ? result.items : []);
-      setCatalogInfo(result?.catalog || null);
+      setCatalogInfo(result?.catalogVersion ? { version: result.catalogVersion, status: 'live', notice: 'Kết quả được lấy trực tiếp từ USDA FoodData Central.', limitations: [] } : null);
     } catch (error) {
       setSearchError(error?.message || 'Không tìm được thực phẩm. Hãy kiểm tra kết nối rồi thử lại.');
     } finally {
@@ -156,7 +161,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
   function startEditing(entry) {
     const localParts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-      timeZone: entry.timeZone,
+      timeZone,
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
     }).formatToParts(new Date(entry.consumedAt)).map(part => [part.type, part.value]));
@@ -200,13 +205,13 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSuccessMessage('');
     try {
       if (editingId) {
-        await api.updateMealEntry(editingId, payload);
+        await api.updateMyMealEntry(editingId, payload);
       } else {
         const signature = JSON.stringify(payload);
         if (createIntent.current?.signature !== signature) {
           createIntent.current = { signature, key: createIdempotencyKey() };
         }
-        await api.createMealEntry(payload, createIntent.current.key);
+        await api.createMyMealEntry(payload, createIntent.current.key);
         createIntent.current = null;
       }
       onDiaryMutation?.();
@@ -228,7 +233,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
         setMutationError('');
         setSuccessMessage('');
         try {
-          await api.deleteMealEntry(entry.id);
+          await api.deleteMyMealEntry(entry.id);
           onDiaryMutation?.();
           setSuccessMessage('Đã xóa bản ghi.');
           setReloadCount(value => value + 1);
@@ -243,30 +248,58 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
   function changeDate(days) {
     setSelectedDate(date => shiftDate(date, days));
+    clearDateFeedback();
+  }
+
+  function selectDate(date) {
+    setSelectedDate(date);
+    clearDateFeedback();
+  }
+
+  function clearDateFeedback() {
     setEntries([]);
     setTotals(EMPTY_TOTALS);
+    setHasEntries(false);
     setSuccessMessage('');
     setMutationError('');
   }
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.title}>Nhật ký bữa ăn</Text>
-    <Text style={styles.disclaimer}>Đây là nhật ký demo lưu trên máy chủ. Chỉ dùng dữ liệu tổng hợp, không nhập thông tin sức khỏe thật. Dinh dưỡng là ước tính, không phải tư vấn y tế.</Text>
+    <Text accessibilityRole="header" style={styles.title}>Nhật ký bữa ăn</Text>
+    <Text style={styles.disclaimer}>Nhật ký được lưu trong tài khoản và chỉ hiển thị cho bạn. Dinh dưỡng là ước tính từ dữ liệu nguồn, không phải tư vấn y tế.</Text>
 
     <View style={styles.dayRow}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ngày trước" style={styles.dayButton} onPress={() => changeDate(-1)}><Text style={styles.buttonText}>‹</Text></TouchableOpacity>
-      <View style={styles.dayLabel}><Text style={styles.heading}>{selectedDate}</Text><Text style={styles.small}>{timeZone}</Text></View>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ngày sau" style={styles.dayButton} onPress={() => changeDate(1)}><Text style={styles.buttonText}>›</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ngày trước" style={styles.dayButton} onPress={() => changeDate(-1)}><Text style={styles.dayArrow}>‹</Text></TouchableOpacity>
+      <View style={styles.dayLabel}><Text style={styles.dayHeading}>{new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date(`${selectedDate}T12:00:00`))}</Text><Text style={styles.small}>{selectedDate} · {timeZone}</Text></View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ngày sau" style={styles.dayButton} onPress={() => changeDate(1)}><Text style={styles.dayArrow}>›</Text></TouchableOpacity>
     </View>
 
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.weekStrip}>
+      {weekDates.map(date => {
+        const selected = date === selectedDate;
+        const parsedDate = new Date(`${date}T12:00:00`);
+        return <TouchableOpacity
+          key={date}
+          accessibilityRole="button"
+          accessibilityLabel={`Chọn ${new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(parsedDate)}`}
+          accessibilityState={{ selected }}
+          style={[styles.dateChip, selected && styles.dateChipSelected]}
+          onPress={() => selectDate(date)}
+        >
+          <Text style={[styles.dateDay, selected && styles.dateTextSelected]}>{new Intl.DateTimeFormat('vi-VN', { weekday: 'short' }).format(parsedDate)}</Text>
+          <Text style={[styles.dateNumber, selected && styles.dateTextSelected]}>{parsedDate.getDate()}</Text>
+        </TouchableOpacity>;
+      })}
+    </ScrollView>
+
     <View style={styles.card}>
-      <Text style={styles.heading}>{editingId ? 'Sửa bản ghi' : 'Thêm món ăn'}</Text>
+      <Text accessibilityRole="header" style={styles.heading}>{editingId ? 'Sửa bản ghi' : 'Thêm món ăn'}</Text>
       <View style={styles.searchRow}>
-        <TextInput value={query} onChangeText={setQuery} placeholder="Tìm thực phẩm..." style={[styles.input, { flex: 1 }]} onSubmitEditing={searchFoods} returnKeyType="search" />
-        <TouchableOpacity style={styles.searchButton} onPress={searchFoods} disabled={searchLoading}><Text style={styles.buttonText}>Tìm</Text></TouchableOpacity>
+        <TextInput accessibilityLabel="Tìm thực phẩm" value={query} onChangeText={setQuery} placeholder="Tìm món ăn, cơm, thịt, rau…" style={[styles.input, { flex: 1 }]} onSubmitEditing={searchFoods} returnKeyType="search" />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Tìm thực phẩm" style={styles.searchButton} onPress={searchFoods} disabled={searchLoading}><Text style={styles.buttonText}>Tìm</Text></TouchableOpacity>
       </View>
       {searchLoading && <ActivityIndicator accessibilityLabel="Đang tìm thực phẩm" color={colors.primary} style={styles.spinner} />}
-      {!!searchError && <View><Text accessibilityRole="alert" style={styles.error}>{searchError}</Text><TouchableOpacity onPress={searchFoods}><Text style={styles.link}>Thử tìm lại</Text></TouchableOpacity></View>}
+      {!!searchError && <View><Text accessibilityRole="alert" style={styles.error}>{searchError}</Text><TouchableOpacity onPress={searchFoods} style={{ minWidth: 48, minHeight: 54, justifyContent: "center", alignItems: "center" }}><Text style={styles.link}>Thử tìm lại</Text></TouchableOpacity></View>}
       {!searchLoading && !searchError && foods.length === 0 && query.trim() !== '' && <Text style={styles.small}>Không tìm thấy thực phẩm phù hợp.</Text>}
       {catalogInfo && <View style={styles.catalogNotice}>
         <Text style={styles.catalogNoticeTitle}>Danh mục {catalogInfo.version} · {catalogInfo.status}</Text>
@@ -274,12 +307,13 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
         {catalogInfo.status === 'prototype' && <Text style={styles.catalogNoticeText}>Danh mục mẫu, chưa được chuyên gia rà soát. Không phải bảng dữ liệu chính thức của Viện Dinh dưỡng.</Text>}
         {(catalogInfo.limitations || []).map((limitation, index) => <Text key={`${index}-${limitation}`} style={styles.catalogLimitation}>• {limitation}</Text>)}
       </View>}
-      {foods.map(food => <TouchableOpacity key={food.id} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.per100g?.energyKcal) && <Text style={styles.small}>Mỗi 100 g · {food.per100g.energyKcal} kcal</Text>}<Text style={styles.small}>{sourceLine(food)}</Text></TouchableOpacity>)}
+      {foods.map(food => <TouchableOpacity key={food.id} accessibilityRole="button" accessibilityState={{ selected: selectedFood?.id === food.id }} style={styles.foodRow} onPress={() => setSelectedFood(food)}><Text style={styles.foodName}>{selectedFood?.id === food.id ? '✓  ' : ''}{food.name}</Text>{Number.isFinite(food.nutrition?.values?.energyKcal?.value) && <Text style={styles.small}>Mỗi 100 g · {food.nutrition.values.energyKcal.value} kcal</Text>}<Text style={styles.sourceText}>{sourceLine(food)}</Text></TouchableOpacity>)}
 
       {selectedFood && <View style={styles.selected}>
         <Text style={styles.heading}>{selectedFood.name}</Text>
-        {selectedFood.serving && <Text style={styles.small}>Khẩu phần tham khảo: {selectedFood.serving.amount} {selectedFood.serving.unit} · {selectedFood.serving.household}. Dinh dưỡng tính trên {selectedFood.nutrition?.basis?.amount || 100} {selectedFood.nutrition?.basis?.unit || 'g'} phần ăn được.</Text>}
+        <Text style={styles.small}>Dữ liệu nguồn theo {selectedFood.basis?.amount || 100} {selectedFood.basis?.unit || 'g'}; giá trị không có trong hồ sơ nguồn được giữ là chưa có dữ liệu.</Text>
         {selectedFood.source && <Text style={styles.small}>{sourceLine(selectedFood)}</Text>}
+        {NUTRIENTS.map(nutrient => <Text key={nutrient.key} style={styles.small}>{nutrient.label}: {selectedFood.nutrition?.values?.[nutrient.key]?.value ?? 'Chưa có dữ liệu'} {nutrient.unit}</Text>)}
         <Text style={styles.small}>Khẩu phần (g)</Text>
         <TextInput accessibilityLabel="Khối lượng" value={grams} onChangeText={setGrams} keyboardType="decimal-pad" style={styles.input} placeholder="Khối lượng (g)" />
         <Text style={styles.small}>Ngày và giờ theo múi giờ thiết bị</Text>
@@ -299,9 +333,11 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 
     <View style={styles.summaryCard}>
       <Text style={styles.heading}>Tổng dinh dưỡng trong ngày</Text>
-      <Text style={styles.summaryValue}>{displayValue(totals.energyKcal)} kcal</Text>
-      <Text style={styles.small}>Đạm {displayValue(totals.proteinG)} g · Carb {displayValue(totals.carbohydrateG)} g · Béo {displayValue(totals.fatG)} g</Text>
-      <Text style={styles.small}>Chất xơ {displayValue(totals.fiberG)} g · Natri {displayValue(totals.sodiumMg)} mg</Text>
+      {hasEntries ? <>
+        <Text style={styles.summaryValue}>{displayValue(totals.energyKcal)} kcal</Text>
+        <Text style={styles.small}>Đạm {displayValue(totals.proteinG)} g · Carb {displayValue(totals.carbohydrateG)} g · Béo {displayValue(totals.fatG)} g</Text>
+        <Text style={styles.small}>Chất xơ {displayValue(totals.fiberG)} g · Natri {displayValue(totals.sodiumMg)} mg</Text>
+      </> : <Text style={styles.small}>Chưa ghi món ăn trong ngày này.</Text>}
     </View>
 
     <Text style={styles.heading}>Các món đã ghi ({entries.length})</Text>
@@ -322,45 +358,54 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.canvas },
-  content: { padding: 18, paddingBottom: 110 },
-  title: { color: colors.primary, fontSize: 23, fontWeight: '800' },
-  disclaimer: { backgroundColor: '#FFF5DE', color: colors.warning, padding: 11, borderRadius: 10, fontSize: 11, lineHeight: 16, marginVertical: 10 },
-  catalogNotice: { backgroundColor: '#FFF5DE', padding: 10, borderRadius: 9, marginTop: 10 },
-  catalogNoticeTitle: { color: colors.warning, fontSize: 11, lineHeight: 16, fontWeight: '800' },
-  catalogNoticeText: { color: colors.warning, fontSize: 11, lineHeight: 16, marginTop: 3 },
-  catalogLimitation: { color: colors.warning, fontSize: 10, lineHeight: 15, marginTop: 3 },
-  card: { backgroundColor: 'white', padding: 15, borderRadius: radius.md, marginVertical: 7, elevation: 1 },
-  summaryCard: { backgroundColor: 'white', padding: 15, borderRadius: radius.md, marginVertical: 7, borderWidth: 1, borderColor: colors.border },
-  heading: { color: colors.text, fontSize: 15, fontWeight: '800' },
-  small: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
-  summaryValue: { color: colors.primary, fontWeight: '800', fontSize: 19, marginTop: 8 },
+  screen: { flex: 1, backgroundColor: colors.surface },
+  content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 122 },
+  title: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  disclaimer: { backgroundColor: '#FFF7E6', color: colors.warning, padding: 11, borderRadius: radius.sm, fontSize: 14, lineHeight: 17, marginTop: 9, marginBottom: 11 },
+  catalogNotice: { backgroundColor: '#FFF7E6', padding: 11, borderRadius: radius.sm, marginTop: 10 },
+  catalogNoticeTitle: { color: colors.warning, fontSize: 13, lineHeight: 18, fontWeight: '800' },
+  catalogNoticeText: { color: colors.warning, fontSize: 14, lineHeight: 17, marginTop: 4 },
+  catalogLimitation: { color: colors.warning, fontSize: 14, lineHeight: 17, marginTop: 4 },
+  card: { backgroundColor: colors.surface, padding: 15, borderRadius: radius.md, marginVertical: 7, borderWidth: 1, borderColor: colors.border },
+  summaryCard: { backgroundColor: '#F5F8FF', padding: 15, borderRadius: radius.md, marginVertical: 8, borderWidth: 1, borderColor: '#E1E9FF' },
+  heading: { color: colors.text, fontSize: 17, fontWeight: '800' },
+  small: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 5 },
+  summaryValue: { color: colors.primary, fontWeight: '800', fontSize: 25, marginTop: 8 },
   dayRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginVertical: 8 },
-  dayButton: { backgroundColor: colors.primary, borderRadius: radius.pill, width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
-  dayLabel: { alignItems: 'center' },
-  searchRow: { flexDirection: 'row', gap: 8, marginTop: 10 },
-  input: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 11, backgroundColor: 'white', marginTop: 8, color: colors.text },
-  searchButton: { backgroundColor: colors.primary, paddingHorizontal: 16, justifyContent: 'center', borderRadius: 10 },
-  buttonText: { color: 'white', fontWeight: '800' },
-  foodRow: { paddingVertical: 10, borderBottomColor: colors.border, borderBottomWidth: 1 },
-  foodName: { color: colors.text, fontWeight: '700', fontSize: 14 },
-  selected: { marginTop: 14 },
-  mealRow: { flexDirection: 'row', gap: 7, marginTop: 8, marginBottom: 4 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: radius.pill, backgroundColor: colors.softBlue },
+  dayButton: { backgroundColor: colors.softBlue, borderRadius: radius.pill, width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  dayArrow: { color: colors.primary, fontSize: 26, lineHeight: 29 },
+  dayLabel: { alignItems: 'center', flex: 1 },
+  dayHeading: { color: colors.text, fontWeight: '800', fontSize: 15, textTransform: 'capitalize' },
+  weekStrip: { gap: 7, paddingVertical: 7, paddingBottom: 12 },
+  dateChip: { width: 48, minHeight: 54, borderWidth: 1, borderColor: colors.border, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surface },
+  dateChipSelected: { backgroundColor: '#DDEAFF', borderColor: colors.primary },
+  dateDay: { color: colors.muted, fontSize: 13, textTransform: 'capitalize' },
+  dateNumber: { color: colors.text, fontSize: 15, fontWeight: '700', marginTop: 2 },
+  dateTextSelected: { color: colors.primaryDark },
+  searchRow: { flexDirection: 'row', gap: 8, marginTop: 10, alignItems: 'center' },
+  input: { minHeight: 54, borderWidth: 1, borderColor: colors.border, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 9, backgroundColor: colors.surface, marginTop: 8, color: colors.text, fontSize: 14 },
+  searchButton: { minHeight: 54, minWidth: 52, backgroundColor: colors.primary, paddingHorizontal: 13, justifyContent: 'center', alignItems: 'center', borderRadius: 11, marginTop: 8 },
+  buttonText: { color: 'white', fontWeight: '800', fontSize: 14 },
+  foodRow: { minHeight: 54, paddingVertical: 11, borderBottomColor: colors.border, borderBottomWidth: 1 },
+  foodName: { color: colors.text, fontWeight: '800', fontSize: 15 },
+  sourceText: { color: colors.muted, fontSize: 13, lineHeight: 16, marginTop: 4 },
+  selected: { marginTop: 14, paddingTop: 13, borderTopWidth: 1, borderTopColor: colors.border },
+  mealRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 8, marginBottom: 4 },
+  chip: { paddingHorizontal: 12, paddingVertical: 8, minHeight: 54, borderRadius: radius.pill, backgroundColor: colors.softBlue, alignItems: 'center', justifyContent: 'center' },
   chipActive: { backgroundColor: colors.primary },
-  chipText: { color: colors.primary, fontWeight: '700', fontSize: 12 },
+  chipText: { color: colors.primaryDark, fontWeight: '700', fontSize: 13 },
   chipTextActive: { color: 'white' },
-  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 10 },
-  addButton: { minHeight: 44, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
-  cancelButton: { paddingHorizontal: 8, paddingVertical: 10 },
-  textButton: { padding: 7 },
-  link: { color: colors.primary, fontWeight: '700' },
-  deleteText: { color: colors.danger, fontWeight: '700' },
+  actionRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 10, flexWrap: 'wrap' },
+  addButton: { minHeight: 54, backgroundColor: colors.primary, borderRadius: radius.pill, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
+  cancelButton: { minHeight: 54, paddingHorizontal: 9, paddingVertical: 10, justifyContent: 'center' },
+  textButton: { minHeight: 54, minWidth: 48, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
+  link: { color: colors.primary, fontWeight: '800', fontSize: 13 },
+  deleteText: { color: colors.danger, fontWeight: '700', fontSize: 13 },
   spinner: { marginTop: 12 },
   loading: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 12 },
-  error: { color: colors.danger, fontSize: 12, lineHeight: 18, marginTop: 8 },
-  success: { color: colors.primary, fontWeight: '700', fontSize: 12, marginTop: 8 },
-  errorCard: { backgroundColor: '#FFF0F0', padding: 12, borderRadius: 12, marginVertical: 8 },
-  retryButton: { alignSelf: 'flex-start', backgroundColor: colors.primary, paddingHorizontal: 14, paddingVertical: 10, borderRadius: radius.pill, marginTop: 8 },
-  entryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  error: { color: colors.danger, fontSize: 13, lineHeight: 18, marginTop: 8 },
+  success: { color: colors.success, fontWeight: '700', fontSize: 13, marginTop: 8 },
+  errorCard: { backgroundColor: '#FFF1F0', padding: 12, borderRadius: radius.md, marginVertical: 8 },
+  retryButton: { minHeight: 54, alignSelf: 'flex-start', backgroundColor: colors.primary, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill, marginTop: 8 },
+  entryHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
 });

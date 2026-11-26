@@ -6,17 +6,18 @@ import { api } from '../../services/api';
 
 jest.mock('../../services/api', () => ({
   api: {
-    getMealEntries: jest.fn(),
-    getFoods: jest.fn(),
-    createMealEntry: jest.fn(),
-    updateMealEntry: jest.fn(),
-    deleteMealEntry: jest.fn(),
+    getMyMealEntries: jest.fn(),
+    searchSourcedFoods: jest.fn(),
+    createMyMealEntry: jest.fn(),
+    updateMyMealEntry: jest.fn(),
+    deleteMyMealEntry: jest.fn(),
   },
 }));
 
 const emptyDiary = {
   items: [],
-  totals: { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 },
+  hasEntries: false,
+  totals: null,
 };
 const testTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const savedAtLocalNoon = new Date();
@@ -32,11 +33,11 @@ const savedEntry = {
   notes: null,
   nutrients: { energyKcal: 156, proteinG: 3.2, carbohydrateG: 34, fatG: 0.4, fiberG: 0.5, sodiumMg: 1 },
 };
-const savedDiary = { items: [savedEntry], totals: savedEntry.nutrients };
+const savedDiary = { items: [savedEntry], hasEntries: true, totals: savedEntry.nutrients };
 
 beforeEach(() => {
   jest.clearAllMocks();
-  api.getMealEntries.mockResolvedValue(emptyDiary);
+  api.getMyMealEntries.mockResolvedValue(emptyDiary);
 });
 
 function renderDiary() {
@@ -56,16 +57,16 @@ async function changeText(screen, placeholder, value) {
 
 test('shows a finite loading state while the selected day is loading', async () => {
   let finishLoad;
-  api.getMealEntries.mockReturnValue(new Promise(resolve => { finishLoad = resolve; }));
+  api.getMyMealEntries.mockReturnValue(new Promise(resolve => { finishLoad = resolve; }));
   const screen = render(<DiaryScreen />);
 
-  expect(screen.getByText(/Chỉ dùng dữ liệu tổng hợp, không nhập thông tin sức khỏe thật/)).toBeTruthy();
+  expect(screen.getByText(/Nhật ký được lưu trong tài khoản và chỉ hiển thị cho bạn/)).toBeTruthy();
   expect(screen.getByText('Đang tải nhật ký…')).toBeTruthy();
   await act(async () => finishLoad(emptyDiary));
 });
 
 test('shows the empty state and lets the user retry a failed day load', async () => {
-  api.getMealEntries.mockRejectedValueOnce(new Error('API đang ngoại tuyến.')).mockResolvedValueOnce(emptyDiary);
+  api.getMyMealEntries.mockRejectedValueOnce(new Error('API đang ngoại tuyến.')).mockResolvedValueOnce(emptyDiary);
   const screen = renderDiary();
 
   await waitFor(() => expect(screen.getByText('API đang ngoại tuyến.')).toBeTruthy());
@@ -77,7 +78,7 @@ test('ignores a late response for a day the user has already left', async () => 
   let finishPreviousDay;
   const previousDay = new Promise(resolve => { finishPreviousDay = resolve; });
   const nextEntry = { ...savedEntry, id: 'next-day-entry', foodName: 'Món ngày kế tiếp' };
-  api.getMealEntries.mockReturnValueOnce(previousDay).mockResolvedValueOnce({ items: [nextEntry], totals: nextEntry.nutrients });
+  api.getMyMealEntries.mockReturnValueOnce(previousDay).mockResolvedValueOnce({ items: [nextEntry], hasEntries: true, totals: nextEntry.nutrients });
   const screen = renderDiary();
 
   await act(async () => {
@@ -85,41 +86,55 @@ test('ignores a late response for a day the user has already left', async () => 
     for (let index = 0; index < 3; index += 1) await Promise.resolve();
   });
   await waitFor(() => expect(screen.getByText('Món ngày kế tiếp')).toBeTruthy());
-  await act(async () => finishPreviousDay({ items: [savedEntry], totals: savedEntry.nutrients }));
+  await act(async () => finishPreviousDay({ items: [savedEntry], hasEntries: true, totals: savedEntry.nutrients }));
   expect(screen.queryByText('Cơm trắng')).toBeNull();
 });
 
+test('loads the selected date from the visible week strip', async () => {
+  const today = new Date();
+  const tomorrow = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1, 12);
+  const pad = value => String(value).padStart(2, '0');
+  const targetDate = `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}`;
+  const label = `Chọn ${new Intl.DateTimeFormat('vi-VN', { weekday: 'long', day: 'numeric', month: 'long' }).format(tomorrow)}`;
+  const screen = renderDiary();
+
+  await act(async () => {
+    fireEvent.press(screen.getByLabelText(label));
+    for (let index = 0; index < 3; index += 1) await Promise.resolve();
+  });
+
+  await waitFor(() => expect(api.getMyMealEntries).toHaveBeenLastCalledWith({ date: targetDate, timeZone: testTimeZone }));
+});
+
 test('shows catalog version, food source, units and serving limits in search results', async () => {
-  api.getFoods.mockResolvedValue({
-    catalog: { version: 'prototype-test-v1', status: 'prototype', notice: 'Demo source values are unreviewed.' },
+  api.searchSourcedFoods.mockResolvedValue({
+    catalogVersion: 'USDA-FDC-live-v1',
     items: [{
-      id: 'synthetic-food',
+      id: 'fdc:12345',
       name: 'Synthetic food',
-      per100g: { energyKcal: 10 },
-      serving: { amount: 50, unit: 'g', household: 'one synthetic piece' },
-      nutrition: { basis: { amount: 100, unit: 'g' } },
+      fdcId: '12345',
+      nutrition: { values: { energyKcal: { value: 10 } } },
+      basis: { amount: 100, unit: 'g' },
       source: {
-        name: 'USDA FoodData Central',
-        edition: 'not-recorded-in-legacy-data',
-        sourceRecordId: null,
-        license: { name: 'CC0 1.0 Universal' },
+        label: 'USDA FoodData Central',
+        edition: '2025-04-01',
+        recordId: '12345',
       },
     }],
   });
   const screen = renderDiary();
 
   await press(screen, 'Tìm');
-  expect(screen.getByText(/Danh mục prototype-test-v1 · prototype/)).toBeTruthy();
-  expect(screen.getByText(/USDA FoodData Central · edition không ghi nhận · CC0 1.0 Universal/)).toBeTruthy();
+  expect(screen.getByText(/Danh mục USDA-FDC-live-v1 · live/)).toBeTruthy();
+  expect(screen.getByText(/USDA FoodData Central · #12345 · edition 2025-04-01/)).toBeTruthy();
   await press(screen, 'Synthetic food');
-  expect(screen.getByText(/Khẩu phần tham khảo: 50 g · one synthetic piece/)).toBeTruthy();
-  expect(screen.getByText(/Dinh dưỡng tính trên 100 g phần ăn được/)).toBeTruthy();
+  expect(screen.getByText(/Dữ liệu nguồn theo 100 g/)).toBeTruthy();
 });
 
 test('preserves the form on create failure and retries the same intent with the same key', async () => {
-  api.getFoods.mockResolvedValue({ items: [{ id: 'rice-steamed', name: 'Cơm trắng', per100g: { energyKcal: 130 } }] });
-  api.createMealEntry.mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });
-  api.getMealEntries.mockResolvedValueOnce(emptyDiary).mockResolvedValueOnce(savedDiary);
+  api.searchSourcedFoods.mockResolvedValue({ items: [{ id: 'fdc:12345', name: 'Cơm trắng', nutrition: { values: { energyKcal: { value: 130 } } } }] });
+  api.createMyMealEntry.mockRejectedValueOnce(new Error('Không kết nối được API.')).mockResolvedValueOnce({ item: savedEntry });
+  api.getMyMealEntries.mockResolvedValueOnce(emptyDiary).mockResolvedValueOnce(savedDiary);
   const screen = renderDiary();
 
   await press(screen, 'Tìm');
@@ -135,9 +150,9 @@ test('preserves the form on create failure and retries the same intent with the 
   expect(screen.queryByText('Đã lưu nhật ký.')).toBeNull();
 
   await press(screen, 'Thử lưu lại');
-  await waitFor(() => expect(api.createMealEntry).toHaveBeenCalledTimes(2));
-  const firstAttempt = api.createMealEntry.mock.calls[0];
-  const retryAttempt = api.createMealEntry.mock.calls[1];
+  await waitFor(() => expect(api.createMyMealEntry).toHaveBeenCalledTimes(2));
+  const firstAttempt = api.createMyMealEntry.mock.calls[0];
+  const retryAttempt = api.createMyMealEntry.mock.calls[1];
   expect(retryAttempt).toEqual(firstAttempt);
   expect(retryAttempt[0]).not.toHaveProperty('nutrients');
   expect(firstAttempt[0].consumedAt).toMatch(/(?:Z|[+-]\d{2}:\d{2})$/);
@@ -149,9 +164,9 @@ test('preserves the form on create failure and retries the same intent with the 
 
 test('updates and deletes only after the API confirms each mutation', async () => {
   const updatedEntry = { ...savedEntry, notes: 'đã sửa' };
-  api.getMealEntries.mockResolvedValueOnce(savedDiary).mockResolvedValueOnce({ items: [updatedEntry], totals: savedEntry.nutrients }).mockResolvedValueOnce(emptyDiary);
-  api.updateMealEntry.mockResolvedValue({ item: updatedEntry });
-  api.deleteMealEntry.mockResolvedValue(null);
+  api.getMyMealEntries.mockResolvedValueOnce(savedDiary).mockResolvedValueOnce({ items: [updatedEntry], hasEntries: true, totals: savedEntry.nutrients }).mockResolvedValueOnce(emptyDiary);
+  api.updateMyMealEntry.mockResolvedValue({ item: updatedEntry });
+  api.deleteMyMealEntry.mockResolvedValue(null);
   let deleteRequest;
   const alertSpy = jest.spyOn(Alert, 'alert').mockImplementation((_title, _message, buttons) => {
     deleteRequest = buttons.find(button => button.style === 'destructive').onPress();
@@ -162,16 +177,39 @@ test('updates and deletes only after the API confirms each mutation', async () =
   await press(screen, 'Sửa');
   await changeText(screen, 'Ghi chú (tùy chọn)', 'đã sửa');
   await press(screen, 'Lưu thay đổi');
-  await waitFor(() => expect(api.updateMealEntry).toHaveBeenCalledWith('entry-1', expect.objectContaining({ notes: 'đã sửa' })));
+  await waitFor(() => expect(api.updateMyMealEntry).toHaveBeenCalledWith('entry-1', expect.objectContaining({ notes: 'đã sửa' })));
   await waitFor(() => expect(screen.getByText('đã sửa')).toBeTruthy());
 
   await act(async () => {
     fireEvent.press(screen.getByText('Xóa'));
     await deleteRequest;
   });
-  await waitFor(() => expect(api.deleteMealEntry).toHaveBeenCalledWith('entry-1'));
+  await waitFor(() => expect(api.deleteMyMealEntry).toHaveBeenCalledWith('entry-1'));
   await waitFor(() => expect(screen.getByText('Đã xóa bản ghi.').props.accessibilityLiveRegion).toBe('polite'));
   await waitFor(() => expect(screen.getByText('Chưa có món nào trong ngày này.')).toBeTruthy());
   expect(alertSpy).toHaveBeenCalled();
   alertSpy.mockRestore();
+});
+
+test('preserves the original instant when editing an entry saved in another time zone', async () => {
+  const consumedAt = '2026-11-16T12:15:00.000Z';
+  const offsetFor = timeZone => new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    timeZoneName: 'longOffset',
+  }).formatToParts(new Date(consumedAt)).find(part => part.type === 'timeZoneName').value;
+  const entryTimeZone = ['America/Los_Angeles', 'Pacific/Kiritimati', 'Asia/Tokyo']
+    .find(candidate => offsetFor(candidate) !== offsetFor(testTimeZone));
+  const entry = { ...savedEntry, consumedAt, timeZone: entryTimeZone };
+  api.getMyMealEntries.mockResolvedValue({ items: [entry], hasEntries: true, totals: entry.nutrients });
+  api.updateMyMealEntry.mockResolvedValue({ item: entry });
+  const screen = renderDiary();
+
+  await waitFor(() => expect(screen.getByText('Cơm trắng')).toBeTruthy());
+  await press(screen, 'Sửa');
+  await press(screen, 'Lưu thay đổi');
+
+  await waitFor(() => expect(api.updateMyMealEntry).toHaveBeenCalledTimes(1));
+  const [, payload] = api.updateMyMealEntry.mock.calls[0];
+  expect(Date.parse(payload.consumedAt)).toBe(Date.parse(consumedAt));
+  expect(payload.timeZone).toBe(testTimeZone);
 });

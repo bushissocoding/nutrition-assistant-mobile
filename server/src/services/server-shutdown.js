@@ -8,16 +8,16 @@ function registerGracefulShutdown(server, {
   function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
-    logger.log(`Received ${signal}; shutting down API server.`);
+    logger.log(JSON.stringify({ event: 'api_shutdown_started', entryPoint: 'http_api', signal }));
 
     const timeout = setTimeout(() => {
-      logger.error('Graceful shutdown timed out; closing active connections.');
+      logger.error(JSON.stringify({ event: 'api_shutdown_deadline_reached', entryPoint: 'http_api' }));
       try {
         // Gracefully close first, then force remaining sockets after the deadline.
         // https://nodejs.org/download/release/v22.23.0/docs/api/http.html#servercloseallconnections
         server.closeAllConnections();
       } catch (error) {
-        logger.error('Forced connection close failed.', { code: error?.code || 'FORCED_CLOSE_FAILED' });
+        logger.error(JSON.stringify({ event: 'api_forced_connection_close_failed', entryPoint: 'http_api', code: error?.code || 'FORCED_CLOSE_FAILED' }));
         processObject.exitCode = 1;
       }
     }, timeoutMs);
@@ -25,11 +25,11 @@ function registerGracefulShutdown(server, {
     server.close(error => {
       clearTimeout(timeout);
       if (error) {
-        logger.error('API server close failed.', { code: error.code || 'SERVER_CLOSE_FAILED' });
+        logger.error(JSON.stringify({ event: 'api_server_close_failed', entryPoint: 'http_api', code: error.code || 'SERVER_CLOSE_FAILED' }));
         processObject.exitCode = 1;
         return;
       }
-      logger.log('API server stopped.');
+      logger.log(JSON.stringify({ event: 'api_server_stopped', entryPoint: 'http_api' }));
     });
   }
 

@@ -1,47 +1,207 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import ProgressBar from '../../shared/components/ProgressBar';
-import { colors, radius } from '../../theme/tokens';
+import { useEffect, useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { api } from '../../services/api';
+import { colors, radius, spacing } from '../../theme/tokens';
+import { getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
+import { NUTRIENTS } from '../profile/profile-model.cjs';
 
-export default function DashboardScreen({ diary = [], diaryTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 }, plan }) {
-  const totals = diaryTotals;
-  const goals = { energyKcal: 1800, proteinG: 90, carbohydrateG: 220, fatG: 65, fiberG: 25 };
-  const metrics = [
-    { label: 'Proteins', amount: `${Math.round(totals.proteinG)} / ${goals.proteinG} g`, progress: totals.proteinG / goals.proteinG * 100 },
-    { label: 'Carbohydrates', amount: `${Math.round(totals.carbohydrateG)} / ${goals.carbohydrateG} g`, progress: totals.carbohydrateG / goals.carbohydrateG * 100 },
-    { label: 'Fats', amount: `${Math.round(totals.fatG)} / ${goals.fatG} g`, progress: totals.fatG / goals.fatG * 100 },
-    { label: 'Fiber', amount: `${Math.round(totals.fiberG)} / ${goals.fiberG} g`, progress: totals.fiberG / goals.fiberG * 100 },
-    { label: 'Sodium', amount: `${Math.round(totals.sodiumMg)} / 2,000 mg`, progress: totals.sodiumMg / 2000 * 100 },
-  ];
+const metrics = [
+  { key: 'proteinG', label: 'Protein', unit: 'g', icon: '♧' },
+  { key: 'fatG', label: 'Lipid', unit: 'g', icon: '♙' },
+  { key: 'fiberG', label: 'Chất xơ', unit: 'g', icon: '⌁' },
+  { key: 'carbohydrateG', label: 'Glucid', unit: 'g', icon: '⌘' },
+  { key: 'energyKcal', label: 'Năng lượng', unit: 'kcal', icon: 'ϟ' },
+];
+
+function rounded(value) {
+  return Math.round(Number(value) || 0);
+}
+
+export default function DashboardScreen({ profile, diaryTotals = {}, diary = [], diaryHasEntries = false, diaryError = '', diaryLoading = false, onRetryDiary }) {
+  const [metricIndex, setMetricIndex] = useState(0);
+  const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [retryVersion, setRetryVersion] = useState(0);
+  const [trackConfirmedTargets, setTrackConfirmedTargets] = useState(false);
+  const activeMetric = metrics[metricIndex];
+  const week = useMemo(() => getRecentLocalDays(new Date(), 7), []);
+  const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
+
+  useEffect(() => {
+    let active = true;
+    const dates = week.slice(0, -1).map(day => day.date);
+    setHistoryLoading(true);
+    loadDiaryHistory(api, dates, timeZone).then(result => {
+      if (active) setHistory(result);
+    }).finally(() => {
+      if (active) setHistoryLoading(false);
+    });
+    return () => { active = false; };
+  }, [week, timeZone, retryVersion]);
+
+  useEffect(() => {
+    let active = true;
+    api.getMyPersonalization().then(result => {
+      if (active) setTrackConfirmedTargets(result?.preferences?.trackConfirmedTargets === true);
+    }).catch(() => {
+      if (active) setTrackConfirmedTargets(false);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const hasTodayEntries = diaryHasEntries || diary.length > 0;
+  const chartValues = week.map(day => {
+    if (day.current) {
+      if (diaryLoading || diaryError) return null;
+      if (!hasTodayEntries) return 0;
+      return Number.isFinite(diaryTotals[activeMetric.key]) ? diaryTotals[activeMetric.key] : null;
+    }
+    if (history.errorsByDate[day.date]) return null;
+    if (history.byDate[day.date]) {
+      const report = history.byDate[day.date];
+      if (!report.hasEntries) return 0;
+      return Number.isFinite(report.totals[activeMetric.key]) ? report.totals[activeMetric.key] : null;
+    }
+    return historyLoading ? null : 0;
+  });
+  const chartMaximum = Math.max(...chartValues.filter(value => value !== null), activeMetric.key === 'energyKcal' ? 1800 : 100);
+  const failedDateCount = Object.keys(history.errorsByDate).length + (diaryError ? 1 : 0);
+  const hasEntries = hasTodayEntries || week.slice(0, -1).some(day => history.byDate[day.date]?.hasEntries);
+  const confirmedTargets = profile?.mode === 'patient' && profile.medicalLimitsConfirmed === true && trackConfirmedTargets
+    ? NUTRIENTS.filter(nutrient => {
+      const range = profile.hardLimits?.[nutrient.key];
+      return range && ((Number.isFinite(range.min) && range.min >= 0) || (Number.isFinite(range.max) && range.max >= 0));
+    })
+    : [];
+
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-    <Text style={styles.title}>Lịch Ăn Hằng Ngày</Text>
-    <Text style={styles.estimate}>Dinh dưỡng là ước tính từ danh mục demo, không phải tư vấn y tế.</Text>
-    <Text style={styles.heading}>Meal schedule</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mealRow}>
-      {(plan?.plan || []).map((meal, index) =>
-        <View key={`${meal.slot}-${index}`} style={styles.mealCard}>
-          <Text style={styles.mealImage}>{['🍳', '🥗', '🍲', '🍎'][index] || '🍽️'}</Text><Text style={styles.mealTitle}>{meal.slot}</Text>
-          <Text style={styles.caption}>{meal.name}</Text><Text style={styles.detail}>Calories　　{meal.nutrients.energyKcal} kcal</Text><Text style={styles.detail}>Chi phí　　 {Number.isSafeInteger(meal.estimatedCostVnd) ? `${meal.estimatedCostVnd.toLocaleString('vi-VN')}đ` : 'chưa có giá có nguồn'}</Text>
-        </View>)}
-    </ScrollView>
-    {!plan?.plan?.length && <Text style={styles.empty}>Chưa có thực đơn. Tạo thực đơn để xem lịch ăn trong ngày.</Text>}
-    <View style={styles.card}><Text style={styles.cardTitle}>Calories Tracker</Text><Text style={styles.label}>Total Calories · {Math.round(totals.energyKcal)} / {goals.energyKcal} kcal</Text><ProgressBar value={totals.energyKcal / goals.energyKcal * 100} />
-      <Text style={[styles.cardTitle, { marginTop: 18 }]}>Macronutrient tracking</Text>
-      {metrics.slice(1).map(metric => <View key={metric.label} style={styles.metric}><Text style={styles.label}>{metric.label} · {metric.amount}</Text><ProgressBar value={metric.progress} /></View>)}
-      <Text style={styles.note}>{diary.length ? `Tổng hợp từ ${diary.length} món đã ghi theo kết quả máy chủ. Mục tiêu chỉ để minh họa, chưa phải chỉ định y tế.` : 'Chưa có dữ liệu nhật ký. Hãy ghi nhận bữa ăn để bắt đầu theo dõi. Mục tiêu chỉ để minh họa.'}</Text>
+    <View style={styles.header}>
+      <Text accessibilityRole="header" style={styles.title}>Chỉ số</Text>
+      <View accessibilityLabel="Ngày xem: hôm nay" style={styles.todayButton}>
+        <Text style={styles.todayText}>Hôm nay　⌄</Text>
+      </View>
+    </View>
+
+    <View style={styles.metricGrid}>
+      {metrics.map((metric, index) => {
+        const rawValue = diaryTotals[metric.key];
+        const value = hasTodayEntries && Number.isFinite(rawValue) ? rounded(rawValue) : '—';
+        return <View key={metric.key} style={[styles.metricCard, index < 3 ? styles.thirdCard : styles.halfCard]}>
+          <View style={styles.metricCardHeader}><Text style={styles.metricLabel}>{metric.label}</Text><Text style={styles.metricIcon}>{metric.icon}</Text></View>
+          <Text style={styles.metricValue}>{value}<Text style={styles.metricUnit}> {metric.unit}</Text></Text>
+        </View>;
+      })}
+    </View>
+
+    {confirmedTargets.length > 0 && <View accessibilityLabel="Đối chiếu giới hạn do bạn xác nhận" style={styles.targetCard}>
+      <Text accessibilityRole="header" style={styles.chartTitle}>Đối chiếu giới hạn đã xác nhận</Text>
+      <Text style={styles.chartNotice}>Các khoảng do bạn nhập trong hồ sơ; đây là phép đối chiếu nhật ký, không phải đánh giá y tế.</Text>
+      {confirmedTargets.map(nutrient => {
+        const range = profile.hardLimits[nutrient.key];
+        const hasMin = Number.isFinite(range.min) && range.min >= 0;
+        const hasMax = Number.isFinite(range.max) && range.max >= 0;
+        const rangeText = hasMin && hasMax ? `${rounded(range.min)}–${rounded(range.max)} ${nutrient.unit}` : hasMin ? `Từ ${rounded(range.min)} ${nutrient.unit}` : `Tối đa ${rounded(range.max)} ${nutrient.unit}`;
+        const value = diaryTotals[nutrient.key];
+        const hasValue = hasTodayEntries && Number.isFinite(value) && !diaryLoading && !diaryError;
+        const inside = hasValue && (!hasMin || value >= range.min) && (!hasMax || value <= range.max);
+        const state = !hasValue ? 'Chưa có dữ liệu nhật ký hôm nay' : inside ? 'Trong khoảng bạn nhập' : 'Ngoài khoảng bạn nhập';
+        return <View key={nutrient.key} style={styles.targetRow}>
+          <Text style={styles.targetName}>{nutrient.label}</Text>
+          <Text style={styles.targetValue}>{hasValue ? `${rounded(value)} ${nutrient.unit}` : '—'}</Text>
+          <Text style={styles.targetHint}>Khoảng: {rangeText} · {state}</Text>
+        </View>;
+      })}
+    </View>}
+
+    <View style={styles.chartHeading}>
+      <Text accessibilityRole="header" style={styles.chartTitle}>Biểu đồ 7 ngày gần nhất</Text>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chỉ số đang xem: ${activeMetric.label}`} style={styles.metricPicker} onPress={() => setMetricIndex(index => (index + 1) % metrics.length)}>
+        <Text style={styles.metricPickerText}>{activeMetric.label}　⌄</Text>
+      </TouchableOpacity>
+    </View>
+
+    <View style={styles.chartCard}>
+      <View style={styles.chartGrid}>
+        {[0, 1, 2, 3].map(line => <View key={line} style={styles.chartLine} />)}
+        <View style={styles.chartColumns}>
+          {week.map((day, index) => {
+            const value = chartValues[index];
+            const dayFailed = day.current ? Boolean(diaryError) : Boolean(history.errorsByDate[day.date]);
+            const dayHasEntries = day.current ? hasTodayEntries : Boolean(history.byDate[day.date]?.hasEntries);
+            const height = value !== null && value > 0 ? Math.max(8, value / chartMaximum * 170) : 0;
+            const dayDescription = `${activeMetric.label} ${day.date}: ${value === null ? dayFailed ? 'không tải được' : 'chưa có dữ liệu dưỡng chất' : !dayHasEntries ? 'chưa ghi món' : `${rounded(value)} ${activeMetric.unit}`}`;
+            return <View key={day.key} accessible accessibilityLabel={dayDescription} style={styles.chartColumn}>
+              <View style={styles.chartTrack}>
+                {value === null && dayFailed ? <Text testID="chart-unavailable" style={styles.chartMissing}>!</Text> : null}
+                {value === null && !dayFailed ? <Text style={styles.chartMissing}>—</Text> : null}
+                {!!height && <View testID="chart-bar" style={[styles.chartBar, { height }]} />}
+              </View>
+              <Text style={[styles.dayLabel, day.current && styles.dayLabelCurrent]}>{day.label} {day.dateObject.getDate()}</Text>
+            </View>;
+          })}
+        </View>
+      </View>
+      {historyLoading || diaryLoading ? <Text accessibilityLiveRegion="polite" style={styles.chartNotice}>Đang tải nhật ký 7 ngày gần nhất…</Text> : null}
+      {!historyLoading && !diaryLoading && failedDateCount > 0 ? <View>
+        <Text accessibilityRole="alert" style={styles.chartNotice}>Không tải được dữ liệu của {failedDateCount} ngày. Các ngày đã tải vẫn được giữ lại.</Text>
+        <TouchableOpacity accessibilityRole="button" style={styles.retryButton} onPress={() => { setRetryVersion(value => value + 1); if (diaryError) onRetryDiary?.(); }}><Text style={styles.retryText}>Tải lại lịch sử</Text></TouchableOpacity>
+      </View> : null}
+      {!historyLoading && !diaryLoading && failedDateCount === 0 && !hasEntries ? <Text style={styles.chartNotice}>Chưa có món ăn nào được ghi trong 7 ngày gần nhất.</Text> : null}
+    </View>
+
+    <View style={styles.noteCard}>
+      <Text style={styles.noteIcon}>ⓘ</Text>
+      <Text style={styles.noteText}>Giá trị được tính từ snapshot USDA trong nhật ký tài khoản. Ngày chưa ghi món và dưỡng chất nguồn không báo cáo được hiển thị riêng; thông tin không thay thế tư vấn chuyên môn.</Text>
+    </View>
+    <View style={styles.loggedSummary}>
+      <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>
+      <Text style={styles.loggedValue}>{diary.length} món đã ghi</Text>
     </View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: colors.surface }, content: { paddingTop: 26, paddingBottom: 110 },
-  title: { color: colors.primary, textAlign: 'center', fontSize: 22, fontWeight: '800', marginBottom: 8 },
-  estimate: { color: colors.warning, backgroundColor: '#FFF5DE', padding: 10, marginHorizontal: 16, marginBottom: 12, borderRadius: 10, fontSize: 11, lineHeight: 16 },
-  heading: { marginHorizontal: 18, color: '#302323', fontSize: 17, fontWeight: '800' },
-  mealRow: { paddingHorizontal: 16, paddingTop: 24, paddingBottom: 20, gap: 16 },
-  empty: { color: colors.muted, fontSize: 12, marginHorizontal: 18, marginBottom: 12 },
-  mealCard: { width: 180, minHeight: 210, alignItems: 'center', padding: 12, borderRadius: radius.md, backgroundColor: colors.surface, elevation: 3, shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 5 },
-  mealImage: { width: 116, height: 116, textAlign: 'center', textAlignVertical: 'center', overflow: 'hidden', borderRadius: 58, backgroundColor: '#F3EDE6', fontSize: 62, marginBottom: 6 },
-  mealTitle: { fontWeight: '800', color: '#302323', marginTop: 2 }, caption: { color: colors.muted, fontSize: 11, marginTop: 5 }, detail: { alignSelf: 'stretch', fontSize: 10, color: '#514B4B', marginTop: 7 },
-  card: { marginHorizontal: 19, marginTop: 4, padding: 15, minHeight: 370, borderWidth: 1, borderColor: '#C9C9C9', borderRadius: 11, backgroundColor: colors.surface, elevation: 2 },
-  cardTitle: { color: '#302323', fontSize: 13, fontWeight: '800' }, label: { color: '#514B4B', fontSize: 10, marginTop: 14 }, metric: { marginTop: 2 }, note: { color: colors.muted, fontSize: 11, marginTop: 24, lineHeight: 16 },
+  screen: { flex: 1, backgroundColor: colors.surface },
+  content: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: 112 },
+  header: { minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 15 },
+  title: { color: colors.text, fontSize: 24, fontWeight: '800' },
+  todayButton: { minHeight: 54, minWidth: 90, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill },
+  todayText: { color: colors.text, fontSize: 14, fontWeight: '700' },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 10 },
+  targetCard: { padding: 14, borderWidth: 1, borderColor: colors.border, borderRadius: 17, backgroundColor: 'white', marginTop: spacing.md },
+  targetRow: { paddingVertical: 10, borderTopWidth: 1, borderColor: colors.border },
+  targetName: { color: colors.text, fontSize: 14, fontWeight: '800' },
+  targetValue: { color: colors.primary, fontSize: 18, fontWeight: '800', marginTop: 3 },
+  targetHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 3 },
+  metricCard: { borderWidth: 1, borderColor: '#E6E8ED', borderRadius: 22, backgroundColor: 'white', padding: 15, minHeight: 91 },
+  thirdCard: { width: '31%' },
+  halfCard: { width: '48%' },
+  metricCardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  metricLabel: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  metricIcon: { color: colors.text, fontSize: 18 },
+  metricValue: { color: colors.text, fontSize: 28, fontWeight: '600', marginTop: 8 },
+  metricUnit: { color: colors.text, fontSize: 12, fontWeight: '700' },
+  chartHeading: { minHeight: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 17, gap: 8 },
+  chartTitle: { color: colors.text, fontSize: 16, fontWeight: '800', flex: 1 },
+  metricPicker: { minHeight: 54, minWidth: 92, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill },
+  metricPickerText: { color: colors.text, fontSize: 13, fontWeight: '700' },
+  chartCard: { backgroundColor: 'white', borderRadius: 18, padding: 14, borderWidth: 1, borderColor: '#EDF0F5' },
+  chartGrid: { height: 210, justifyContent: 'space-between', paddingTop: 6 },
+  chartLine: { height: 1, backgroundColor: '#EEF0F4' },
+  chartColumns: { position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, flexDirection: 'row', justifyContent: 'space-around' },
+  chartColumn: { flex: 1, alignItems: 'center', justifyContent: 'flex-end' },
+  chartTrack: { height: 177, width: 28, justifyContent: 'flex-end', alignItems: 'center' },
+  chartBar: { width: 28, borderRadius: 9, backgroundColor: '#56C1F5' },
+  chartMissing: { color: colors.warning, fontSize: 18, fontWeight: '900' },
+  dayLabel: { color: colors.muted, fontSize: 13, marginTop: 7, textTransform: 'capitalize' },
+  dayLabelCurrent: { color: colors.primaryDark, fontWeight: '800' },
+  chartNotice: { color: colors.muted, fontSize: 13, lineHeight: 19, marginTop: 12 },
+  retryButton: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', paddingHorizontal: 8 },
+  retryText: { color: colors.primary, fontSize: 13, fontWeight: '800' },
+  noteCard: { flexDirection: 'row', gap: 9, padding: 13, marginTop: spacing.md, backgroundColor: '#F5F8FF', borderRadius: radius.sm },
+  noteIcon: { color: colors.primary, fontSize: 18, fontWeight: '800' },
+  noteText: { flex: 1, color: colors.muted, fontSize: 13, lineHeight: 19 },
+  loggedSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: spacing.md, borderTopWidth: 1, borderColor: colors.border, marginTop: spacing.md },
+  loggedTitle: { color: colors.text, fontWeight: '800', fontSize: 15 },
+  loggedValue: { color: colors.primary, fontWeight: '700', fontSize: 14 },
 });
