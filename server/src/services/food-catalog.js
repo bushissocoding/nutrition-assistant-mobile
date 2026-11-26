@@ -47,6 +47,18 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
   const sourceRows = Array.isArray(sourceRegistry?.records) ? sourceRegistry.records : [];
   const sources = new Map(sourceRows.map(source => [source.id, source]));
   if (!Array.isArray(sourceRegistry?.records)) fail('source registry records must be an array.');
+  const sourceIds = new Set();
+  for (const [index, source] of sourceRows.entries()) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      fail(`source registry records[${index}] must be an object.`);
+      continue;
+    }
+    if (typeof source.id !== 'string' || !source.id.trim()) {
+      fail(`source registry records[${index}] requires a source ID.`);
+    } else if (sourceIds.has(source.id)) {
+      fail(`source registry has duplicate source ID ${source.id}.`);
+    } else sourceIds.add(source.id);
+  }
   const ids = new Set();
   const names = new Set();
 
@@ -120,7 +132,9 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
       if (strictImport && source.kind === 'external') {
         const rights = source.rights || {};
         if (!hasHttpsUrl(source.url)) fail(`${path}.provenance.groups.${group} source ${source.id} requires an HTTPS source URL.`);
-        if (!rights.license?.name) fail(`${path}.provenance.groups.${group} source ${source.id} requires a license or written permission name.`);
+        if (typeof rights.license?.name !== 'string' || !rights.license.name.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a license or written permission name.`);
+        }
         if (typeof rights.evidenceReference !== 'string' || !rights.evidenceReference.trim()) {
           fail(`${path}.provenance.groups.${group} source ${source.id} requires a rights evidence reference.`);
         }
@@ -134,7 +148,9 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
         if (typeof rights.attribution !== 'string' || !rights.attribution.trim()) {
           fail(`${path}.provenance.groups.${group} source ${source.id} requires the exact attribution text.`);
         }
-        if (!provenance.sourceRecordId || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
+        if (typeof provenance.sourceRecordId !== 'string' || !provenance.sourceRecordId.trim()
+          || /unknown|not-recorded|uncaptured/i.test(provenance.sourceRecordId)
+          || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
           fail(`${path}.provenance.groups.${group} external source requires an exact sourceRecordId and edition.`);
         }
         if (typeof provenance.sourceReference !== 'string' || !provenance.sourceReference.trim()

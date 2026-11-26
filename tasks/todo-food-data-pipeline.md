@@ -7,9 +7,10 @@
 **Acceptance criteria:**
 - [x] The pending NIN entry records the expected fields as unconfirmed/null without inventing permission.
 - [x] Strict external-source validation rejects missing or incomplete rights evidence and scope.
+- [x] Duplicate source IDs cannot override an unconfirmed rights row.
 - [x] Synthetic tests prove the gate without copying real source values.
 
-**Verification:** [x] `node --test server/tests/food-catalog.test.js` (12 passed); [x] `npm run catalog:validate`.
+**Verification:** [x] `npm run test:unit` (332 passed); [x] `npm run catalog:validate`.
 
 **Dependencies:** None.
 
@@ -23,10 +24,11 @@
 
 **Acceptance criteria:**
 - [x] Strict validation rejects absent, malformed, or unknown external references and access dates.
+- [x] Blank or placeholder `sourceRecordId` values fail validation.
 - [x] Synthetic test records demonstrate accepted provenance and each rejected omission.
 - [x] The validator does not convert missing nutrient values into zero.
 
-**Verification:** [x] `node --test server/tests/food-catalog.test.js` (13 passed); [x] `npm run catalog:fixture`.
+**Verification:** [x] `npm run test:unit` (332 passed); [x] `npm run catalog:fixture`.
 
 **Dependencies:** Task 1.
 
@@ -44,7 +46,7 @@
 - [x] The active catalog loader rejects synthetic catalogs and external records without confirmed rights, complete provenance, and approved review metadata.
 - [x] Pending production data continues to load with an empty catalog.
 
-**Verification:** [x] `npm run test:unit` (331 passed); [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] importer/repository tests; [x] active-catalog overwrite rejection test.
+**Verification:** [x] `npm run test:unit` (332 passed); [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] importer/repository tests; [x] active-catalog overwrite rejection test.
 
 **Dependencies:** Tasks 1–2.
 
@@ -61,7 +63,7 @@
 - [x] The documented workflow keeps permission documents private and uses a reference in the registry.
 - [x] CI validates the empty active catalog and synthetic fixture without writing fixture data into the active catalog.
 
-**Verification:** [x] `npm run test:unit` (331 passed); [x] `npm run test:ui` (25 suites, 142 passed); [x] `npm run test:api`; [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] GitHub Actions YAML parsed; [x] `git diff --check`.
+**Verification:** [x] `npm run test:unit` (332 passed); [x] `npm run test:ui` (25 suites, 142 passed); [x] `npm run test:api`; [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] GitHub Actions YAML parsed; [x] `git diff --check`.
 
 **Dependencies:** Tasks 1–3.
 

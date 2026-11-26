@@ -26,6 +26,7 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 - [x] Pending NIN remains unimportable; tests use synthetic records only.
 - [x] A synthetic licensed-source test record passes only when rights and provenance fields are complete.
+- [x] Duplicate source IDs and placeholder source record IDs fail validation.
 
 ### Phase 2: Safe import and publication gates
 

@@ -197,6 +197,7 @@ test('strict external-source imports require evidence, explicit reuse permission
     [source => { source.rights.verifiedOn = '2026-13-40'; }, /verification date/i],
     [source => { source.rights.attribution = null; }, /attribution/i],
     [source => { source.rights.license = null; }, /license or written permission/i],
+    [source => { source.rights.license = { name: '   ' }; }, /license or written permission/i],
   ];
 
   for (const [mutate, expectedError] of invalidCases) {
@@ -208,6 +209,44 @@ test('strict external-source imports require evidence, explicit reuse permission
     });
     assert.match(result.errors.join('\n'), expectedError);
   }
+});
+
+test('source registry rejects duplicate IDs instead of trusting whichever rights row appears last', () => {
+  const catalog = makeCatalog();
+  catalog.foods[0].provenance.groups.nutrition = {
+    sourceId: 'duplicate-rights-source',
+    sourceRecordId: 'synthetic-test-row',
+    edition: 'synthetic-test-edition',
+    sourceReference: 'test-only#nutrition-row-1',
+    accessedOn: '2026-01-15',
+    method: 'Synthetic duplicate-rights test only.',
+  };
+  const permittedSource = {
+    id: 'duplicate-rights-source',
+    kind: 'external',
+    name: 'Synthetic duplicate-rights source',
+    url: 'https://example.test/source',
+    rights: {
+      license: { name: 'Synthetic permission' },
+      redistributionStatus: 'permitted',
+      evidenceReference: 'test-only:permission',
+      permittedActions: ['copy', 'transform', 'redistribute'],
+      verifiedBy: 'synthetic-reviewer',
+      verifiedOn: '2026-01-15',
+      attribution: 'Synthetic test attribution.',
+    },
+  };
+  const registry = {
+    records: [
+      { id: 'synthetic-fixture', kind: 'synthetic-fixture' },
+      { ...structuredClone(permittedSource), rights: { redistributionStatus: 'unconfirmed' } },
+      permittedSource,
+    ],
+  };
+
+  const result = validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true });
+
+  assert.match(result.errors.join('\n'), /duplicate source ID/i);
 });
 
 test('strict external provenance requires an exact row reference and access date for every group', () => {
@@ -245,6 +284,8 @@ test('strict external provenance requires an exact row reference and access date
 
   for (const group of groups) {
     for (const [mutate, expectedError] of [
+      [provenance => { provenance.sourceRecordId = 'unknown'; }, /exact sourceRecordId and edition/i],
+      [provenance => { provenance.sourceRecordId = '   '; }, /exact sourceRecordId and edition/i],
       [provenance => { provenance.sourceReference = 'unknown'; }, /exact source row\/cell reference/i],
       [provenance => { provenance.accessedOn = 'not-recorded'; }, /valid source access date/i],
     ]) {
