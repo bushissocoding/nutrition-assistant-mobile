@@ -112,7 +112,11 @@ test('synthetic sources cannot be relabeled as a live catalog and legacy validat
   assert.match(validateFoodCatalog(catalog, { sourceRegistry }).errors.join(' '), /fixture/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--allow-legacy']), /validation-only/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--report', 'input.json']), /overwrite/);
-  assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', path.join(__dirname, '..', 'data', 'foods.json')]), /active catalog/i);
+  const activeCatalog = path.join(__dirname, '..', 'data', 'foods.json');
+  assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', activeCatalog]), /active catalog/i);
+  if (process.platform === 'win32') {
+    assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', activeCatalog.replace(/foods\.json$/i, 'FOODS.JSON')]), /active catalog/i);
+  }
 });
 
 test('invalid imports fail before creating output or a report', t => {
@@ -247,6 +251,12 @@ test('source registry rejects duplicate IDs instead of trusting whichever rights
   const result = validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true });
 
   assert.match(result.errors.join('\n'), /duplicate source ID/i);
+});
+
+test('malformed source registry rows return validation errors instead of throwing', () => {
+  const result = validateFoodCatalog(makeCatalog(), { sourceRegistry: { records: [null] } });
+
+  assert.match(result.errors.join('\n'), /source registry records\[0\] must be an object/i);
 });
 
 test('strict external provenance requires an exact row reference and access date for every group', () => {

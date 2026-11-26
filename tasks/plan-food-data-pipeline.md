@@ -26,7 +26,7 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 - [x] Pending NIN remains unimportable; tests use synthetic records only.
 - [x] A synthetic licensed-source test record passes only when rights and provenance fields are complete.
-- [x] Duplicate source IDs and placeholder source record IDs fail validation.
+- [x] Duplicate/malformed source registry rows and placeholder source record IDs fail validation.
 
 ### Phase 2: Safe import and publication gates
 
@@ -36,6 +36,7 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 - [x] `catalog:fixture` validates the fixture without writing catalog output.
 - [x] Importer output/report paths cannot overwrite the active catalog.
+- [x] Path aliases cannot bypass the active-catalog overwrite guard.
 - [x] The API fails closed for synthetic, unlicensed, incomplete-provenance, or unreviewed records.
 
 ### Phase 3: Documentation and acceptance

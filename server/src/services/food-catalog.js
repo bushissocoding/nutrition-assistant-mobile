@@ -45,7 +45,7 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
   else if (input.status === 'pending' && input.foods.length > 0) fail('pending catalogs cannot contain food records.');
   else if (input.status !== 'pending' && input.foods.length === 0) fail('foods must be a non-empty array unless the catalog is pending.');
   const sourceRows = Array.isArray(sourceRegistry?.records) ? sourceRegistry.records : [];
-  const sources = new Map(sourceRows.map(source => [source.id, source]));
+  const sources = new Map();
   if (!Array.isArray(sourceRegistry?.records)) fail('source registry records must be an array.');
   const sourceIds = new Set();
   for (const [index, source] of sourceRows.entries()) {
@@ -57,7 +57,10 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
       fail(`source registry records[${index}] requires a source ID.`);
     } else if (sourceIds.has(source.id)) {
       fail(`source registry has duplicate source ID ${source.id}.`);
-    } else sourceIds.add(source.id);
+    } else {
+      sourceIds.add(source.id);
+      sources.set(source.id, source);
+    }
   }
   const ids = new Set();
   const names = new Set();
