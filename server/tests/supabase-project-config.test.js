@@ -12,7 +12,7 @@ test('checks in a secret-free local Supabase CLI config and ordered migrations',
   assert.match(config, /^major_version = 17$/m);
   assert.match(config, /^enabled = false$/m);
   assert.match(config, /^sql_paths = \[\]$/m);
-  assert.match(config, /^\[storage\]\n^enabled = true$/m);
+  assert.match(config, /^\[storage\]\r?\n^enabled = true$/m);
   assert.doesNotMatch(activeConfig, /project-ref|secret|service_role|publishableKey/i);
 
   const migrationNames = fs.readdirSync(path.join(repositoryRoot, 'supabase/migrations')).sort();
