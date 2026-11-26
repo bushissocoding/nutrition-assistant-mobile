@@ -17,6 +17,7 @@ function toAuthUser(user) {
     email: user.email,
     username: user.user_metadata?.username || null,
     phone: user.phone_confirmed_at ? user.phone || null : null,
+    createdAt: user.created_at || null,
   } : null;
 }
 

@@ -7,8 +7,8 @@ const { createAccountGroceryRepository } = require('../src/repositories/account-
 function fixtureDb() {
   const rows = {
     shopping_lists: [{ id: 'list-a', user_id: 'user-a', source_plan_id: 'plan-a', request_key: 'grocery-intent-a1', is_current: true, created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' }],
-    shopping_list_items: [{ id: 'item-a', list_id: 'list-a', food_id: 'fdc:12345', name: 'Rice', amount: 300, unit: 'g', purchased: false, source: { id: 'USDA-FDC', recordId: '12345', edition: '2025-04-01' }, catalog_version: 'USDA-FDC-live-v1', created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' }],
-    pantry_items: [{ id: 'pantry-a', user_id: 'user-a', food_id: 'fdc:12345', name: 'Rice', amount: 200, unit: 'g', source: { id: 'USDA-FDC', recordId: '12345' }, catalog_version: 'USDA-FDC-live-v1', created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' }],
+    shopping_list_items: [{ id: 'item-a', list_id: 'list-a', food_id: 'synthetic-test-source:12345', name: 'Rice', amount: 300, unit: 'g', purchased: false, source: { id: 'synthetic-test-source', recordId: '12345', edition: '2025-04-01' }, catalog_version: 'synthetic-test-v1', created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' }],
+    pantry_items: [{ id: 'pantry-a', user_id: 'user-a', food_id: 'synthetic-test-source:12345', name: 'Rice', amount: 200, unit: 'g', source: { id: 'synthetic-test-source', recordId: '12345' }, catalog_version: 'synthetic-test-v1', created_at: '2026-11-24T00:00:00.000Z', updated_at: '2026-11-24T00:00:00.000Z' }],
   };
   const calls = [];
   let rpcValue = 'list-a';
@@ -99,4 +99,12 @@ test('grocery migration gives all persisted rows account ownership and transacti
   assert.match(migration, /shopping_list_items_enforce_cap/i);
   assert.match(migration, /v_item_count >= 100/i);
   assert.match(migration, /shopping_list_items[\s\S]*?for select to authenticated using \(exists/i);
+});
+
+test('forward source migration accepts namespaced records and retains plan provenance in grocery snapshots', () => {
+  const migration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/202611260001_generalize_food_source_constraints.sql'), 'utf8');
+  assert.match(migration, /meal_entries_food_id_check[\s\S]*?\^\[a-z\]\[a-z0-9-\]/i);
+  assert.match(migration, /shopping_list_items_food_id_check[\s\S]*?\^\[a-z\]\[a-z0-9-\]/i);
+  assert.match(migration, /pantry_items_food_id_check[\s\S]*?custom:/i);
+  assert.match(migration, /replace_shopping_list_from_plan[\s\S]*?'id', max\(portion\.value->'provenance'->>'sourceId'\)/i);
 });

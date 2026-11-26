@@ -12,7 +12,7 @@ Make a deployment operator able to configure, release, observe, recover, and sup
 - Keep database schema migrations forward-only in normal releases; document when an additive rollback is safe and when a corrective forward migration is required.
 - Document account export/deletion, private object lifecycle, retention, backup and restore responsibilities, and incident response without promising unconfigured guarantees.
 - Emit bounded, structured HTTP request telemetry with a generated correlation ID and no raw URLs, request bodies, auth headers, health values, or account identifiers.
-- Document push-worker, PayOS webhook, OpenAI, FDC, Supabase Storage, Expo and native-device operational checks and their external prerequisites.
+- Document push-worker, PayOS webhook, OpenAI, NIN data rights, Supabase Storage, Expo and native-device operational checks and their external prerequisites.
 - Define a staged release checklist, monitoring questions, rollback triggers, smoke checks, support contact ownership, and unresolved release gates.
 
 ## Non-goals

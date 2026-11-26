@@ -20,6 +20,12 @@ function fingerprint(intent) {
   return createHash('sha256').update(JSON.stringify(stableValue(intent))).digest('hex');
 }
 
+function matchesIntent(existing, { input, profileUpdatedAt, catalogVersion }) {
+  const base = { input, profileUpdatedAt: profileUpdatedAt || null };
+  return existing.intent_hash === fingerprint({ ...base, catalogVersion })
+    || existing.intent_hash === fingerprint({ ...base, catalogVersion: existing.catalog_version });
+}
+
 function toMealPlanDto(row) {
   return row ? {
     id: row.id,
@@ -43,8 +49,7 @@ function createMealPlanRepository() {
       if (!validIdempotencyKey(requestKey)) throw new MealPlanRepositoryError('Idempotency-Key phải có 8–128 ký tự ASCII chữ, số, _, -, ., hoặc :.', 400, 'INVALID_IDEMPOTENCY_KEY');
       const existing = await find(db, userId, requestKey);
       if (!existing) return null;
-      const intentHash = fingerprint({ input, profileUpdatedAt: profileUpdatedAt || null, catalogVersion });
-      if (existing.intent_hash !== intentHash) throw new MealPlanRepositoryError('Idempotency-Key đã được dùng với nội dung khác.', 409, 'IDEMPOTENCY_CONFLICT');
+      if (!matchesIntent(existing, { input, profileUpdatedAt, catalogVersion })) throw new MealPlanRepositoryError('Idempotency-Key đã được dùng với nội dung khác.', 409, 'IDEMPOTENCY_CONFLICT');
       return { record: toMealPlanDto(existing), replayed: true };
     },
 
@@ -53,7 +58,7 @@ function createMealPlanRepository() {
       const intentHash = fingerprint({ input, profileUpdatedAt: profileUpdatedAt || null, catalogVersion });
       const existing = await find(db, userId, requestKey);
       if (existing) {
-        if (existing.intent_hash !== intentHash) throw new MealPlanRepositoryError('Idempotency-Key đã được dùng với nội dung khác.', 409, 'IDEMPOTENCY_CONFLICT');
+        if (!matchesIntent(existing, { input, profileUpdatedAt, catalogVersion })) throw new MealPlanRepositoryError('Idempotency-Key đã được dùng với nội dung khác.', 409, 'IDEMPOTENCY_CONFLICT');
         return { record: toMealPlanDto(existing), replayed: true };
       }
 
@@ -68,7 +73,7 @@ function createMealPlanRepository() {
       if (!error && data) return { record: toMealPlanDto(data), replayed: false };
       if (error?.code === '23505') {
         const concurrent = await find(db, userId, requestKey);
-        if (concurrent?.intent_hash === intentHash) return { record: toMealPlanDto(concurrent), replayed: true };
+        if (concurrent && matchesIntent(concurrent, { input, profileUpdatedAt, catalogVersion })) return { record: toMealPlanDto(concurrent), replayed: true };
         if (concurrent) throw new MealPlanRepositoryError('Idempotency-Key đã được dùng với nội dung khác.', 409, 'IDEMPOTENCY_CONFLICT');
       }
       throw error || new MealPlanRepositoryError('Không thể lưu kế hoạch.', 503, 'MEAL_PLAN_UNAVAILABLE');
@@ -86,4 +91,4 @@ function createMealPlanRepository() {
   };
 }
 
-module.exports = { COLUMNS, MealPlanRepositoryError, createMealPlanRepository, fingerprint, toMealPlanDto, validIdempotencyKey };
+module.exports = { COLUMNS, MealPlanRepositoryError, createMealPlanRepository, fingerprint, matchesIntent, toMealPlanDto, validIdempotencyKey };

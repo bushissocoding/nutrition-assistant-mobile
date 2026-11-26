@@ -21,12 +21,14 @@ test('checks in a secret-free local Supabase CLI config and ordered migrations',
   const versions = migrationNames.map(name => name.slice(0, 12));
   assert.equal(new Set(versions).size, versions.length);
   const ownerTest = fs.readFileSync(path.join(repositoryRoot, 'supabase/tests/account_owner_isolation.test.sql'), 'utf8');
-  assert.match(ownerTest, /select plan\(9\)/);
+  assert.match(ownerTest, /select plan\(20\)/);
   assert.match(ownerTest, /RLS enabled on all private application tables/);
   assert.match(ownerTest, /anonymous users cannot read private application tables/);
   assert.match(ownerTest, /health record bucket is private/);
   assert.match(ownerTest, /account one cannot update account two profile/);
   assert.match(ownerTest, /account two reads only its own profile/);
+  assert.match(ownerTest, /authenticated users can insert an optional profile date of birth/);
+  assert.match(ownerTest, /authenticated users can update an optional profile date of birth/);
 });
 
 test('runs local Supabase migrations and pgTAP in a dedicated CI job', () => {

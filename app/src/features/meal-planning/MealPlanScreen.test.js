@@ -15,13 +15,13 @@ const generatedPlan = {
     slot: 'Bữa sáng',
     name: 'Cơm trứng và bắp cải',
     instructions: ['Dùng cơm đã nấu chín.'],
-    portions: [{ foodId: 'rice-steamed', food: 'Cơm trắng', grams: 100, unit: 'g', household: 'nửa bát', provenance: { foodVersion: 'food-1', sourceId: 'usda-fooddata-central', sourceName: 'USDA FoodData Central', edition: 'legacy' } }],
+    portions: [{ foodId: 'rice-steamed', food: 'Cơm trắng', grams: 100, unit: 'g', household: 'nửa bát', provenance: { foodVersion: 'food-1', sourceId: 'synthetic-test-source', sourceName: 'Nguồn thử nghiệm', edition: 'legacy' } }],
     nutrients: { energyKcal: 130, proteinG: 2.7, carbohydrateG: 28.2, fatG: 0.3, fiberG: 0.4, sodiumMg: 1 },
     estimatedCostVnd: null,
     price: { value: null, unit: 'VND', status: 'missing', reason: 'Chưa có giá có nguồn.' },
     explanation: 'Được chọn vì điểm lệch mục tiêu thấp nhất trong các phương án hợp lệ.',
     warnings: [{ code: 'PRICE_DATA_UNAVAILABLE', message: 'Chưa có giá có nguồn.' }],
-    provenance: { templateVersion: 'meal-template-1', foods: [{ foodId: 'rice-steamed', foodVersion: 'food-1', sourceId: 'usda-fooddata-central', sourceName: 'USDA FoodData Central', edition: 'legacy' }] }
+    provenance: { templateVersion: 'meal-template-1', foods: [{ foodId: 'rice-steamed', foodVersion: 'food-1', sourceId: 'synthetic-test-source', sourceName: 'Nguồn thử nghiệm', edition: 'legacy' }] }
   }],
   dailyTotals: { energyKcal: 130, proteinG: 2.7, carbohydrateG: 28.2, fatG: 0.3, fiberG: 0.4, sodiumMg: 1 },
   estimatedCostVnd: null,
@@ -30,11 +30,48 @@ const generatedPlan = {
   limitations: ['Gợi ý demo; không phải tư vấn điều trị.'],
   metadata: { catalogVersion: 'catalog-1', algorithmVersion: 'meal-planner-v2' }
 };
-const persistedPlan = { ...generatedPlan, savedPlan: { id: 'saved-plan-1', createdAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'USDA-FDC-live-v1', profileUpdatedAt: '2026-11-24T00:00:00.000Z' } };
+const persistedPlan = { ...generatedPlan, savedPlan: { id: 'saved-plan-1', createdAt: '2026-11-24T00:00:00.000Z', catalogVersion: 'synthetic-test-v1', profileUpdatedAt: '2026-11-24T00:00:00.000Z' } };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  api.getMyMealPlans.mockResolvedValue({ items: [] });
   api.getMyPersonalization.mockResolvedValue({ preferences: { dietaryVariety: 'varied', foodPreferences: ['Vietnamese', 'easy_cook'], allergyReminder: true, trackConfirmedTargets: false } });
+});
+
+test('shows a native app-styled sample schedule and opens its recipe details', async () => {
+  const screen = render(<MealPlanScreen profile={profile} />);
+
+  expect(screen.getByText('Thực đơn')).toBeTruthy();
+  expect(screen.getByText('Các bữa trong ngày')).toBeTruthy();
+  expect(screen.getByText('Trứng và bánh mì')).toBeTruthy();
+  expect(screen.getByText('Tô salad')).toBeTruthy();
+  expect(screen.getByText('Dinh dưỡng trong ngày')).toBeTruthy();
+  expect(screen.getByText('Thực đơn mẫu')).toBeTruthy();
+  expect(screen.getByText(/Số liệu minh họa giao diện/)).toBeTruthy();
+  expect(screen.getByLabelText('Tổng năng lượng, mốc minh họa')).toBeTruthy();
+  expect(screen.getByLabelText('Đạm, ước tính minh họa')).toBeTruthy();
+  expect(api.createMyMealPlan).not.toHaveBeenCalled();
+  await screen.findByText(/Ưu tiên lưu: độ phong phú/);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Xem công thức Trứng và bánh mì' }));
+  expect(screen.getByText('Chi tiết món ăn')).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Nguyên liệu' })).toBeTruthy();
+  expect(screen.getByText('Trứng gà')).toBeTruthy();
+  expect(screen.getByText('Bánh mì')).toBeTruthy();
+  expect(screen.getByText('Cà chua')).toBeTruthy();
+  expect(screen.getByRole('header', { name: 'Mô tả món ăn' })).toBeTruthy();
+  expect(screen.getByText(/Món và định lượng chỉ minh họa cách trình bày/)).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Quay lại lịch ăn' }));
+  expect(screen.getByText('Các bữa trong ngày')).toBeTruthy();
+});
+
+test('restores the most recent saved plan automatically on entry', async () => {
+  api.getMyMealPlans.mockResolvedValue({ items: [{ ...persistedPlan.savedPlan, plan: generatedPlan }] });
+  const screen = render(<MealPlanScreen profile={profile} />);
+
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' })).toBeTruthy());
+  expect(api.getMyMealPlans).toHaveBeenCalledWith({ limit: 20, offset: 0 });
+  expect(screen.queryByText('Thực đơn mẫu')).toBeNull();
 });
 
 test('loads and restores a saved account meal plan', async () => {
@@ -42,8 +79,8 @@ test('loads and restores a saved account meal plan', async () => {
   const screen = render(<MealPlanScreen profile={profile} />);
   fireEvent.press(screen.getByText('Xem kế hoạch đã lưu'));
   await waitFor(() => expect(screen.getByText('Kế hoạch tài khoản')).toBeTruthy());
-  fireEvent.press(screen.getByRole('button', { name: /Cơm trứng và bắp cải/ }));
-  expect(screen.getByText('Lịch thực đơn')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Xem kế hoạch Cơm trứng và bắp cải' }));
+  expect(screen.getByText('Các bữa trong ngày')).toBeTruthy();
   expect(api.getMyMealPlans).toHaveBeenCalledWith({ limit: 20, offset: 0 });
 });
 
@@ -55,7 +92,9 @@ test('passes a feasible backend plan to the create-list flow and displays proven
   await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   await waitFor(() => expect(screen.getByText('Tạo danh sách đi chợ')).toBeTruthy());
-  expect(screen.getAllByText(/USDA FoodData Central/).length).toBeGreaterThan(0);
+  expect(screen.queryByLabelText('Tổng năng lượng, mốc minh họa')).toBeNull();
+  expect(screen.getByText('2.7 g')).toBeTruthy();
+  expect(screen.getAllByText(/Nguồn thử nghiệm/).length).toBeGreaterThan(0);
   expect(screen.getAllByText(/Chưa có giá có nguồn/).length).toBeGreaterThan(0);
   fireEvent.press(screen.getByText('Tạo danh sách đi chợ'));
   expect(onOpenGrocery).toHaveBeenCalledWith(persistedPlan.savedPlan.id);
@@ -64,32 +103,13 @@ test('passes a feasible backend plan to the create-list flow and displays proven
   expect(api.createMyMealPlan.mock.calls[0][0]).not.toHaveProperty('hardLimits');
 });
 
-test('debounces sourced food search and calculates selected serving with server data', async () => {
-  const food = { id: 'fdc:12345', name: 'Beans, cooked', dataType: 'Foundation', source: { id: 'USDA-FDC', label: 'USDA FoodData Central', recordId: '12345', edition: '2025-04-01' } };
-  api.searchSourcedFoods.mockResolvedValue({ items: [food] });
-  api.calculateSourcedNutrition.mockResolvedValue({
-    totals: { energyKcal: 50, proteinG: 5, carbohydrateG: 10, fatG: 0.5, fiberG: 1.5, sodiumMg: 1 },
-    items: [{ foodId: food.id, catalogVersion: 'USDA-FDC-live-v1' }],
-    sources: [{ label: 'USDA FoodData Central', recordId: '12345', edition: '2025-04-01' }],
-    disclaimer: 'Ước tính tham khảo.',
-  });
+test('keeps food lookup and sourced calculations paused until NIN data rights are confirmed', () => {
   const screen = render(<MealPlanScreen profile={profile} />);
-  fireEvent.changeText(screen.getByLabelText('Tìm thực phẩm USDA'), 'beans');
-  await waitFor(() => expect(api.searchSourcedFoods).toHaveBeenCalledWith('beans', expect.objectContaining({ signal: expect.anything() })));
-  fireEvent.press(screen.getByRole('button', { name: 'Thêm Beans, cooked' }));
-  fireEvent.changeText(screen.getByLabelText('Khối lượng Beans, cooked (g)'), '50');
-  await act(async () => { fireEvent.press(screen.getByText('Tính dinh dưỡng theo USDA')); });
-  await waitFor(() => expect(api.calculateSourcedNutrition).toHaveBeenCalledWith([{ foodId: food.id, grams: 50 }]));
-  expect(screen.getByText('Năng lượng: 50 kcal')).toBeTruthy();
-  expect(screen.getByText(/USDA FoodData Central #12345/)).toBeTruthy();
-});
-
-test('live food source outage is visible and does not silently substitute prototype results', async () => {
-  api.searchSourcedFoods.mockRejectedValue(new Error('Nguồn USDA chưa được cấu hình.'));
-  const screen = render(<MealPlanScreen profile={profile} />);
-  fireEvent.changeText(screen.getByLabelText('Tìm thực phẩm USDA'), 'beans');
-  expect(await screen.findByText('Nguồn USDA chưa được cấu hình.')).toBeTruthy();
-  expect(screen.queryByText('Beans, cooked')).toBeNull();
+  expect(screen.getByText(/Tra cứu và tính dinh dưỡng đang tạm dừng/)).toBeTruthy();
+  expect(screen.getByLabelText('Tìm thực phẩm').props.editable).toBe(false);
+  expect(api.searchSourcedFoods).not.toHaveBeenCalled();
+  expect(api.calculateSourcedNutrition).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Tính dinh dưỡng theo nguồn dữ liệu' }).props.accessibilityState?.disabled).toBe(true);
 });
 
 test('opens a recipe detail from a generated meal and returns to the schedule', async () => {
@@ -100,12 +120,26 @@ test('opens a recipe detail from a generated meal and returns to the schedule', 
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   await waitFor(() => expect(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' })).toBeTruthy());
   fireEvent.press(screen.getByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' }));
-  expect(screen.getByText('FOOD')).toBeTruthy();
+  expect(screen.getByText('Chi tiết món ăn')).toBeTruthy();
   expect(screen.getByText('Cơm trắng')).toBeTruthy();
   expect(screen.getByText('100 g')).toBeTruthy();
   expect(screen.getByText('1. Dùng cơm đã nấu chín.')).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Quay lại thực đơn' }));
-  expect(screen.getByText('Lịch ăn hằng ngày')).toBeTruthy();
+  expect(screen.getByText('Thực đơn')).toBeTruthy();
+});
+
+test('labels a meal rationale and missing ingredients accurately when instructions are absent', async () => {
+  const planWithoutRecipeDetails = {
+    ...generatedPlan,
+    plan: [{ ...generatedPlan.plan[0], portions: [], instructions: [] }],
+  };
+  const screen = render(<MealPlanScreen profile={profile} initialPlan={planWithoutRecipeDetails} />);
+
+  fireEvent.press(await screen.findByRole('button', { name: 'Xem công thức Cơm trứng và bắp cải' }));
+
+  expect(screen.getByText('Lý do lựa chọn')).toBeTruthy();
+  expect(screen.queryByText('Cách chế biến')).toBeNull();
+  expect(screen.getByText('Chưa có dữ liệu')).toBeTruthy();
 });
 
 test('sends account food preferences and variety as bounded ranking hints without client health limits', async () => {
@@ -148,14 +182,14 @@ test('shows unavailable plan data without substituting an unsourced catalog', as
     planFeasible: false,
     plan: [],
     warnings: [],
-    unavailability: { code: 'FOOD_SOURCE_UNAVAILABLE', message: 'Nguồn USDA chưa được cấu hình.' },
+    unavailability: { code: 'FOOD_SOURCE_UNAVAILABLE', message: 'Nguồn nguồn thử nghiệm chưa được cấu hình.' },
     limitations: []
   });
   const screen = render(<MealPlanScreen profile={profile} />);
   await screen.findByText(/Ưu tiên lưu: độ phong phú/);
   await act(async () => { fireEvent.press(screen.getByText('Tạo thực đơn')); });
   expect(screen.getByText('Dữ liệu chưa đủ để tạo thực đơn')).toBeTruthy();
-  expect(screen.getByText('Nguồn USDA chưa được cấu hình.')).toBeTruthy();
+  expect(screen.getByText('Nguồn nguồn thử nghiệm chưa được cấu hình.')).toBeTruthy();
   expect(screen.queryByText(/tự.*đổi|bỏ.*giới hạn y tế/i)).toBeNull();
 });
 

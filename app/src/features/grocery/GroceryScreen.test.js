@@ -34,8 +34,8 @@ beforeEach(() => {
   api.updateMyShoppingListItem.mockImplementation(async (_id, patch) => ({ item: { ...item, ...patch } }));
   api.deleteMyShoppingListItem.mockResolvedValue(null);
   api.searchSourcedFoods.mockResolvedValue({ items: [] });
-  api.createMyPantryItem.mockImplementation(async payload => ({ item: { ...payload, id: 'pantry-new', name: 'Yến mạch', source: { id: 'USDA-FDC', recordId: '321' } } }));
-  api.updateMyPantryItem.mockImplementation(async (id, patch) => ({ item: { id, foodId: 'fdc:321', name: 'Yến mạch', unit: 'g', ...patch } }));
+  api.createMyPantryItem.mockImplementation(async payload => ({ item: { ...payload, id: 'pantry-new', name: 'Yến mạch', source: { id: 'synthetic-test-source', recordId: '321' } } }));
+  api.updateMyPantryItem.mockImplementation(async (id, patch) => ({ item: { id, foodId: 'synthetic-test-source:321', name: 'Yến mạch', unit: 'g', ...patch } }));
   api.deleteMyPantryItem.mockResolvedValue(null);
 });
 
@@ -79,23 +79,18 @@ test('shows load error and retries the current-list request', async () => {
   expect(api.getMyShoppingList).toHaveBeenCalledTimes(2);
 });
 
-test('searches USDA and persists pantry ingredients and quantity changes through the account API', async () => {
-  api.searchSourcedFoods.mockResolvedValue({ items: [{ id: 'fdc:321', name: 'Yến mạch', source: { recordId: '321' } }] });
-  api.getMyPantry.mockResolvedValue({ items: [] });
-  api.createMyPantryItem.mockResolvedValue({ item: { id: 'pantry-new', foodId: 'fdc:321', name: 'Yến mạch', amount: 300, unit: 'g', source: { id: 'USDA-FDC', recordId: '321' } } });
-  api.updateMyPantryItem.mockResolvedValue({ item: { id: 'pantry-new', foodId: 'fdc:321', name: 'Yến mạch', amount: 200, unit: 'g' } });
+test('shows the NIN data-rights pending state instead of adding an unsourced food', async () => {
+  api.searchSourcedFoods.mockRejectedValue(new Error('Dữ liệu từ Viện Dinh dưỡng Quốc gia chưa khả dụng vì quyền tái phân phối chưa được xác nhận.'));
   const screen = render(<GroceryScreen />);
   await waitFor(() => expect(screen.getByText('Chưa có danh sách đi chợ đã lưu.')).toBeTruthy());
 
   expect(screen.getByText(/0\/0 món đã tải/)).toBeTruthy();
-  await press(screen, 'Thêm từ USDA');
+  await press(screen, 'Thêm nguyên liệu');
   await act(async () => { fireEvent.changeText(screen.getByLabelText('Tìm nguyên liệu hoặc nhập tên tự do'), 'Yến mạch'); });
-  await press(screen, 'Tìm USDA');
-  await press(screen, 'Thêm vào kho');
-  await waitFor(() => expect(api.createMyPantryItem).toHaveBeenCalledWith({ foodId: 'fdc:321', amount: 100, unit: 'g' }));
-  expect(screen.getByText('Yến mạch')).toBeTruthy();
-  await pressNode(screen.getByLabelText('Giảm Yến mạch'));
-  expect(api.updateMyPantryItem).toHaveBeenCalledWith('pantry-new', { amount: 200, unit: 'g' });
+  await press(screen, 'Tra cứu');
+  expect(await screen.findByText(/Viện Dinh dưỡng Quốc gia chưa khả dụng/)).toBeTruthy();
+  expect(api.createMyPantryItem).not.toHaveBeenCalled();
+  expect(screen.queryByText('Thêm vào kho')).toBeNull();
   expect(api.createMyShoppingList).not.toHaveBeenCalled();
 });
 
@@ -104,7 +99,7 @@ test('stores a user-entered pantry label while clearly excluding it from nutriti
   const screen = render(<GroceryScreen />);
   await waitFor(() => expect(screen.getByText('Kho nhà chưa có nguyên liệu đã lưu.')).toBeTruthy());
 
-  await press(screen, 'Thêm từ USDA');
+  await press(screen, 'Thêm nguyên liệu');
   await act(async () => { fireEvent.changeText(screen.getByLabelText('Tìm nguyên liệu hoặc nhập tên tự do'), '  Rau   muống '); });
   expect(screen.getByText('Nguyên liệu tự nhập chỉ để theo dõi kho; không được dùng để tính dinh dưỡng.')).toBeTruthy();
   await press(screen, 'Thêm tên tự nhập vào kho');
@@ -123,8 +118,8 @@ test('does not invent pantry rows when account data is empty', async () => {
 });
 
 test('loads pantry rows in bounded pages and exposes the remaining count', async () => {
-  const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: `pantry-${index}`, foodId: `fdc:${index + 1}`, name: `Food ${index + 1}`, amount: 250, unit: 'g', source: { id: 'USDA-FDC', recordId: String(index + 1) } }));
-  const lastItem = { id: 'pantry-100', foodId: 'fdc:101', name: 'Food 101', amount: 250, unit: 'g', source: { id: 'USDA-FDC', recordId: '101' } };
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({ id: `pantry-${index}`, foodId: `synthetic-test-source:${index + 1}`, name: `Food ${index + 1}`, amount: 250, unit: 'g', source: { id: 'synthetic-test-source', recordId: String(index + 1) } }));
+  const lastItem = { id: 'pantry-100', foodId: 'synthetic-test-source:101', name: 'Food 101', amount: 250, unit: 'g', source: { id: 'synthetic-test-source', recordId: '101' } };
   api.getMyPantry.mockResolvedValueOnce({ items: firstPage, pagination: { limit: 100, offset: 0, total: 101, hasMore: true } })
     .mockResolvedValueOnce({ items: [lastItem], pagination: { limit: 100, offset: 100, total: 101, hasMore: false } });
   const screen = render(<GroceryScreen />);

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import { colors, radius, spacing } from '../../theme/tokens';
-import { getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
+import DropdownMenu from '../../shared/components/DropdownMenu';
+import { formatLocalDateKey, getRecentLocalDays, loadDiaryHistory } from '../diary/diary-history.cjs';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
 
 const metrics = [
@@ -18,13 +19,20 @@ function rounded(value) {
 }
 
 export default function DashboardScreen({ profile, diaryTotals = {}, diary = [], diaryHasEntries = false, diaryError = '', diaryLoading = false, onRetryDiary }) {
+  const today = useMemo(() => new Date(), []);
+  const todayKey = formatLocalDateKey(today);
   const [metricIndex, setMetricIndex] = useState(0);
+  const [metricPickerVisible, setMetricPickerVisible] = useState(false);
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+  const datePickerRef = useRef(null);
+  const metricPickerRef = useRef(null);
+  const [selectedDate, setSelectedDate] = useState(todayKey);
   const [history, setHistory] = useState({ byDate: {}, errorsByDate: {} });
   const [historyLoading, setHistoryLoading] = useState(true);
   const [retryVersion, setRetryVersion] = useState(0);
   const [trackConfirmedTargets, setTrackConfirmedTargets] = useState(false);
   const activeMetric = metrics[metricIndex];
-  const week = useMemo(() => getRecentLocalDays(new Date(), 7), []);
+  const week = useMemo(() => getRecentLocalDays(today, 7), [today]);
   const timeZone = useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', []);
 
   useEffect(() => {
@@ -50,6 +58,19 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
   }, []);
 
   const hasTodayEntries = diaryHasEntries || diary.length > 0;
+  const selectedDay = week.find(day => day.date === selectedDate) || week[week.length - 1];
+  const selectedDayReport = history.byDate[selectedDay.date];
+  const selectedDayTotals = selectedDay.current ? diaryTotals : selectedDayReport?.totals || {};
+  const selectedDayHasEntries = selectedDay.current ? hasTodayEntries : selectedDayReport?.hasEntries === true;
+  const selectedDayLoading = selectedDay.current ? diaryLoading : historyLoading;
+  const selectedDayError = selectedDay.current ? diaryError : history.errorsByDate[selectedDay.date];
+  const selectedDateLabel = selectedDay.current
+    ? 'Hôm nay'
+    : new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(selectedDay.dateObject);
+  const dateOptions = week.map(day => {
+    const dateLabel = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(day.dateObject);
+    return { value: day.date, label: day.current ? `Hôm nay · ${dateLabel}` : dateLabel };
+  });
   const chartValues = week.map(day => {
     if (day.current) {
       if (diaryLoading || diaryError) return null;
@@ -77,15 +98,15 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}>
       <Text accessibilityRole="header" style={styles.title}>Chỉ số</Text>
-      <View accessibilityLabel="Ngày xem: hôm nay" style={styles.todayButton}>
-        <Text style={styles.todayText}>Hôm nay　⌄</Text>
-      </View>
+      <TouchableOpacity ref={datePickerRef} accessibilityRole="button" accessibilityLabel={`Chọn ngày báo cáo: ${selectedDateLabel}`} style={styles.todayButton} onPress={() => setDatePickerVisible(true)}>
+        <Text style={styles.todayText}>{selectedDateLabel}　⌄</Text>
+      </TouchableOpacity>
     </View>
 
     <View style={styles.metricGrid}>
       {metrics.map((metric, index) => {
-        const rawValue = diaryTotals[metric.key];
-        const value = hasTodayEntries && Number.isFinite(rawValue) ? rounded(rawValue) : '—';
+        const rawValue = selectedDayTotals[metric.key];
+        const value = selectedDayHasEntries && !selectedDayLoading && !selectedDayError && Number.isFinite(rawValue) ? rounded(rawValue) : '—';
         return <View key={metric.key} style={[styles.metricCard, index < 3 ? styles.thirdCard : styles.halfCard]}>
           <View style={styles.metricCardHeader}><Text style={styles.metricLabel}>{metric.label}</Text><Text style={styles.metricIcon}>{metric.icon}</Text></View>
           <Text style={styles.metricValue}>{value}<Text style={styles.metricUnit}> {metric.unit}</Text></Text>
@@ -101,10 +122,10 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
         const hasMin = Number.isFinite(range.min) && range.min >= 0;
         const hasMax = Number.isFinite(range.max) && range.max >= 0;
         const rangeText = hasMin && hasMax ? `${rounded(range.min)}–${rounded(range.max)} ${nutrient.unit}` : hasMin ? `Từ ${rounded(range.min)} ${nutrient.unit}` : `Tối đa ${rounded(range.max)} ${nutrient.unit}`;
-        const value = diaryTotals[nutrient.key];
-        const hasValue = hasTodayEntries && Number.isFinite(value) && !diaryLoading && !diaryError;
+        const value = selectedDayTotals[nutrient.key];
+        const hasValue = selectedDayHasEntries && Number.isFinite(value) && !selectedDayLoading && !selectedDayError;
         const inside = hasValue && (!hasMin || value >= range.min) && (!hasMax || value <= range.max);
-        const state = !hasValue ? 'Chưa có dữ liệu nhật ký hôm nay' : inside ? 'Trong khoảng bạn nhập' : 'Ngoài khoảng bạn nhập';
+        const state = !hasValue ? `Chưa có dữ liệu nhật ký ${selectedDay.current ? 'hôm nay' : `ngày ${selectedDay.date}`}` : inside ? 'Trong khoảng bạn nhập' : 'Ngoài khoảng bạn nhập';
         return <View key={nutrient.key} style={styles.targetRow}>
           <Text style={styles.targetName}>{nutrient.label}</Text>
           <Text style={styles.targetValue}>{hasValue ? `${rounded(value)} ${nutrient.unit}` : '—'}</Text>
@@ -115,7 +136,7 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
 
     <View style={styles.chartHeading}>
       <Text accessibilityRole="header" style={styles.chartTitle}>Biểu đồ 7 ngày gần nhất</Text>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Chỉ số đang xem: ${activeMetric.label}`} style={styles.metricPicker} onPress={() => setMetricIndex(index => (index + 1) % metrics.length)}>
+      <TouchableOpacity ref={metricPickerRef} accessibilityRole="button" accessibilityLabel={`Chỉ số đang xem: ${activeMetric.label}`} style={styles.metricPicker} onPress={() => setMetricPickerVisible(true)}>
         <Text style={styles.metricPickerText}>{activeMetric.label}　⌄</Text>
       </TouchableOpacity>
     </View>
@@ -151,12 +172,30 @@ export default function DashboardScreen({ profile, diaryTotals = {}, diary = [],
 
     <View style={styles.noteCard}>
       <Text style={styles.noteIcon}>ⓘ</Text>
-      <Text style={styles.noteText}>Giá trị được tính từ snapshot USDA trong nhật ký tài khoản. Ngày chưa ghi món và dưỡng chất nguồn không báo cáo được hiển thị riêng; thông tin không thay thế tư vấn chuyên môn.</Text>
+      <Text style={styles.noteText}>Giá trị lấy từ các snapshot nguồn đã lưu trong nhật ký tài khoản. Tra cứu nguồn dinh dưỡng mới đang chờ xác nhận quyền sử dụng dữ liệu của Viện Dinh dưỡng; thông tin không thay thế tư vấn chuyên môn.</Text>
     </View>
     <View style={styles.loggedSummary}>
       <Text style={styles.loggedTitle}>Nhật ký hôm nay</Text>
       <Text style={styles.loggedValue}>{diary.length} món đã ghi</Text>
     </View>
+    <DropdownMenu
+      visible={metricPickerVisible}
+      title="Chọn chỉ số"
+      options={metrics.map(metric => ({ value: metric.key, label: metric.label }))}
+      selectedValue={activeMetric.key}
+      anchorRef={metricPickerRef}
+      onSelect={key => setMetricIndex(metrics.findIndex(metric => metric.key === key))}
+      onClose={() => setMetricPickerVisible(false)}
+    />
+    <DropdownMenu
+      visible={datePickerVisible}
+      title="Chọn ngày báo cáo"
+      options={dateOptions}
+      selectedValue={selectedDate}
+      anchorRef={datePickerRef}
+      onSelect={setSelectedDate}
+      onClose={() => setDatePickerVisible(false)}
+    />
   </ScrollView>;
 }
 

@@ -71,6 +71,14 @@ test('catalog validation preserves reported zero separately from missing null', 
   assert.equal(result.catalog.foods[0].nutrition.values.carbohydrateG.status, 'missing');
 });
 
+test('pending catalogs are valid only while they contain no food values', () => {
+  const pending = { ...makeCatalog(), version: 'vietnam-nin-pending-v1', status: 'pending', foods: [] };
+  assert.deepEqual(validateFoodCatalog(pending, { sourceRegistry }).errors, []);
+
+  const invalid = { ...pending, foods: makeCatalog().foods };
+  assert.match(validateFoodCatalog(invalid, { sourceRegistry }).errors.join(' '), /pending catalogs cannot contain food records/i);
+});
+
 test('missing nutrient fields, unexplained nulls and missing provenance are rejected', () => {
   for (const mutate of [
     catalog => { delete catalog.foods[0].nutrition.values.proteinG; },
@@ -104,6 +112,11 @@ test('synthetic sources cannot be relabeled as a live catalog and legacy validat
   assert.match(validateFoodCatalog(catalog, { sourceRegistry }).errors.join(' '), /fixture/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--allow-legacy']), /validation-only/);
   assert.throws(() => parseArgs(['--input', 'input.json', '--output', 'output.json', '--report', 'input.json']), /overwrite/);
+  const activeCatalog = path.join(__dirname, '..', 'data', 'foods.json');
+  assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', activeCatalog]), /active catalog/i);
+  if (process.platform === 'win32') {
+    assert.throws(() => parseArgs(['--input', 'licensed.json', '--output', activeCatalog.replace(/foods\.json$/i, 'FOODS.JSON')]), /active catalog/i);
+  }
 });
 
 test('invalid imports fail before creating output or a report', t => {
@@ -115,7 +128,7 @@ test('invalid imports fail before creating output or a report', t => {
   const catalog = makeCatalog();
   delete catalog.foods[0].provenance;
   fs.writeFileSync(input, JSON.stringify(catalog));
-  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/import-food-catalog.js'), '--input', input, '--output', output, '--report', report], { encoding: 'utf8' });
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../scripts/import-food-catalog.js'), '--input', input, '--output', output, '--report', report, '--check'], { encoding: 'utf8' });
   assert.equal(result.status, 1);
   assert.match(result.stderr, /provenance/);
   assert.equal(fs.existsSync(output), false);
@@ -147,6 +160,151 @@ test('strict import rejects external sources without confirmed redistribution ri
   });
   assert.match(result.errors.join('\n'), /redistribution/i);
   assert.match(result.errors.join('\n'), /sourceRecordId/i);
+});
+
+test('strict external-source imports require evidence, explicit reuse permissions, verification, and attribution', () => {
+  const catalog = makeCatalog();
+  catalog.foods[0].provenance.groups.nutrition = {
+    sourceId: 'synthetic-permission-test-source',
+    sourceRecordId: 'synthetic-test-row',
+    edition: 'synthetic-test-edition',
+    sourceReference: 'test-only#nutrition-table-row-1',
+    accessedOn: '2026-01-15',
+    method: 'Synthetic permission-gate test only.',
+  };
+  const externalSource = {
+    id: 'synthetic-permission-test-source',
+    kind: 'external',
+    name: 'Synthetic permission-gate source',
+    url: 'https://example.test/food-table',
+    rights: {
+      license: { name: 'Synthetic test permission' },
+      redistributionStatus: 'permitted',
+      evidenceReference: 'test-only:permission-record',
+      permittedActions: ['copy', 'transform', 'redistribute'],
+      verifiedBy: 'synthetic-test-reviewer',
+      verifiedOn: '2026-01-15',
+      attribution: 'Synthetic test attribution only.',
+    },
+  };
+  const registry = { records: [{ id: 'synthetic-fixture', kind: 'synthetic-fixture' }, externalSource] };
+
+  assert.deepEqual(validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true }).errors, []);
+
+  const invalidCases = [
+    [source => { source.url = null; }, /HTTPS source URL/i],
+    [source => { source.rights.evidenceReference = null; }, /evidence reference/i],
+    [source => { source.rights.permittedActions = ['copy', 'redistribute']; }, /transform/i],
+    [source => { source.rights.permittedActions = ['transform', 'redistribute']; }, /copy/i],
+    [source => { source.rights.permittedActions = ['copy', 'transform']; }, /redistribute/i],
+    [source => { source.rights.verifiedBy = null; }, /verifier/i],
+    [source => { source.rights.verifiedOn = '2026-13-40'; }, /verification date/i],
+    [source => { source.rights.attribution = null; }, /attribution/i],
+    [source => { source.rights.license = null; }, /license or written permission/i],
+    [source => { source.rights.license = { name: '   ' }; }, /license or written permission/i],
+  ];
+
+  for (const [mutate, expectedError] of invalidCases) {
+    const brokenSource = structuredClone(externalSource);
+    mutate(brokenSource);
+    const result = validateFoodCatalog(catalog, {
+      sourceRegistry: { records: [{ id: 'synthetic-fixture', kind: 'synthetic-fixture' }, brokenSource] },
+      strictImport: true,
+    });
+    assert.match(result.errors.join('\n'), expectedError);
+  }
+});
+
+test('source registry rejects duplicate IDs instead of trusting whichever rights row appears last', () => {
+  const catalog = makeCatalog();
+  catalog.foods[0].provenance.groups.nutrition = {
+    sourceId: 'duplicate-rights-source',
+    sourceRecordId: 'synthetic-test-row',
+    edition: 'synthetic-test-edition',
+    sourceReference: 'test-only#nutrition-row-1',
+    accessedOn: '2026-01-15',
+    method: 'Synthetic duplicate-rights test only.',
+  };
+  const permittedSource = {
+    id: 'duplicate-rights-source',
+    kind: 'external',
+    name: 'Synthetic duplicate-rights source',
+    url: 'https://example.test/source',
+    rights: {
+      license: { name: 'Synthetic permission' },
+      redistributionStatus: 'permitted',
+      evidenceReference: 'test-only:permission',
+      permittedActions: ['copy', 'transform', 'redistribute'],
+      verifiedBy: 'synthetic-reviewer',
+      verifiedOn: '2026-01-15',
+      attribution: 'Synthetic test attribution.',
+    },
+  };
+  const registry = {
+    records: [
+      { id: 'synthetic-fixture', kind: 'synthetic-fixture' },
+      { ...structuredClone(permittedSource), rights: { redistributionStatus: 'unconfirmed' } },
+      permittedSource,
+    ],
+  };
+
+  const result = validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true });
+
+  assert.match(result.errors.join('\n'), /duplicate source ID/i);
+});
+
+test('malformed source registry rows return validation errors instead of throwing', () => {
+  const result = validateFoodCatalog(makeCatalog(), { sourceRegistry: { records: [null] } });
+
+  assert.match(result.errors.join('\n'), /source registry records\[0\] must be an object/i);
+});
+
+test('strict external provenance requires an exact row reference and access date for every group', () => {
+  const groups = ['identity', 'preparation', 'serving', 'nutrition'];
+  const catalog = makeCatalog();
+  for (const group of groups) {
+    catalog.foods[0].provenance.groups[group] = {
+      sourceId: 'synthetic-provenance-test-source',
+      sourceRecordId: `synthetic-row-${group}`,
+      edition: 'synthetic-test-edition',
+      sourceReference: `test-only#${group}-table-row-1`,
+      accessedOn: '2026-01-15',
+      method: `Synthetic ${group} test method.`,
+    };
+  }
+  const registry = {
+    records: [{
+      id: 'synthetic-provenance-test-source',
+      kind: 'external',
+      name: 'Synthetic provenance-gate source',
+      url: 'https://example.test/food-table',
+      rights: {
+        license: { name: 'Synthetic test permission' },
+        redistributionStatus: 'permitted',
+        evidenceReference: 'test-only:permission-record',
+        permittedActions: ['copy', 'transform', 'redistribute'],
+        verifiedBy: 'synthetic-test-reviewer',
+        verifiedOn: '2026-01-15',
+        attribution: 'Synthetic test attribution only.',
+      },
+    }],
+  };
+
+  assert.deepEqual(validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true }).errors, []);
+
+  for (const group of groups) {
+    for (const [mutate, expectedError] of [
+      [provenance => { provenance.sourceRecordId = 'unknown'; }, /exact sourceRecordId and edition/i],
+      [provenance => { provenance.sourceRecordId = '   '; }, /exact sourceRecordId and edition/i],
+      [provenance => { provenance.sourceReference = 'unknown'; }, /exact source row\/cell reference/i],
+      [provenance => { provenance.accessedOn = 'not-recorded'; }, /valid source access date/i],
+    ]) {
+      const invalidCatalog = structuredClone(catalog);
+      mutate(invalidCatalog.foods[0].provenance.groups[group]);
+      const result = validateFoodCatalog(invalidCatalog, { sourceRegistry: registry, strictImport: true });
+      assert.match(result.errors.join('\n'), new RegExp(`provenance\\.groups\\.${group} .*${expectedError.source}`));
+    }
+  }
 });
 
 test('serving conversion uses metric factors and explicit per-food piece weights', () => {
@@ -181,7 +339,7 @@ test('change report identifies added, updated, removed and unchanged foods deter
   assert.deepEqual(report, createChangeReport(previous, next));
 });
 
-test('import command writes stable output and a machine-readable change report from the synthetic fixture', t => {
+test('synthetic fixture check reports deterministic changes without writing catalog files', t => {
   const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'food-catalog-import-'));
   t.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
   const fixture = path.join(__dirname, '..', 'data', 'fixtures', 'synthetic-foods.json');
@@ -189,15 +347,32 @@ test('import command writes stable output and a machine-readable change report f
   const script = path.join(__dirname, '..', 'scripts', 'import-food-catalog.js');
   const output = path.join(temporaryDirectory, 'catalog.json');
   const reportFile = path.join(temporaryDirectory, 'report.json');
-  const args = [script, '--input', fixture, '--sources', sourceRegistryFile, '--previous', fixture, '--output', output, '--report', reportFile];
+  const args = [script, '--input', fixture, '--sources', sourceRegistryFile, '--previous', fixture, '--check'];
 
   const firstRun = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(firstRun.status, 0, firstRun.stderr);
-  const outputBytes = fs.readFileSync(output, 'utf8');
-  const report = JSON.parse(fs.readFileSync(reportFile, 'utf8'));
+  const report = JSON.parse(firstRun.stdout).report;
   assert.equal(report.counts.unchanged, 1);
   assert.equal(report.counts.added, 0);
   const secondRun = spawnSync(process.execPath, args, { encoding: 'utf8' });
   assert.equal(secondRun.status, 0, secondRun.stderr);
-  assert.equal(fs.readFileSync(output, 'utf8'), outputBytes);
+  assert.equal(secondRun.stdout, firstRun.stdout);
+  assert.equal(fs.existsSync(output), false);
+  assert.equal(fs.existsSync(reportFile), false);
+});
+
+test('import command refuses to write synthetic fixture data or a change report', t => {
+  const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'food-catalog-fixture-write-'));
+  t.after(() => fs.rmSync(temporaryDirectory, { recursive: true, force: true }));
+  const fixture = path.join(__dirname, '..', 'data', 'fixtures', 'synthetic-foods.json');
+  const sourceRegistryFile = path.join(__dirname, '..', 'data', 'sources.json');
+  const script = path.join(__dirname, '..', 'scripts', 'import-food-catalog.js');
+  const output = path.join(temporaryDirectory, 'catalog.json');
+  const reportFile = path.join(temporaryDirectory, 'report.json');
+  const result = spawnSync(process.execPath, [script, '--input', fixture, '--sources', sourceRegistryFile, '--output', output, '--report', reportFile], { encoding: 'utf8' });
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /synthetic fixture catalogs are validation-only/i);
+  assert.equal(fs.existsSync(output), false);
+  assert.equal(fs.existsSync(reportFile), false);
 });

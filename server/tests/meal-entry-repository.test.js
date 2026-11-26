@@ -4,11 +4,11 @@ const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const { createDemoStore } = require('../src/repositories/demo-store');
-const { loadCatalog } = require('../src/repositories/catalog');
+const { createSyntheticPlannerFixture } = require('./helpers/synthetic-planner-data');
 const { normalizeMealEntryInput } = require('../src/services/meal-entries');
 const { createMealEntryRepository, MealEntryRepositoryError } = require('../src/repositories/meal-entry-repository');
 
-const { foods } = loadCatalog();
+const { foods } = createSyntheticPlannerFixture();
 const input = normalizeMealEntryInput({
   foodId: 'rice-steamed',
   portion: { amount: 100, unit: 'g' },

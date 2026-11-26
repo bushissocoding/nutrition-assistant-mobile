@@ -58,7 +58,7 @@ function createMealPlanRouter({ foods, mealTemplates, catalog, foodSource, repos
         requestKey,
         input,
         profileUpdatedAt: profile.updated_at || null,
-        catalogVersion: 'USDA-FDC-live-v1',
+        catalogVersion: catalog?.version || 'catalog-pending',
       });
       if (replay) return res.json(savedResponse(replay.record));
     } catch (error) {

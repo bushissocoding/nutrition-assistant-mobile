@@ -11,7 +11,7 @@ const { createRequestTelemetryMiddleware, logApiFailure } = require('./src/obser
 const { createSupabaseAuthMiddleware } = require('./src/middleware/supabase-auth');
 const { createPrivilegedSupabaseClient } = require('./src/services/supabase/privileged-client');
 const { createAccountDeletionService } = require('./src/services/account-lifecycle');
-const { createFdcFoodSource } = require('./src/services/fdc-food-source');
+const { createPendingInstituteFoodSource } = require('./src/services/food-source');
 const { createPayosGateway } = require('./src/services/payos-gateway');
 const { createPaymentRepository } = require('./src/repositories/payment-repository');
 const { createChatRepository } = require('./src/repositories/chat-repository');
@@ -40,7 +40,7 @@ const demoContext = createDemoContext({
   env: { ...process.env, DEMO_DATA_ENABLED: String(config.demoDataEnabled) },
 });
 const authMiddleware = createSupabaseAuthMiddleware({ settings: config.supabase });
-const foodSource = createFdcFoodSource({ apiKey: config.fdcApiKey });
+const foodSource = createPendingInstituteFoodSource();
 let deleteAccount;
 let paymentRepository;
 let chatRepository;

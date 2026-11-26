@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadCatalog } = require('../src/repositories/catalog');
+const { createSyntheticPlannerFixture } = require('./helpers/synthetic-planner-data');
 const {
   ShoppingListValidationError,
   createShoppingList,
@@ -9,7 +9,7 @@ const {
   updateShoppingListItem,
 } = require('../src/services/shopping-lists');
 
-const { foods } = loadCatalog();
+const { foods } = createSyntheticPlannerFixture();
 const validInput = { items: [
   { foodId: 'rice-steamed', amount: 300, unit: 'g' },
   { foodId: 'egg-boiled', amount: 2, unit: 'piece' },

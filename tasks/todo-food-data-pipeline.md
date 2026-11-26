@@ -1,0 +1,74 @@
+# Task List: Licensed Food-Data Pipeline Readiness
+
+## Task 1: Validate explicit source rights evidence and permission scope
+
+**Description:** Extend external source registry records and strict validation so an external dataset cannot be imported without a documented evidence reference, verifier/date, permission to copy/transform/redistribute, license or written permission details, and required attribution.
+
+**Acceptance criteria:**
+- [x] The pending NIN entry records the expected fields as unconfirmed/null without inventing permission.
+- [x] Strict external-source validation rejects missing or incomplete rights evidence and scope.
+- [x] Duplicate source IDs cannot override an unconfirmed rights row.
+- [x] Malformed source registry rows produce validation errors rather than uncaught exceptions.
+- [x] Synthetic tests prove the gate without copying real source values.
+
+**Verification:** [x] `npm run test:unit` (333 passed); [x] `npm run catalog:validate`.
+
+**Dependencies:** None.
+
+**Files likely touched:** `server/data/sources.json`, `server/src/services/food-catalog.js`, `server/tests/food-catalog.test.js`.
+
+**Estimated scope:** Small.
+
+## Task 2: Require auditable provenance for external source records
+
+**Description:** Require each external provenance group to retain an exact source record/edition, row or cell reference, access date, and transformation method while preserving nutrient units and explicit missingness.
+
+**Acceptance criteria:**
+- [x] Strict validation rejects absent, malformed, or unknown external references and access dates.
+- [x] Blank or placeholder `sourceRecordId` values fail validation.
+- [x] Synthetic test records demonstrate accepted provenance and each rejected omission.
+- [x] The validator does not convert missing nutrient values into zero.
+
+**Verification:** [x] `npm run test:unit` (333 passed); [x] `npm run catalog:fixture`.
+
+**Dependencies:** Task 1.
+
+**Files likely touched:** `server/src/services/food-catalog.js`, `server/tests/food-catalog.test.js`, `server/data/fixtures/synthetic-foods.json` only if its fixture schema requires an explicit test marker.
+
+**Estimated scope:** Small.
+
+## Task 3: Keep synthetic fixtures out of import outputs and require complete approval before serving
+
+**Description:** Preserve fixture validation for tests while blocking fixture write-mode imports. Make the active catalog loader require strict rights/provenance checks and approved review metadata for external records.
+
+**Acceptance criteria:**
+- [x] `catalog:fixture` remains validation-only; fixture write attempts fail before creating output/report files.
+- [x] Importer output/report paths cannot overwrite the active catalog, even when `--previous` is omitted.
+- [x] Canonical/case-variant output paths cannot bypass active-catalog protection.
+- [x] The active catalog loader rejects synthetic catalogs and external records without confirmed rights, complete provenance, and approved review metadata.
+- [x] Pending production data continues to load with an empty catalog.
+
+**Verification:** [x] `npm run test:unit` (333 passed); [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] importer/repository tests; [x] active-catalog overwrite rejection test.
+
+**Dependencies:** Tasks 1–2.
+
+**Files likely touched:** `server/scripts/import-food-catalog.js`, `server/src/repositories/catalog.js`, `server/tests/food-catalog.test.js`, `server/tests/catalog-repository.test.js`.
+
+**Estimated scope:** Medium.
+
+## Task 4: Document the rights checklist, candidate review workflow, and synthetic-only fixture boundary; add CI catalog checks
+
+**Description:** Align the source research and developer docs with the structured gate, explain how to stage a licensed candidate without activating it, and run catalog validation/fixture checks in CI.
+
+**Acceptance criteria:**
+- [x] Documentation states that written rights and qualified review are still outstanding and does not imply that NIN values are imported.
+- [x] The documented workflow keeps permission documents private and uses a reference in the registry.
+- [x] CI validates the empty active catalog and synthetic fixture without writing fixture data into the active catalog.
+
+**Verification:** [x] `npm run test:unit` (333 passed); [x] `npm run test:ui` (25 suites, 142 passed); [x] `npm run test:api`; [x] `npm run catalog:validate`; [x] `npm run catalog:fixture`; [x] GitHub Actions YAML parsed; [x] `git diff --check`.
+
+**Dependencies:** Tasks 1–3.
+
+**Files likely touched:** `README.md`, `server/README.md`, `docs/research/issue-4-food-data-sources.md`, `.github/workflows/ci.yml`.
+
+**Estimated scope:** Medium.

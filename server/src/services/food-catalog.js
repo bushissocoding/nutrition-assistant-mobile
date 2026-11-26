@@ -7,8 +7,20 @@ const NUTRIENTS = {
   sodiumMg: { unit: 'mg', max: 100000 },
 };
 const PROVENANCE_GROUPS = ['identity', 'preparation', 'serving', 'nutrition'];
+const REQUIRED_EXTERNAL_PERMISSIONS = ['copy', 'transform', 'redistribute'];
 const PREPARATION_STATES = ['raw', 'cooked', 'processed', 'dried', 'fermented', 'unknown'];
 const MATURITY_STATES = ['ripe', 'unripe', 'not-applicable', 'unknown'];
+
+function isIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function hasHttpsUrl(value) {
+  try { return new URL(value).protocol === 'https:'; }
+  catch { return false; }
+}
 
 function normalizedText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('vi').trim().replace(/\s+/g, ' ');
@@ -20,7 +32,7 @@ function stableValue(value) {
   return Object.fromEntries(Object.keys(value).sort().map(key => [key, stableValue(value[key])]));
 }
 
-function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictImport = false } = {}) {
+function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictImport = false, requireApprovedReview = false } = {}) {
   const errors = [];
   const fail = message => errors.push(message);
   if (!input || typeof input !== 'object' || Array.isArray(input)) {
@@ -28,11 +40,28 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
   }
   if (input.schemaVersion !== 1) fail('schemaVersion must be 1.');
   if (typeof input.version !== 'string' || !input.version.trim()) fail('version is required.');
-  if (!['prototype', 'synthetic-fixture', 'licensed'].includes(input.status)) fail('status must be prototype, synthetic-fixture, or licensed.');
-  if (!Array.isArray(input.foods) || input.foods.length === 0) fail('foods must be a non-empty array.');
+  if (!['pending', 'prototype', 'synthetic-fixture', 'licensed'].includes(input.status)) fail('status must be pending, prototype, synthetic-fixture, or licensed.');
+  if (!Array.isArray(input.foods)) fail('foods must be an array.');
+  else if (input.status === 'pending' && input.foods.length > 0) fail('pending catalogs cannot contain food records.');
+  else if (input.status !== 'pending' && input.foods.length === 0) fail('foods must be a non-empty array unless the catalog is pending.');
   const sourceRows = Array.isArray(sourceRegistry?.records) ? sourceRegistry.records : [];
-  const sources = new Map(sourceRows.map(source => [source.id, source]));
+  const sources = new Map();
   if (!Array.isArray(sourceRegistry?.records)) fail('source registry records must be an array.');
+  const sourceIds = new Set();
+  for (const [index, source] of sourceRows.entries()) {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+      fail(`source registry records[${index}] must be an object.`);
+      continue;
+    }
+    if (typeof source.id !== 'string' || !source.id.trim()) {
+      fail(`source registry records[${index}] requires a source ID.`);
+    } else if (sourceIds.has(source.id)) {
+      fail(`source registry has duplicate source ID ${source.id}.`);
+    } else {
+      sourceIds.add(source.id);
+      sources.set(source.id, source);
+    }
+  }
   const ids = new Set();
   const names = new Set();
 
@@ -90,6 +119,7 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
     }
 
     const groups = food.provenance?.groups;
+    let hasExternalSource = false;
     if (!groups || typeof groups !== 'object' || Array.isArray(groups)) fail(`${path}.provenance.groups is required.`);
     else for (const group of PROVENANCE_GROUPS) {
       const provenance = groups[group];
@@ -99,15 +129,39 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
         continue;
       }
       if (!['external', 'internal', 'synthetic-fixture'].includes(source.kind)) fail(`${path} source kind is unsupported.`);
+      if (source.kind === 'external') hasExternalSource = true;
       if (source.kind === 'external' && source.rights?.redistributionStatus !== 'permitted') fail(`${path} source ${source.id} lacks confirmed redistribution rights.`);
       if (source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') fail(`${path} synthetic fixture data requires a fixture catalog.`);
       if (strictImport && source.kind === 'external') {
         const rights = source.rights || {};
-        if (rights.redistributionStatus !== 'permitted' || !rights.license?.name || !rights.verifiedOn || !rights.attribution) {
-          fail(`${path}.provenance.groups.${group} source ${source.id} lacks confirmed redistribution rights, license, verification date, or attribution.`);
+        if (!hasHttpsUrl(source.url)) fail(`${path}.provenance.groups.${group} source ${source.id} requires an HTTPS source URL.`);
+        if (typeof rights.license?.name !== 'string' || !rights.license.name.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a license or written permission name.`);
         }
-        if (!provenance.sourceRecordId || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
+        if (typeof rights.evidenceReference !== 'string' || !rights.evidenceReference.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a rights evidence reference.`);
+        }
+        const permittedActions = new Set(Array.isArray(rights.permittedActions) ? rights.permittedActions : []);
+        for (const action of REQUIRED_EXTERNAL_PERMISSIONS) {
+          if (!permittedActions.has(action)) fail(`${path}.provenance.groups.${group} source ${source.id} is missing permitted action ${action}.`);
+        }
+        if (typeof rights.verifiedBy !== 'string' || !rights.verifiedBy.trim() || !isIsoDate(rights.verifiedOn)) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a verifier and valid verification date.`);
+        }
+        if (typeof rights.attribution !== 'string' || !rights.attribution.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires the exact attribution text.`);
+        }
+        if (typeof provenance.sourceRecordId !== 'string' || !provenance.sourceRecordId.trim()
+          || /unknown|not-recorded|uncaptured/i.test(provenance.sourceRecordId)
+          || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
           fail(`${path}.provenance.groups.${group} external source requires an exact sourceRecordId and edition.`);
+        }
+        if (typeof provenance.sourceReference !== 'string' || !provenance.sourceReference.trim()
+          || /unknown|not-recorded|uncaptured/i.test(provenance.sourceReference)) {
+          fail(`${path}.provenance.groups.${group} external source requires an exact source row/cell reference.`);
+        }
+        if (!isIsoDate(provenance.accessedOn)) {
+          fail(`${path}.provenance.groups.${group} external source requires a valid source access date.`);
         }
       }
       if (strictImport && source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') {
@@ -116,6 +170,11 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
     }
     if (!food.review || !['fixture-only', 'needs-source-verification', 'pending-review', 'approved'].includes(food.review.status)) fail(`${path}.review.status is required and must be supported.`);
     else if (food.review.status === 'approved' && (!food.review.reviewedBy || !food.review.reviewedOn)) fail(`${path}.review approved status requires reviewer and date.`);
+    if (requireApprovedReview && hasExternalSource
+      && (food.review?.status !== 'approved' || typeof food.review.reviewedBy !== 'string'
+        || !food.review.reviewedBy.trim() || !isIsoDate(food.review.reviewedOn))) {
+      fail(`${path}.review requires an approved review before serving external source data.`);
+    }
 
     const duplicateKey = [normalizedText(food.name), normalizedText(food.category), food.preparation?.state, food.preparation?.maturity].join('|');
     if (duplicateKey.startsWith('|') || duplicateKey.includes('||')) continue;

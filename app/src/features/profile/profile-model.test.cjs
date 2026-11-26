@@ -1,6 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, hasUrgentRedFlags, normalizeProfile, validateProfile } = require('./profile-model.cjs');
+const { buildProfileDraft, calculateAdultBmi, createEmptyProfile, formatDateOfBirth, hasUrgentRedFlags, isValidProfileName, normalizeProfile, normalizeProfileName, parseDateOfBirthInput, validateProfile } = require('./profile-model.cjs');
+
+test('date of birth input validates calendar dates, age limits, and formats for display', () => {
+  const today = new Date(2026, 10, 25);
+  assert.deepEqual(parseDateOfBirthInput('29/02/2004', today), { iso: '2004-02-29', age: 22 });
+  assert.equal(parseDateOfBirthInput('29/02/2003', today), null);
+  assert.equal(parseDateOfBirthInput('26/11/2026', today), null);
+  assert.equal(parseDateOfBirthInput('25/11/2026', today), null);
+  assert.equal(formatDateOfBirth('2004-02-29'), '29/02/2004');
+  assert.equal(formatDateOfBirth(null), '');
+});
 
 test('healthy profile calculates BMI for adult and does not diagnose', () => {
   assert.equal(calculateAdultBmi({ age: '25', heightCm: '170', weightKg: '62' }), 21.5);
@@ -54,4 +64,11 @@ test('validates activity values and bounds profile notes and allergy entries', (
   assert.ok(errors.symptomNotes);
   assert.ok(errors.allergies);
   assert.equal(validateProfile({ ...valid, activityLevel: 'moderate' }).activityLevel, undefined);
+});
+
+test('normalizes and validates Unicode profile display names with spaces', () => {
+  assert.equal(normalizeProfileName('  Nguy\u0065\u0302\u0303n   Va\u0306n An  '), 'Nguyễn Văn An');
+  assert.equal(isValidProfileName('  Nguyễn   Văn An  '), true);
+  assert.equal(isValidProfileName('A'), false);
+  assert.equal(isValidProfileName('Gia @ Khang'), false);
 });

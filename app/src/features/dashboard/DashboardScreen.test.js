@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import DashboardScreen from './DashboardScreen';
 import { api } from '../../services/api';
-import { formatLocalDateKey } from '../diary/diary-history.cjs';
+import { formatLocalDateKey, getRecentLocalDays } from '../diary/diary-history.cjs';
 
 jest.mock('../../services/api', () => ({ api: { getMyNutritionReport: jest.fn(), getMyPersonalization: jest.fn() } }));
 
@@ -65,15 +65,42 @@ test('shows today report values and loads a bounded account nutrition report', a
   }));
 });
 
-test('cycles the chart metric and keeps unknown nutrients distinct', async () => {
+test('opens the five-metric list and keeps unknown nutrients distinct', async () => {
   const today = formatLocalDateKey(new Date());
   const screen = render(<DashboardScreen diaryHasEntries diaryTotals={{ proteinG: null, fatG: 40 }} />);
 
   expect(screen.getAllByText('— g')).toHaveLength(3);
   await waitFor(() => expect(screen.getByLabelText(new RegExp(`Protein ${today}: chưa có dữ liệu dưỡng chất`))).toBeTruthy());
   fireEvent.press(screen.getByRole('button', { name: 'Chỉ số đang xem: Protein' }));
+  expect(screen.getByRole('button', { name: 'Protein' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Lipid' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Chất xơ' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Glucid' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Năng lượng' })).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Lipid' }));
   expect(screen.getByRole('button', { name: 'Chỉ số đang xem: Lipid' })).toBeTruthy();
   expect(screen.getByLabelText(new RegExp(`Lipid ${today}: 40 g`))).toBeTruthy();
+});
+
+test('opens the seven-day date list and updates the report cards for a selected day', async () => {
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayLabel = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(yesterday);
+  api.getMyNutritionReport.mockImplementation(async query => report({ ...query, hasEntries: true, overrides: { proteinG: 18, fatG: 11 } }));
+  const screen = render(<DashboardScreen diaryHasEntries diaryTotals={{ proteinG: 62, fatG: 40 }} />);
+
+  expect(screen.getByText('62 g')).toBeTruthy();
+  await waitFor(() => expect(api.getMyNutritionReport).toHaveBeenCalled());
+  fireEvent.press(screen.getByRole('button', { name: 'Chọn ngày báo cáo: Hôm nay' }));
+  getRecentLocalDays(today, 7).forEach(day => {
+    const label = new Intl.DateTimeFormat('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(day.dateObject);
+    expect(screen.getByRole('button', { name: day.current ? `Hôm nay · ${label}` : label })).toBeTruthy();
+  });
+  fireEvent.press(screen.getByRole('button', { name: yesterdayLabel }));
+
+  await waitFor(() => expect(screen.getByText('18 g')).toBeTruthy());
+  expect(screen.getByRole('button', { name: `Chọn ngày báo cáo: ${yesterdayLabel}` })).toBeTruthy();
 });
 
 test('shows a failed account report and retries the complete history request', async () => {

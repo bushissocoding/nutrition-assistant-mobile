@@ -1,13 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const path = require('node:path');
-const { loadCatalog } = require('../src/repositories/catalog');
 const { calculateFood, calculateTotals } = require('../src/services/nutrition');
 const { dietaryVarietyPenalty, generatePlan, validateMealPlanRequest } = require('../src/services/meal-planner');
+const { createSyntheticPlannerFixture } = require('./helpers/synthetic-planner-data');
 
-const catalogData = loadCatalog();
-const { foods, mealTemplates, catalog } = catalogData;
+const { foods, mealTemplates, catalog } = createSyntheticPlannerFixture();
 const nutrientKeys = ['energyKcal', 'proteinG', 'carbohydrateG', 'fatG', 'fiberG', 'sodiumMg'];
 
 function addSourcedPrices(templates = mealTemplates) {
@@ -31,9 +28,9 @@ function addSourcedPrices(templates = mealTemplates) {
 
 test('nutrition calculation scales a food from 100g to the requested portion', () => {
   const rice = foods.find(food => food.id === 'rice-steamed');
-  assert.equal(calculateFood(rice, 100).energyKcal, 130);
-  assert.equal(calculateFood(rice, 50).energyKcal, 65);
-  assert.equal(calculateTotals([{ foodId: rice.id, grams: 100 }], foods).sodiumMg, 1);
+  assert.equal(calculateFood(rice, 100).energyKcal, 100);
+  assert.equal(calculateFood(rice, 50).energyKcal, 50);
+  assert.equal(calculateTotals([{ foodId: rice.id, grams: 100 }], foods).sodiumMg, 10);
 });
 
 test('meal planner returns complete portions, daily totals and traceable source versions without inventing a price', () => {
@@ -161,7 +158,7 @@ test('planner scales template portions in grams and reports the exact daily sum'
 });
 
 test('planner returns unavailable rather than treating missing nutrients as zero', () => {
-  const incompleteFoods = foods.map(food => food.id === 'chicken-breast'
+  const incompleteFoods = foods.map(food => food.id === 'rice-steamed'
     ? { ...food, per100g: { ...food.per100g, fiberG: undefined } }
     : food);
   const result = generatePlan({ foods: incompleteFoods, mealTemplates, catalog });
@@ -171,7 +168,7 @@ test('planner returns unavailable rather than treating missing nutrients as zero
 });
 
 test('planner returns unavailable when nutrition source provenance is absent', () => {
-  const untraceableFoods = foods.map(food => food.id === 'chicken-breast'
+  const untraceableFoods = foods.map(food => food.id === 'rice-steamed'
     ? { ...food, provenance: { groups: {} } }
     : food);
   const result = generatePlan({ foods: untraceableFoods, mealTemplates, catalog });
@@ -207,8 +204,8 @@ test('request validation rejects wrong types, unsupported units, incomplete rang
   assert.equal(validateMealPlanRequest({}).budgetVnd, undefined, 'budget is optional because no sourced price exists yet');
 });
 
-test('demo catalog declares non-clinical provenance', () => {
-  const sources = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'data', 'sources.json'), 'utf8'));
-  assert.match(sources.note, /demonstration set/i);
-  assert.equal(sources.records[0].name, 'USDA FoodData Central');
+test('meal planner unit tests use only synthetic source records', () => {
+  assert.equal(catalog.status, 'prototype');
+  assert.equal(catalog.version, 'synthetic-test-catalog-v1');
+  assert.ok(foods.every(food => food.source.id === 'synthetic-fixture'));
 });

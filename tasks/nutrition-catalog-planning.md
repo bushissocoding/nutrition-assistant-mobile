@@ -1,24 +1,26 @@
-# Nutrition Catalog and Planning — Focused Task Checklist
+# Nutrition catalog and planning — current status
 
-Spec: `spec/SPEC-nutrition-catalog-planning.md`. Preserve the current public `/api/v1` contract and keep prototype catalog values visibly separate from live FDC records.
+Spec: [`spec/SPEC-nutrition-catalog-planning.md`](../spec/SPEC-nutrition-catalog-planning.md). The National Institute of Nutrition tables are the preferred future source. Redistribution permission has not been confirmed, so no values are imported or served.
 
-## Ordering and acceptance
+## Completed in the source-retirement change
 
-- [x] Specify data source, ownership, result boundaries, external gates and success criteria before implementation.
-- [x] 1. Add `FDC_API_KEY` startup parsing and an FDC service adapter with timeout, response cap, safe error mapping and unit tests.
-- [x] 2. Add sourced search/detail/calculate routes and UI source/version/missingness display; preserve current route outputs.
-- [x] 3. Specify/implement account-owned `meal_plans` migration/RLS/repository with idempotency. Static ownership contracts are tested; live two-account RLS execution remains blocked by the missing local DB toolchain.
-- [x] 4. Add authenticated plan API deriving profile/allergy/hard limits from DB and current consent; client may only submit preference inputs.
-- [x] 5. Connect MealPlanScreen to sourced food search, saved-plan API and retry/error states.
-- [ ] 6. Add user-scoped nutrition report after account-owned diary is ready; this task depends on `diary-grocery-analytics`.
-- [x] 7. Run focused plus required suites and Android bundle; record unavailable local migration/RLS execution and external provider credentials.
+- [x] Remove the active external provider adapter and its server credential/configuration.
+- [x] Make the active catalog empty and pending; retain the NIN source entry with rights marked unconfirmed.
+- [x] Return a stable unavailable response from lookup and sourced calculations; return no generated plan while the catalog is pending.
+- [x] Keep synthetic records in test-only fixtures and preserve the `/api/v1` contract.
+- [x] Generalize database source-ID constraints through a forward migration while preserving already-applied migration history.
+- [x] Update app copy, documentation, specifications and task notes. Keep old snapshot provenance unchanged.
 
-## Verification notes
+## Required before reactivation
 
-- Focused: `node --test server/tests/fdc-food-source.test.js server/tests/sourced-food-routes.test.js server/tests/sourced-meal-plans.test.js server/tests/meal-plan-routes.test.js server/tests/meal-plan-repository.test.js server/tests/core.test.js`.
-- FDC provider tests use synthetic payloads, not live user data. Do not use DEMO_KEY in code or commits.
-- Static migration checks are not RLS integration tests. Current environment has no Supabase CLI or Docker.
-- Local RLS execution requires the Supabase CLI and Docker; static policy assertions are not represented as a live database integration pass.
-- Real FDC smoke requests require an operator key and should not be attempted unless provided in the ignored environment.
-- Local prototype records are never used as fallback when the provider is unavailable.
-- Existing project meal templates remain clearly marked as unreviewed samples; the API requires an exact single FDC ingredient match and returns no saved result when a match, nutrient, allergy guarantee, or hard limit is unavailable.
+- [ ] Obtain written redistribution permission, including attribution and derived-value terms.
+- [ ] Select and document an edition, row-level references, preparation state, units, missingness, conversions and access date.
+- [ ] Complete qualified nutrition review.
+- [ ] Import through the strict catalog validator, approve its change report, then implement the authorized source adapter.
+- [ ] Add focused tests and run required repository checks after source activation.
+
+## Verification
+
+- Focused pending-source, catalog, planner and API tests use synthetic values only.
+- `npm run test:unit`, `npm run test:ui`, and `npm run test:api` are required by `CONSTRAINTS.md` before handoff.
+- Local Supabase migration/RLS execution requires Docker and the Supabase CLI; static migration tests do not establish live database behavior.

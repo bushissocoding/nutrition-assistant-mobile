@@ -106,3 +106,48 @@ test('help questions expand to show the prototype service boundary', () => {
   fireEvent.press(screen.getByText('Ứng dụng có tư vấn y tế không?'));
   expect(screen.getByText(/không chẩn đoán hoặc điều trị/i)).toBeTruthy();
 });
+
+test('shows the reference help center header, searchable FAQ categories, and filtered questions', () => {
+  const screen = render(<SettingsScreen screen="settings-help" />);
+
+  expect(screen.getByText('Trung Tâm Hỗ Trợ')).toBeTruthy();
+  expect(screen.getByLabelText('Tìm kiếm trợ giúp')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'Hỏi đáp' }).props.accessibilityState.selected).toBe(true);
+  expect(screen.getByRole('button', { name: 'Phổ biến' })).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Dịch vụ' }));
+  expect(screen.getByText('Tôi có thể đặt lịch với nhà cung cấp không?')).toBeTruthy();
+  expect(screen.queryByText('Ứng dụng có tư vấn y tế không?')).toBeNull();
+
+  fireEvent.changeText(screen.getByLabelText('Tìm kiếm trợ giúp'), 'đặt lịch');
+  expect(screen.getByText('Tôi có thể đặt lịch với nhà cung cấp không?')).toBeTruthy();
+  expect(screen.queryByText('Tôi có thể chụp ảnh kết quả xét nghiệm không?')).toBeNull();
+});
+
+test('shows expandable website and Facebook rows with their current setup status', () => {
+  const screen = render(<SettingsScreen screen="settings-help" />);
+  fireEvent.press(screen.getByRole('tab', { name: 'Liên hệ' }));
+
+  const website = screen.getByRole('button', { name: 'Website' });
+  expect(website.props.accessibilityState.expanded).toBe(false);
+  fireEvent.press(website);
+  expect(screen.getByText('Website hỗ trợ chưa được cấu hình.')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Facebook' })).toBeTruthy();
+});
+
+test('keeps the consent receipt and its actions inside Privacy', () => {
+  const onReviewConsent = jest.fn();
+  const onWithdrawConsent = jest.fn();
+  const screen = render(<SettingsScreen
+    screen="settings-privacy"
+    consentRecord={{ version: '2026-11-24-v1', acceptedAt: '2026-11-24T00:00:00.000Z' }}
+    onReviewConsent={onReviewConsent}
+    onWithdrawConsent={onWithdrawConsent}
+  />);
+
+  expect(screen.getByText('Biên nhận đồng ý')).toBeTruthy();
+  expect(screen.getByText(/2026-11-24-v1/)).toBeTruthy();
+  fireEvent.press(screen.getByText('Xem lại nội dung và lựa chọn ›'));
+  fireEvent.press(screen.getByRole('button', { name: 'Thu hồi quyền xử lý dữ liệu' }));
+  expect(onReviewConsent).toHaveBeenCalledTimes(1);
+  expect(onWithdrawConsent).toHaveBeenCalledTimes(1);
+});

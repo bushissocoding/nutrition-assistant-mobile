@@ -3,6 +3,22 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createChangeReport, validateFoodCatalog } = require('../src/services/food-catalog');
 
+function canonicalPath(fileName) {
+  const absolutePath = path.resolve(fileName);
+  try { return fs.realpathSync.native(absolutePath); }
+  catch {
+    try { return path.join(fs.realpathSync.native(path.dirname(absolutePath)), path.basename(absolutePath)); }
+    catch { return absolutePath; }
+  }
+}
+
+function samePath(left, right) {
+  const leftPath = canonicalPath(left);
+  const rightPath = canonicalPath(right);
+  if (process.platform === 'win32') return leftPath.toLowerCase() === rightPath.toLowerCase();
+  return leftPath === rightPath;
+}
+
 function parseArgs(args) {
   const options = {
     check: false,
@@ -23,12 +39,15 @@ function parseArgs(args) {
   if (!options.input) throw new Error('Usage: node server/scripts/import-food-catalog.js --input <source.json> --sources server/data/sources.json --previous <old.json> --output <catalog.json> [--report <report.json>]');
   if (options.allowLegacy && !options.check) throw new Error('--allow-legacy is validation-only and requires --check; it cannot write an imported catalog.');
   if (!options.check && !options.output) throw new Error('--output is required unless --check is used.');
-  if (options.input && options.output && path.resolve(options.input) === path.resolve(options.output)) throw new Error('Input and output paths must differ.');
-  const protectedPaths = [options.input, options.sources, options.previous].filter(Boolean).map(file => path.resolve(file));
+  if (options.input && options.output && samePath(options.input, options.output)) throw new Error('Input and output paths must differ.');
+  const protectedPaths = [options.input, options.sources, options.previous, path.join(__dirname, '..', 'data', 'foods.json')]
+    .filter(Boolean);
   for (const destination of [options.output, options.report].filter(Boolean)) {
-    if (protectedPaths.includes(path.resolve(destination))) throw new Error('Output/report must not overwrite input, source registry, or previous catalog.');
+    if (protectedPaths.some(protectedPath => samePath(destination, protectedPath))) {
+      throw new Error('Output/report must not overwrite input, active catalog, source registry, or previous catalog.');
+    }
   }
-  if (options.output && options.report && path.resolve(options.output) === path.resolve(options.report)) throw new Error('Output and report paths must differ.');
+  if (options.output && options.report && samePath(options.output, options.report)) throw new Error('Output and report paths must differ.');
   return options;
 }
 
@@ -40,6 +59,9 @@ function readJson(fileName, description) {
 function importCatalog(options) {
   const sourceRegistry = readJson(options.sources, 'source registry');
   const candidate = readJson(options.input, 'input catalog');
+  if (!options.check && candidate?.status === 'synthetic-fixture') {
+    throw new Error('Synthetic fixture catalogs are validation-only and cannot be written.');
+  }
   const validation = validateFoodCatalog(candidate, { sourceRegistry, strictImport: !options.allowLegacy });
   if (validation.errors.length) throw new Error(`Catalog validation failed:\n- ${validation.errors.join('\n- ')}`);
   const previous = options.previous ? readJson(options.previous, 'previous catalog') : null;

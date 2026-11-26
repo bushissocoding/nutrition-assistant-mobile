@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { colors, radius } from '../../theme/tokens';
-import { buildProfileDraft, calculateAdultBmi, createEmptyProfile, NUTRIENTS, RED_FLAG_SYMPTOMS, validateProfile } from '../profile/profile-model.cjs';
+import { buildProfileDraft, calculateAdultBmi, createEmptyProfile, isValidProfileName, NUTRIENTS, RED_FLAG_SYMPTOMS, validateProfile } from '../profile/profile-model.cjs';
 
 const ACTIVITIES = [['low', 'Thấp'], ['moderate', 'Vừa'], ['high', 'Cao']];
 const CONDITIONS = [
@@ -27,7 +27,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
   const [attempted, setAttempted] = useState(false);
   const errors = useMemo(() => {
     const result = validateProfile(buildProfileDraft(profile, allergyText, limitInputs), limitInputs);
-    if (!/^[A-Za-z0-9_.-]{3,30}$/.test(String(profile.username || '').trim())) result.username = 'Tên người dùng gồm 3–30 chữ cái, số hoặc . _ -.';
+    if (!isValidProfileName(profile.username)) result.username = 'Tên hiển thị gồm 3–30 chữ cái hoặc số; có thể dùng dấu cách, . _ -.';
     return result;
   }, [profile, allergyText, limitInputs]);
   const selectedAllergies = allergyText.split(',').map(value => value.trim()).filter(Boolean);
@@ -69,7 +69,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
   const stepSubtitles = ['Hãy chọn giới tính của bạn.', '', '', '', 'Chọn một mục hoặc bỏ qua nếu không muốn trả lời.', 'Chỉ ghi nhận thông tin tham khảo. Không dùng để chẩn đoán hoặc tự đặt chỉ tiêu.', 'Chọn tất cả thực phẩm bạn cần tránh.'];
 
   return <View style={styles.screen}>
-    <View style={styles.topBar}>
+    <View testID="profile-setup-top-bar" style={styles.topBar}>
       <TouchableOpacity accessibilityRole="button" accessibilityLabel={step ? 'Quay lại bước trước' : 'Quay lại'} style={styles.topBack} onPress={() => step ? (setAttempted(false), setStep(value => value - 1)) : onBack?.()}><Text style={styles.backGlyph}>‹</Text></TouchableOpacity>
       <View style={styles.progressTrack} accessibilityRole="progressbar" accessibilityLabel={`Bước ${step + 1} trên ${STEP_COUNT}`} accessibilityValue={{ min: 0, max: STEP_COUNT, now: step + 1 }}><View style={[styles.progressFill, { width: `${((step + 1) / STEP_COUNT) * 100}%` }]} /></View>
       {step === 0 || step === 4 || step === 6 || (step === 5 && !isPatient) ? <TouchableOpacity accessibilityRole="button" style={styles.skipButton} onPress={skipStep}><Text style={styles.skipText}>Bỏ qua</Text></TouchableOpacity> : <View style={styles.skipSpace} />}
@@ -114,7 +114,7 @@ export default function ProfileSetupScreen({ onComplete, initialProfile, onBack,
       </View>}
 
       {step === 6 && <View style={styles.stepBody}>
-        <Field label="Tên người dùng" value={profile.username || ''} onChangeText={value => setField('username', value)} placeholder="3–30 chữ cái, số, . _ -" />{errorFor('username')}
+        <Field label="Tên hiển thị" value={profile.username || ''} onChangeText={value => setField('username', value)} placeholder="Ví dụ: Nguyễn Văn An" />{errorFor('username')}
         <View style={styles.allergyIllustration}><Text style={styles.allergySymbol}>✳</Text><View style={styles.bubbleOne} /><View style={styles.bubbleTwo} /><View style={styles.bubbleThree} /></View>
         <View style={styles.allergyInputBox}>
           <View style={styles.allergyChips}>{ALLERGY_OPTIONS.map(option => {
@@ -140,7 +140,7 @@ function GenderCard({ label, icon, value, selected, onPress }) {
 }
 
 function NumericStep({ value, unit, label, onChange, onMinus, onPlus, error, keyboardType = 'decimal-pad' }) {
-  return <View style={styles.stepBody}><View style={styles.valueSwitch}><Text style={styles.unitPill}>{unit}</Text></View><View style={styles.valueRow}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Giảm một đơn vị" style={styles.adjust} onPress={onMinus}><Text style={styles.adjustText}>−</Text></TouchableOpacity><TextInput accessibilityLabel={label} value={String(value)} onChangeText={onChange} keyboardType={keyboardType} style={styles.bigInput} placeholder="—" selectTextOnFocus /> <Text style={styles.bigUnit}>{unit}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Tăng một đơn vị" style={styles.adjust} onPress={onPlus}><Text style={styles.adjustText}>+</Text></TouchableOpacity></View><View style={styles.ruler}>{Array.from({ length: 19 }, (_, index) => <View key={index} style={[styles.tick, index % 3 === 0 && styles.tickMajor, index === 9 && styles.tickCurrent]} />)}</View>{error}</View>;
+  return <View style={styles.stepBody}><View style={styles.valueSwitch}><Text style={styles.unitPill}>{unit}</Text></View><View style={styles.valueRow}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Giảm một đơn vị" style={styles.adjust} onPress={onMinus}><Text style={styles.adjustText}>−</Text></TouchableOpacity><TextInput accessibilityLabel={label} value={String(value)} onChangeText={onChange} keyboardType={keyboardType} style={styles.bigInput} placeholder="—" selectTextOnFocus /><Text style={styles.bigUnit}>{unit}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Tăng một đơn vị" style={styles.adjust} onPress={onPlus}><Text style={styles.adjustText}>+</Text></TouchableOpacity></View><View style={styles.ruler}>{Array.from({ length: 19 }, (_, index) => <View key={index} style={[styles.tick, index % 3 === 0 && styles.tickMajor, index === 9 && styles.tickCurrent]} />)}</View>{error}</View>;
 }
 
 function AgeStep({ value, onChange, error }) {
@@ -160,7 +160,7 @@ function Field({ label, value, onChangeText, keyboardType = 'default', placehold
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, width: '100%', backgroundColor: colors.surface }, topBar: { height: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 12 }, topBack: { width: 48, height: 48, borderWidth: 1, borderColor: '#9AA8C3', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, backGlyph: { color: colors.primary, fontSize: 29 }, progressTrack: { flex: 1, height: 7, borderRadius: 4, backgroundColor: '#E6EAF1', overflow: 'hidden' }, progressFill: { height: '100%', borderRadius: 4, backgroundColor: '#26314F' }, skipButton: { minHeight: 48, minWidth: 48, alignItems: 'flex-end', justifyContent: 'center' }, skipText: { color: colors.text, fontSize: 13, fontWeight: '800' }, skipSpace: { width: 44 },
+  screen: { flex: 1, width: '100%', backgroundColor: colors.surface }, topBar: { height: 96, paddingTop: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, gap: 12 }, topBack: { width: 48, height: 48, borderWidth: 1, borderColor: '#9AA8C3', borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, backGlyph: { color: colors.primary, fontSize: 29 }, progressTrack: { flex: 1, height: 7, borderRadius: 4, backgroundColor: '#E6EAF1', overflow: 'hidden' }, progressFill: { height: '100%', borderRadius: 4, backgroundColor: '#26314F' }, skipButton: { minHeight: 48, minWidth: 48, alignItems: 'flex-end', justifyContent: 'center' }, skipText: { color: colors.text, fontSize: 13, fontWeight: '800' }, skipSpace: { width: 44 },
   content: { paddingHorizontal: 16, paddingTop: 22, paddingBottom: 18, flexGrow: 1 }, stepLabel: { color: colors.primary, letterSpacing: 1, fontSize: 10, fontWeight: '900' }, title: { color: '#26314F', fontSize: 26, lineHeight: 33, fontWeight: '900' }, subtitle: { color: '#5F6F8D', fontSize: 14, lineHeight: 20, marginTop: 8 }, demoBanner: { backgroundColor: '#EFF4FF', borderRadius: 11, padding: 10, marginTop: 12 }, demoTitle: { color: colors.primaryDark, fontSize: 10, fontWeight: '900', letterSpacing: 0.4 }, small: { color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 4 }, stepBody: { flex: 1, paddingTop: 24 }, prompt: { color: colors.text, fontSize: 17, fontWeight: '800', textAlign: 'center', marginVertical: 13 }, helper: { color: '#5F6F8D', fontSize: 12, lineHeight: 18, textAlign: 'center', marginTop: 11 },
   genderGrid: { flexDirection: 'row', gap: 16, marginTop: 37 }, genderCard: { flex: 1, minWidth: 0, minHeight: 120, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F1F4FA', borderWidth: 1, borderColor: '#D9E1EF', borderRadius: 20, position: 'relative' }, genderFemale: { backgroundColor: '#DE2947', borderColor: '#DE2947' }, genderMale: { backgroundColor: colors.primary, borderColor: colors.primary }, genderIcon: { color: '#62728F', fontSize: 30, marginBottom: 7 }, genderText: { color: '#62728F', fontSize: 15, fontWeight: '800' }, whiteText: { color: 'white' }, genderCheck: { position: 'absolute', top: 10, right: 10, width: 26, height: 26, overflow: 'hidden', borderRadius: 13, backgroundColor: 'white', color: colors.primary, textAlign: 'center', textAlignVertical: 'center', fontSize: 16, fontWeight: '900' },
   noAnswer: { minHeight: 56, borderRadius: 13, backgroundColor: '#D3E5FF', alignItems: 'center', justifyContent: 'center', marginTop: 31 }, noAnswerSelected: { borderWidth: 2, borderColor: colors.primary }, noAnswerText: { color: colors.primaryDark, fontSize: 14, fontWeight: '900' }, noAnswerTextSelected: { color: colors.primary },

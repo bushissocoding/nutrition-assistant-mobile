@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 import HomeScreen from './HomeScreen';
 import { api } from '../../services/api';
 import { formatLocalDateKey, getLocalWeek } from '../diary/diary-history.cjs';
@@ -25,12 +26,50 @@ test('shows the eight designed shortcuts and routes them to their matching featu
   expect(screen.getByRole('button', { name: 'Đi chợ' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Cá nhân hóa' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Hướng dẫn' })).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Báo cáo' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Bác sĩ' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Báo cáo' })).toBeNull();
+  expect(StyleSheet.flatten(screen.getByLabelText('Tìm món ăn và ghi nhật ký').props.style).flex).toBe(1);
+  expect(screen.getByRole('button', { name: 'Mở báo cáo tổng quát' })).toBeTruthy();
+  expect(screen.getByText('▥')).toBeTruthy();
 
   fireEvent.press(screen.getByRole('button', { name: 'Đi chợ' }));
   expect(onNavigate).toHaveBeenCalledWith('grocery');
-  fireEvent.press(screen.getByRole('button', { name: 'Báo cáo' }));
-  expect(onNavigate).toHaveBeenCalledWith('dashboard');
+});
+
+test('opens the help center from the Home guide shortcut', () => {
+  const onNavigate = jest.fn();
+  const screen = render(<HomeScreen onNavigate={onNavigate} />);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Hướng dẫn' }));
+  expect(onNavigate).toHaveBeenCalledWith('settings-help');
+});
+
+test('keeps the month day selector visible on Home with a bounded horizontal strip', () => {
+  const screen = render(<HomeScreen onNavigate={jest.fn()} />);
+  const today = new Date();
+  const weekday = new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(today);
+  const dayStrip = screen.UNSAFE_getByProps({ accessibilityLabel: 'Các ngày trong tháng' });
+
+  expect(StyleSheet.flatten(dayStrip.props.style)).toMatchObject({ height: 72, flexGrow: 0, flexShrink: 0 });
+  expect(screen.getByRole('tab', { name: `${weekday} ${today.getDate()}` })).toBeTruthy();
+});
+
+test('opens account-bounded month options and changes Home month without navigating away', () => {
+  const onNavigate = jest.fn();
+  const screen = render(<HomeScreen onNavigate={onNavigate} account={{ createdAt: '2024-03-18T08:30:00.000Z' }} />);
+  const currentDate = new Date();
+  const currentLabel = `${new Intl.DateTimeFormat('en-US', { month: 'short' }).format(currentDate)}-${currentDate.getFullYear()}`;
+
+  expect(screen.getByText(currentLabel)).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Tháng đang chọn' }));
+  expect(screen.getByRole('button', { name: 'Mar-2024' })).toBeTruthy();
+  expect(screen.queryByRole('button', { name: 'Feb-2024' })).toBeNull();
+
+  fireEvent.press(screen.getByRole('button', { name: 'Mar-2024' }));
+  expect(screen.getByText('Mar-2024')).toBeTruthy();
+  expect(screen.getByRole('tab', { name: 'Mon 18' })).toBeTruthy();
+  expect(screen.queryByRole('tab', { name: 'Sun 17' })).toBeNull();
+  expect(onNavigate).not.toHaveBeenCalled();
 });
 
 test('uses the signed-in profile name instead of a fixed sample identity', () => {

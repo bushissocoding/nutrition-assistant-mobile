@@ -1,4 +1,4 @@
-const PROFILE_COLUMNS = 'id,username,mode,gender,age,height_cm,weight_kg,activity_level,condition_type,allergies,symptom_notes,red_flags,diagnosis_notes,hard_limits,medical_limits_confirmed,created_at,updated_at';
+const PROFILE_COLUMNS = 'id,username,date_of_birth,mode,gender,age,height_cm,weight_kg,activity_level,condition_type,allergies,symptom_notes,red_flags,diagnosis_notes,hard_limits,medical_limits_confirmed,created_at,updated_at';
 
 async function getProfile(db, ownerId) {
   const { data, error } = await db.from('profiles').select(PROFILE_COLUMNS).eq('id', ownerId).maybeSingle();

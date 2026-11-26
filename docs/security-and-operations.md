@@ -19,7 +19,7 @@ Before changing dependencies, run `npm audit --json`, inspect installed paths, c
 - Account export is versioned and includes registered user-owned records. Account deletion runs registered cleanup steps and removes private health-record objects before deleting the Auth identity. This is not a tested legal retention/deletion guarantee; external replicas, provider records and backups need separately approved policies.
 - Health-record images stay on device during OCR candidate review. Upload is explicit and consent-gated; OCR candidates are not confirmed results until the person saves them. The app does not interpret lab values or diagnose.
 - OpenAI assistant history is account-owned, uses `store: false`, and sends only the user message after explicit consent; appointment messaging is participant-only. Push payloads are generic and contain no message or health detail. A push ticket is not proof that a device displayed a notification.
-- PayOS webhooks, not client redirects, confirm payment. The app does not collect card credentials. FDC values carry source metadata. The current prototype catalog is not an official Vietnamese nutrition dataset and the planner is not a clinical recommendation engine.
+- PayOS webhooks, not client redirects, confirm payment. The app does not collect card credentials. The current food catalog is empty because redistribution rights for the preferred National Institute of Nutrition tables are unconfirmed; lookup and plan generation remain unavailable. Historical saved records retain their source metadata. The planner is not a clinical recommendation engine.
 - API and worker logs must not contain request bodies, headers, auth tokens, profile fields, diary/record contents, email or account identifiers. Request telemetry uses generated correlation IDs and route templates only.
 
 ## Configuration and service lifecycle
@@ -51,7 +51,7 @@ The operator must attach evidence and an owner/date for each item before product
 | Payments | PayOS merchant onboarding, webhook/callback configuration, sandbox payment and reconciliation/refund procedure |
 | Identity delivery | Verified SMTP/SMS sender, recovery-delivery and account-lockout checks |
 | AI and push | OpenAI account/policy approval and consent review; EAS/APNs/FCM configuration, opt-in and physical-device delivery check |
-| Food data | FDC key; documented redistribution rights for each source; qualified review of nutrition content and hard-limit behavior |
+| Food data | Written redistribution permission for the Institute tables; record-level source/version metadata; qualified review of nutrition content and hard-limit behavior |
 | Care operations | Real provider roster, credential verification process, provider staffing and escalation coverage |
 | Native app | Android and iOS install/device checks, permission-denied paths, camera/image picker/OCR and notification checks |
 | Governance and support | Qualified privacy/legal, security and clinical/nutrition reviews; support contact, retention policy and incident owner |

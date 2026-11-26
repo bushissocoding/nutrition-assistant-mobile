@@ -25,6 +25,37 @@ const CONDITION_TYPES = [
   'hypertension',
   'other',
 ];
+const PROFILE_NAME_PATTERN = /^[\p{L}0-9_.-]+(?: [\p{L}0-9_.-]+)*$/u;
+
+function normalizeProfileName(value) {
+  return String(value ?? '').normalize('NFC').trim().replace(/\s+/gu, ' ');
+}
+
+function isValidProfileName(value) {
+  const name = normalizeProfileName(value);
+  const length = Array.from(name).length;
+  return length >= 3 && length <= 30 && PROFILE_NAME_PATTERN.test(name);
+}
+
+function parseDateOfBirthInput(value, today = new Date()) {
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(value ?? '').trim());
+  if (!match) return null;
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  const todayDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (date > todayDate) return null;
+  const age = today.getFullYear() - year - (today.getMonth() < month - 1 || (today.getMonth() === month - 1 && today.getDate() < day) ? 1 : 0);
+  if (age < 1 || age > 120) return null;
+  return { iso: `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`, age };
+}
+
+function formatDateOfBirth(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value ?? ''));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
+}
 
 function createEmptyProfile() {
   return { version: 1, mode: 'healthy', gender: 'unspecified', conditionType: 'unspecified', age: '', heightCm: '', weightKg: '', activityLevel: 'moderate', symptomNotes: '', redFlags: [], allergies: [], diagnosisNotes: '', hardLimits: {}, medicalLimitsConfirmed: false };
@@ -71,7 +102,7 @@ function buildProfileDraft(profile, allergyText, limitInputs) {
     if (maxText && Number.isFinite(Number(maxText)) && Number(maxText) >= 0) range.max = Number(maxText);
     if (Object.keys(range).length) hardLimits[nutrient.key] = range;
   }
-  return normalizeProfile({ ...profile, allergies: allergyText.split(',').map(value => value.trim()).filter(Boolean), hardLimits: profile.mode === 'patient' ? hardLimits : {} });
+  return normalizeProfile({ ...profile, username: normalizeProfileName(profile.username), allergies: allergyText.split(',').map(value => value.trim()).filter(Boolean), hardLimits: profile.mode === 'patient' ? hardLimits : {} });
 }
 function hasUrgentRedFlags(profile) {
   return profile?.mode === 'healthy' && Array.isArray(profile.redFlags) && profile.redFlags.length > 0;
@@ -83,4 +114,4 @@ function calculateAdultBmi(profile) {
   if (age < 18 || !Number.isFinite(age) || !Number.isFinite(height) || !Number.isFinite(weight) || height <= 0 || weight <= 0) return null;
   return Math.round((weight / (height * height)) * 10) / 10;
 }
-module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, CONDITION_TYPES, createEmptyProfile, normalizeProfile, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };
+module.exports = { NUTRIENTS, RED_FLAG_SYMPTOMS, CONDITION_TYPES, createEmptyProfile, normalizeProfile, normalizeProfileName, isValidProfileName, parseDateOfBirthInput, formatDateOfBirth, validateProfile, buildProfileDraft, hasUrgentRedFlags, calculateAdultBmi };

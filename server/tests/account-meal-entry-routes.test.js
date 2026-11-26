@@ -6,12 +6,12 @@ const { createNutritionReportRouter } = require('../src/routes/nutrition-report'
 
 const ownerId = 'synthetic-user-a';
 const food = {
-  id: 'fdc:12345', fdcId: '12345', name: 'Beans, cooked', catalogVersion: 'USDA-FDC-live-v1',
+  id: 'synthetic-test-source:12345', recordId: '12345', name: 'Beans, cooked', catalogVersion: 'synthetic-test-v1',
   nutrition: { values: {
     energyKcal: { value: 127 }, proteinG: { value: 8.7 }, carbohydrateG: { value: 22.8 },
     fatG: { value: 0.5 }, fiberG: { value: null }, sodiumMg: { value: 2 },
   } },
-  source: { id: 'USDA-FDC', label: 'USDA FoodData Central', recordId: '12345', edition: '2025-04-01' },
+  source: { id: 'synthetic-test-source', label: 'Nguồn thử nghiệm', recordId: '12345', edition: '2025-04-01' },
 };
 const input = {
   foodId: food.id, portion: { amount: 100, unit: 'g' }, mealType: 'LUNCH',
@@ -34,7 +34,7 @@ function testConsent(_req, _res, next) {
   next();
 }
 
-test('private diary creates only server-resolved USDA data and requires idempotency', async () => {
+test('private diary creates only server-resolved nguồn thử nghiệm data and requires idempotency', async () => {
   let providerId;
   let createInput;
   let createCalls = 0;
@@ -66,7 +66,7 @@ test('private diary creates only server-resolved USDA data and requires idempote
   });
 });
 
-test('create retry replays owner snapshot without calling the USDA provider', async () => {
+test('create retry replays owner snapshot without calling the nguồn thử nghiệm provider', async () => {
   const savedItem = { id: 'entry-1', foodId: food.id, foodName: food.name, nutrients: { energyKcal: 127 }, source: food.source };
   let providerCalls = 0;
   const repository = {

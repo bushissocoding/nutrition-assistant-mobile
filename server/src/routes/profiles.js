@@ -2,6 +2,7 @@ const express = require('express');
 const { parseProfileInput, toProfileDto } = require('../services/profile');
 const { getProfile, saveProfile, deleteProfile } = require('../repositories/profile-repository');
 const { createCurrentConsentMiddleware } = require('../middleware/current-consent');
+const { logApiFailure } = require('../observability/request-telemetry');
 
 function createProfileRouter({ requireCurrentConsent = createCurrentConsentMiddleware() } = {}) {
   const router = express.Router();
@@ -27,6 +28,7 @@ function createProfileRouter({ requireCurrentConsent = createCurrentConsentMiddl
       if (error?.code === '23505' || error?.code === 'USERNAME_TAKEN') {
         return res.status(409).json({ error: 'Tên người dùng đã được sử dụng.', code: 'USERNAME_TAKEN' });
       }
+      logApiFailure(req, 'profile_save_failed', error?.code);
       return res.status(503).json({ error: 'Không thể lưu hồ sơ lúc này.', code: 'PROFILE_UNAVAILABLE' });
     }
   });

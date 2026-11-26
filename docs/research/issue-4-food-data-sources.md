@@ -1,32 +1,39 @@
-# Issue #4: food composition data rights research
+# Issue #4: Vietnamese food-composition data
 
-**Verified:** 2026-11-17 (Asia/Saigon)
-**Decision:** No Vietnamese dataset was imported. Availability of a table or file is not evidence of redistribution permission.
+**Reviewed:** 2026-11-26 (Asia/Saigon)
+
+**Decision:** Prefer the Vietnamese food-composition tables published by the National Institute of Nutrition (NIN). No NIN food values are imported or served until redistribution rights are confirmed in writing.
 
 ## Findings
 
-| Source / edition | What the official source establishes | Rights, redistribution, attribution | Issue #4 disposition |
+| Edition/source | What the source establishes | Rights status | Project decision |
 |---|---|---|---|
-| Vietnam Institute of Nutrition, *Vietnamese Food Composition Table* (2017; Ministry of Health, 302 pp.) | FAO/INFOODS identifies the 2017 edition and describes it as **print-only**. The Institute also serves a separate PDF under its official domain; its edition was not confirmed in this check, and no explicit redistribution grant was located. | No license, redistribution permission, or attribution terms were verified for the 2017 table. A publicly reachable PDF does not resolve those rights. | **Blocked:** do not transcribe, scrape, bundle, or redistribute values pending written permission/license from the rights holder. Do not claim project values are official Institute values. |
-| Vietnam Institute of Nutrition, 2007 table | FAO’s record describes a 567-page PDF as “Free access” and provides a contact/download link. “Free access” does not state a reuse license. | No redistribution grant/license or attribution requirements were verified. FAO’s database terms warn that third-party datasets may require provider consent or have different restrictions. | **Blocked:** do not import absent rights confirmation. |
-| SMILING Vietnam Food Composition Table (2013) | FAO/INFOODS lists 162 foods in two Excel files, with value-level references and a quality-assessment file; the download names include “protected”. The record names the National Institute of Nutrition and Wageningen University as contributors. The two linked spreadsheets returned 404 when opened on 2026-11-17. | No dataset-specific license or permission to redistribute was found in the FAO record. FAO statistical-database CC BY terms cannot be assumed to grant rights to third-party source data; the terms explicitly require checking third-party restrictions. | **Blocked:** obtain the source file and rights-holder terms before any import. |
-| FAO/INFOODS tables directory and terms | The directory is an index/catalog of published tables; inclusion is not endorsement. FAO corporate statistical database terms generally permit copy, adaptation and redistribution under CC BY 4.0 unless metadata/page says otherwise, with additional terms; third-party data may need separate permission. | If a qualifying FAO database dataset is used, follow its specific metadata and FAO terms, attribute using FAO’s prescribed citation (database, dataset, last update, access date, URL, CC BY 4.0), preserve notices, and do not imply FAO endorsement. This general policy is not blanket clearance for a listed Vietnamese book/table. | Directory listing alone is insufficient licensing evidence. |
-| USDA FoodData Central (existing comparator source family) | USDA states that FDC data are public domain, not copyrighted, and published under CC0 1.0. It requests listing FoodData Central as the source and supplies a suggested citation. The download page lists SR Legacy’s final release as 04/2018 and current Foundation Foods as 10/2026. Data types are distinct. | Redistribution is permitted for FDC data under CC0 1.0. Requested attribution: “U.S. Department of Agriculture, Agricultural Research Service, Beltsville Human Nutrition Research Center. FoodData Central. [Internet]. [cited date]. Available from https://fdc.nal.usda.gov/.” | Existing prototype entries mention FDC and comparator food descriptions, but do not persist a FoodData Central ID or edition/release. Their exact FDC row and release cannot be confirmed from the catalog as written. Do not backfill a release by guess. For any future FDC import, record dataset type, FDC ID, release, access date and transformation. Keep the entries marked as approximate, non-Vietnamese comparators. |
+| NIN *Vietnamese Food Composition Table* (2017) | FAO/INFOODS lists the 2017 table as print-only. NIN's official site hosts a book/PDF page, but the edition and reuse terms were not confirmed from that page. | No redistribution license or permission was verified. Public access to a PDF does not grant reuse rights. | Pending written permission. Do not copy, transcribe, bundle, or serve its values. |
+| NIN *Vietnamese Food Composition Table* (2007) | FAO/INFOODS describes a PDF as free access. That access label does not specify a reuse license. | No redistribution permission or attribution terms were verified. | Pending written permission. Do not import values. |
+| SMILING Vietnam table (2013) | FAO/INFOODS lists spreadsheets and value-level references; linked files were unavailable when reviewed. | No dataset-specific license or permission was verified. FAO general terms do not automatically clear third-party table rights. | Not selected as the active source. Obtain files and rights-holder terms before considering it. |
+
+The source registry records NIN as the preferred source with editions 2007 and 2017, rights `unconfirmed`, and no imported rows. The active food catalog is empty with status `pending`. Source search, detail, sourced nutrient calculations, and meal-plan generation return unavailable; there is no fallback to prototype values. Synthetic fixtures remain test-only.
+
+Historical diary, grocery, and meal-plan snapshots keep their original source IDs and versions. They are not relabelled as NIN data. Applied migrations remain unchanged to preserve migration history; a forward migration generalizes source identifiers for future authorized sources.
 
 ## Source links
 
-- [Vietnam Institute of Nutrition book/PDF page](https://chuyentrang.viendinhduong.vn/viewfilenew/vi/thu-vien-sach-chuyen-nganh/189/1.html)
+- [NIN official book/PDF page](https://chuyentrang.viendinhduong.vn/viewfilenew/vi/thu-vien-sach-chuyen-nganh/189/1.html)
 - [FAO/INFOODS record: 2017 Vietnam table](https://www.fao.org/food-composition/tables-and-databases/detail/%28viet-nam--2017%29-vietnamese-food-composition-table/en)
 - [FAO/INFOODS record: 2007 Vietnam table](https://www.fao.org/food-composition/tables-and-databases/detail/%28viet-nam--2007%29-vietnamese-food-composition-table/en)
 - [FAO/INFOODS record: 2013 SMILING Vietnam table](https://www.fao.org/food-composition/tables-and-databases/detail/%28vietnam--2013%29-smiling-food-composition-table-for-vietnam/en)
 - [FAO/INFOODS international directory](https://www.fao.org/food-composition/tables-and-databases/)
 - [FAO statistical database terms of use](https://www.fao.org/contact-us/terms/db-terms-of-use/)
-- [USDA FoodData Central licensing and attribution](https://fdc.nal.usda.gov/)
-- [USDA FoodData Central dataset releases](https://fdc.nal.usda.gov/download-datasets/)
-- [USDA FoodData Central data-type documentation](https://fdc.nal.usda.gov/data-documentation/)
 
-## Handoff blockers
+## Work required before activation
 
-1. Vietnamese composition-table redistribution rights are still unverified; request written authorization or a license from the relevant rights holder, including required attribution and whether modified/derived records may be redistributed.
-2. A qualified nutrition reviewer must assess food identity, preparation state, portions, units/conversions, and the imported values before any Vietnamese catalog is presented as reviewed.
-3. Until both are resolved, keep the catalog labelled as a prototype and use only synthetic fixtures for pipeline tests; existing USDA comparator rows are not Vietnam-specific.
+1. Obtain written permission or a license from the rights holder, including attribution terms and permission for modified or derived records.
+2. Record the exact edition, access date, row-level citations, preparation state, units, conversions, and transformation history for every imported value.
+3. Have a qualified nutrition reviewer verify food identity, preparation, values, portions, and planner constraints.
+4. Import through the existing strict catalog validator and approve the resulting change report before enabling the source.
+
+## Registry and import safeguards
+
+The source registry keeps NIN unconfirmed: `rights.license`, `rights.evidenceReference`, `rights.permittedActions`, `rights.verifiedBy`, `rights.verifiedOn`, and `rights.attribution` remain unset. Do not infer any permission from public access. Once written rights exist, update the registry with a controlled reference to the evidence and explicitly record permission to copy, transform, and redistribute, plus the exact attribution text. Keep private permission documents outside the repository.
+
+Strict external records must carry provenance for identity, preparation, serving, and nutrition: source ID, exact source record and edition, row/cell reference, access date, and method. Nutrient units and unknown values stay explicit. The importer validates a candidate and emits a deterministic change report; its output cannot target the active catalog, and a qualified reviewer must approve records before the serving loader accepts them. It performs no download or scraping. The synthetic fixture is validation-only: CI runs `npm run catalog:fixture`, and the importer refuses to write a `synthetic-fixture` catalog.

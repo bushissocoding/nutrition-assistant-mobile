@@ -65,6 +65,19 @@ test('invalid sessions return a safe 401 without exposing provider details or to
   assert.equal(nextCalls, 0);
 });
 
+test('a deleted account token is treated as an expired identity instead of an auth-provider outage', async () => {
+  const middleware = createSupabaseAuthMiddleware({
+    settings,
+    createClient: () => ({ auth: { getUser: async () => ({ data: { user: null }, error: { status: 403, code: 'user_not_found', message: 'private provider detail' } }) } }),
+  });
+  const { res, nextCalls } = await runMiddleware(middleware, 'Bearer synthetic-user-token');
+
+  assert.equal(res.statusCode, 401);
+  assert.equal(res.body.code, 'AUTHENTICATION_REQUIRED');
+  assert.doesNotMatch(JSON.stringify(res.body), /user_not_found|private provider detail|synthetic-user-token/);
+  assert.equal(nextCalls, 0);
+});
+
 test('rejects an unverified email and phone account before creating a private database client', async () => {
   let nextCalled = false;
   const middleware = createSupabaseAuthMiddleware({

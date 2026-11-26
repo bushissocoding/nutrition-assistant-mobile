@@ -184,7 +184,7 @@ Dùng email và thông tin sức khỏe giả:
 3. Mở hồ sơ/cá nhân hóa, thay đổi một lựa chọn, lưu rồi mở lại để kiểm tra.
 4. Thêm một bữa ăn thử, xác nhận và kiểm tra nhật ký/thống kê.
 5. Mở thông báo, đánh dấu đã đọc; kiểm tra trạng thái sau khi rời màn hình và quay lại.
-6. Thử danh sách thực phẩm, meal plan, hồ sơ xét nghiệm/PDF, lịch hẹn và chat. FDC cần `FDC_API_KEY`; assistant cần `OPENAI_API_KEY`; thanh toán cần PayOS sandbox và credentials; gửi push cần cấu hình Expo Push. Nếu chưa có các credentials này, các tính năng tương ứng có thể báo không khả dụng. Không nhập thẻ thật hoặc dữ liệu xét nghiệm/người bệnh thật.
+6. Thử danh sách thực phẩm, meal plan, hồ sơ xét nghiệm/PDF, lịch hẹn và chat. Tra cứu thực phẩm và tạo meal plan theo dữ liệu nguồn đang không khả dụng cho tới khi có quyền tái phân phối bảng của Viện Dinh dưỡng và hoàn tất rà soát chuyên môn. Assistant cần `OPENAI_API_KEY`; thanh toán cần PayOS sandbox và credentials; gửi push cần cấu hình Expo Push. Nếu chưa có các credentials này, các tính năng tương ứng có thể báo không khả dụng. Không nhập thẻ thật hoặc dữ liệu xét nghiệm/người bệnh thật.
 
 Chạy các kiểm tra tự động từ PowerShell tại repo khi cần:
 

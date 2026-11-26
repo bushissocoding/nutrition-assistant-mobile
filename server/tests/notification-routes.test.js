@@ -31,7 +31,7 @@ test('lists only persisted account notifications and marks one or all read', asy
   const notificationId = '01380e6e-b95f-4bd5-8f38-a1391ae3bda1';
   const repository = {
     async list(input) { calls.push(['list', input]); return { items: [{ id: notificationId, kind: 'appointment', title: 'Lịch hẹn có cập nhật', body: 'Mở ứng dụng để xem thông tin mới nhất.', readAt: null, createdAt: '2026-11-24T00:00:00Z' }], total: 25, limit: input.limit, offset: input.offset }; },
-    async markRead(input) { calls.push(['markRead', input]); return { found: input.notificationId !== '00000000-0000-4000-8000-000000000000', changed: true }; },
+    async markRead(input) { calls.push(['markRead', input]); return { found: input.notificationId !== '00000000-0000-4000-8000-000000000000', updated: input.notificationId ? 1 : 3 }; },
   };
   const baseUrl = await withServer(t, repository);
   const list = await fetch(`${baseUrl}?limit=10&offset=20&unread=true`);
@@ -40,9 +40,11 @@ test('lists only persisted account notifications and marks one or all read', asy
   assert.equal((await list.json()).pagination.hasMore, true);
   const read = await fetch(`${baseUrl}/${notificationId}/read`, { method: 'POST' });
   assert.equal(read.status, 200);
+  assert.deepEqual(await read.json(), { updated: 1 });
   assert.deepEqual(calls[1][1], { db: {}, userId: 'account-1', notificationId });
   const all = await fetch(`${baseUrl}/read-all`, { method: 'POST' });
   assert.equal(all.status, 200);
+  assert.deepEqual(await all.json(), { updated: 3 });
   assert.deepEqual(calls[2][1], { db: {}, userId: 'account-1' });
 });
 

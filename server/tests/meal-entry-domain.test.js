@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { loadCatalog } = require('../src/repositories/catalog');
+const { createSyntheticPlannerFixture } = require('./helpers/synthetic-planner-data');
 const {
   MealEntryValidationError,
   createMealEntry,
@@ -9,7 +9,7 @@ const {
   sortAndPaginateEntries,
 } = require('../src/services/meal-entries');
 
-const { foods } = loadCatalog();
+const { foods } = createSyntheticPlannerFixture();
 const validInput = {
   foodId: 'rice-steamed',
   portion: { amount: 120, unit: 'g' },
@@ -77,7 +77,7 @@ test('calculates entry nutrients from the server catalog and sorts before pagina
   const normalized = normalizeMealEntryInput(validInput, foods);
   const entry = createMealEntry(normalized, foods, 'entry-1', new Date('2026-11-16T05:16:00.000Z'));
   assert.equal(entry.foodName, foods.find(food => food.id === 'rice-steamed').name);
-  assert.equal(entry.nutrients.energyKcal, 156);
+  assert.equal(entry.nutrients.energyKcal, 120);
 
   const page = sortAndPaginateEntries([
     { id: 'b', consumedAt: '2026-11-16T06:00:00.000Z' },

@@ -60,6 +60,26 @@ test('loads a truthful empty directory and does not show synthetic doctors or fe
   expect(screen.getByText('Đăng ký cung cấp dịch vụ')).toBeTruthy();
 });
 
+test('returns to Home when the appointment list was opened directly', () => {
+  const onBack = jest.fn();
+  const screen = render(<AppointmentScreen initialView="appointments-list" onBack={onBack} />);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Quay lại' }));
+  expect(onBack).toHaveBeenCalledTimes(1);
+});
+
+test('returns from appointments to the booking page when the list was opened inside that flow', () => {
+  const onBack = jest.fn();
+  const screen = render(<AppointmentScreen initialView="appointments" onBack={onBack} />);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Lịch hẹn' }));
+  expect(screen.getByText('Lịch hẹn của tôi')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Quay lại' }));
+
+  expect(screen.getByText('Bác sĩ dinh dưỡng')).toBeTruthy();
+  expect(onBack).not.toHaveBeenCalled();
+});
+
 test('searches verified providers and opens a sourced profile before requesting real availability', async () => {
   const slotStart = new Date(Date.now() + 48 * 60 * 60 * 1000);
   const slot = { id: 'slot-detail', providerId: provider.id, startsAt: slotStart.toISOString(), endsAt: new Date(slotStart.getTime() + 30 * 60 * 1000).toISOString(), status: 'open' };
