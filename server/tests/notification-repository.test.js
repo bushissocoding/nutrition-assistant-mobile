@@ -43,7 +43,7 @@ test('maps private mutations to authenticated owner RPCs', async () => {
   const calls = [];
   const db = { async rpc(name, args) { calls.push([name, args]); return { data: name === 'mark_notifications_read' ? 1 : { saved: true }, error: null }; } };
   const repository = createNotificationRepository();
-  assert.deepEqual(await repository.markRead({ db, userId: 'owner-a', notificationId: 'notice-id' }), { found: true, changed: true });
+  assert.deepEqual(await repository.markRead({ db, userId: 'owner-a', notificationId: 'notice-id' }), { found: true, changed: true, updated: 1 });
   await repository.savePreferences({ db, preferences: DEFAULT_PREFERENCES });
   await repository.registerDevice({ db, expoPushToken: 'ExponentPushToken[device-token]', platform: 'ios' });
   await repository.unregisterDevice({ db, expoPushToken: 'ExponentPushToken[device-token]' });
@@ -56,5 +56,5 @@ test('turns an unknown or cross-account notification into a not-found result', a
     async rpc(name) { calls.push(name); return { data: 0, error: null }; },
     from() { return queryBuilder({ data: null, error: null }, calls); },
   };
-  assert.deepEqual(await createNotificationRepository().markRead({ db, userId: 'owner-a', notificationId: 'notice-id' }), { found: false, changed: false });
+  assert.deepEqual(await createNotificationRepository().markRead({ db, userId: 'owner-a', notificationId: 'notice-id' }), { found: false, changed: false, updated: 0 });
 });

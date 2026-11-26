@@ -1,6 +1,6 @@
 begin;
 
-select plan(12);
+select plan(20);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -56,6 +56,18 @@ select set_config('request.jwt.claim.sub', '11110000-0000-4000-8000-000000000001
 select set_config('request.jwt.claims', '{"sub":"11110000-0000-4000-8000-000000000001","role":"authenticated"}', true);
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
+select is(
+  (public.save_nutrition_preferences('{"dietaryVariety":"balanced","foodPreferences":["easy_cook"],"allergyReminder":true,"trackConfirmedTargets":false}'::jsonb)->>'dietaryVariety'),
+  'balanced',
+  'account one can save preferences through the authenticated RPC'
+);
+select is((select count(*)::integer from public.nutrition_preferences), 1, 'account one reads only its own preferences');
+select is(
+  (public.save_notification_preferences('{"inAppAppointments":true,"inAppPayments":true,"inAppMessages":false,"pushEnabled":false,"pushAppointments":true,"pushPayments":false,"pushMessages":true}'::jsonb)->>'inAppMessages'),
+  'false',
+  'account one can save notification preferences through the authenticated RPC'
+);
+select is((select count(*)::integer from public.notification_preferences), 1, 'account one reads only its own notification preferences');
 insert into public.profiles (
   id, date_of_birth, username, mode, gender, age, height_cm, weight_kg, activity_level, condition_type,
   allergies, symptom_notes, red_flags, diagnosis_notes, hard_limits, medical_limits_confirmed
@@ -103,6 +115,18 @@ set local role authenticated;
 
 select is((select count(*)::integer from public.profiles), 1, 'account two reads only its own profile');
 select is((select username from public.profiles), 'rls-two', 'account two receives its own row');
+select is(
+  (public.save_nutrition_preferences('{"dietaryVariety":"varied","foodPreferences":["vegetarian"],"allergyReminder":false,"trackConfirmedTargets":true}'::jsonb)->>'dietaryVariety'),
+  'varied',
+  'account two can save its own preferences'
+);
+select is((select count(*)::integer from public.nutrition_preferences), 1, 'account two cannot read account one preferences');
+select is(
+  (public.save_notification_preferences('{"inAppAppointments":false,"inAppPayments":true,"inAppMessages":true,"pushEnabled":true,"pushAppointments":false,"pushPayments":true,"pushMessages":true}'::jsonb)->>'pushEnabled'),
+  'true',
+  'account two can save its own notification preferences'
+);
+select is((select count(*)::integer from public.notification_preferences), 1, 'account two cannot read account one notification preferences');
 
 select * from finish();
 rollback;

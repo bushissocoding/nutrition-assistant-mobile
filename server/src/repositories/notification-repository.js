@@ -77,13 +77,14 @@ function createNotificationRepository() {
   async function markRead({ db, userId, notificationId = null }) {
     const { data, error } = await db.rpc('mark_notifications_read', { p_notification_id: notificationId });
     throwIfError(error);
-    if (notificationId && data === 0) {
+    const updated = Number.isSafeInteger(data) && data >= 0 ? data : 0;
+    if (notificationId && updated === 0) {
       const { data: owned, error: lookupError } = await db.from('notifications').select('id')
         .eq('user_id', userId).eq('id', notificationId).maybeSingle();
       throwIfError(lookupError);
-      if (!owned) return { found: false, changed: false };
+      if (!owned) return { found: false, changed: false, updated: 0 };
     }
-    return { found: true, changed: Number(data) > 0 };
+    return { found: true, changed: updated > 0, updated };
   }
 
   async function savePreferences({ db, preferences }) {

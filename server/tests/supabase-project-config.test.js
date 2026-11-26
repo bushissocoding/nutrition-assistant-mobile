@@ -21,7 +21,7 @@ test('checks in a secret-free local Supabase CLI config and ordered migrations',
   const versions = migrationNames.map(name => name.slice(0, 12));
   assert.equal(new Set(versions).size, versions.length);
   const ownerTest = fs.readFileSync(path.join(repositoryRoot, 'supabase/tests/account_owner_isolation.test.sql'), 'utf8');
-  assert.match(ownerTest, /select plan\(12\)/);
+  assert.match(ownerTest, /select plan\(20\)/);
   assert.match(ownerTest, /RLS enabled on all private application tables/);
   assert.match(ownerTest, /anonymous users cannot read private application tables/);
   assert.match(ownerTest, /health record bucket is private/);

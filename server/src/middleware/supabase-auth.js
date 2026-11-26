@@ -33,7 +33,8 @@ function createSupabaseAuthMiddleware({ settings, createClient } = {}) {
     }
 
     if (result?.error) {
-      const status = result.error.status === 401 ? 401 : 503;
+      const errorCode = typeof result.error.code === 'string' ? result.error.code.toLowerCase() : '';
+      const status = result.error.status === 401 || errorCode === 'user_not_found' ? 401 : 503;
       const code = status === 401 ? 'AUTHENTICATION_REQUIRED' : 'AUTH_PROVIDER_UNAVAILABLE';
       const message = status === 401
         ? 'Phiên đăng nhập không hợp lệ hoặc đã hết hạn.'

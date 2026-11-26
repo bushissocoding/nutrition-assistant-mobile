@@ -28,7 +28,7 @@ async function expectStatus(operation, status, label) {
     await operation();
   } catch (error) {
     if (error?.status === status) return;
-    fail(label);
+    fail(`${label} (expected HTTP ${status}, received HTTP ${error?.status ?? 'no status'})`);
   }
   fail(label);
 }
@@ -196,7 +196,7 @@ async function runJourney() {
     };
     const savedProfileA = (await api.saveMyProfile(profileA)).profile;
     ensure(savedProfileA?.username === profileA.username && savedProfileA.dateOfBirth === null, 'first account profile save with an omitted date of birth');
-    stage = 'save first account preferences';
+    stage = 'save first account personalization';
     const personalization = {
       dietaryVariety: 'balanced',
       foodPreferences: ['easy_cook'],
@@ -213,7 +213,9 @@ async function runJourney() {
       pushPayments: false,
       pushMessages: true,
     };
+    stage = 'save first account notification preferences';
     ensure((await api.saveMyNotificationPreferences(notificationPreferences)).preferences?.inAppMessages === false, 'notification preference save');
+    stage = 'read first account notification preferences';
     ensure((await api.getMyNotificationPreferences()).preferences?.pushEnabled === false, 'notification preference read');
 
     stage = 'verify empty diary and local-timezone report';
@@ -226,13 +228,16 @@ async function runJourney() {
     ensure((await api.getMyNotifications()).items.length === 0, 'empty account notification inbox');
     ensure((await api.markAllMyNotificationsRead()).updated === 0, 'empty account read-all notification action');
 
-    stage = 'save first account pantry and synthetic health record';
+    stage = 'create synthetic pantry item';
     const pantryResult = await api.createMyPantryItem({ customName: 'Synthetic pantry fixture', amount: 1, unit: 'pack' });
     const pantryId = pantryResult.item?.id;
     ensure(typeof pantryId === 'string', 'first account pantry create');
-    ensure((await api.updateMyPantryItem(pantryId, { amount: 2 })).item?.amount === 2, 'first account pantry update');
+    stage = 'update synthetic pantry item';
+    ensure((await api.updateMyPantryItem(pantryId, { amount: 2, unit: 'pack' })).item?.amount === 2, 'first account pantry update');
+    stage = 'read synthetic pantry item';
     ensure((await api.getMyPantryItem(pantryId)).item?.amount === 2, 'first account pantry read');
 
+    stage = 'save synthetic health record';
     const healthRecordResult = await api.saveMyHealthRecord({
       title: 'Synthetic integration record',
       sourceDate: reportDate,
@@ -306,7 +311,9 @@ async function runJourney() {
 
 runJourney().then(() => {
   process.stdout.write('Authenticated API journey passed against loopback Supabase.\n');
-}).catch(() => {
-  process.stderr.write(`Authenticated API journey failed at: ${stage}.\n`);
+}).catch(error => {
+  const details = [error?.code, Number.isInteger(error?.status) ? `HTTP ${error.status}` : null, error?.message]
+    .filter(Boolean).join(' · ');
+  process.stderr.write(`Authenticated API journey failed at: ${stage}${details ? ` (${details})` : ''}.\n`);
   process.exitCode = 1;
 });

@@ -62,7 +62,7 @@ function createNotificationRouter({ repository = createNotificationRepository() 
   router.post('/read-all', safeRoute(async (req, res) => {
     if (req.body && Object.keys(req.body).length) throw new NotificationRepositoryError('Không cần gửi dữ liệu để đánh dấu đã đọc.', 400, 'INVALID_NOTIFICATION_REQUEST');
     const result = await repository.markRead({ db: req.userDatabase, userId: req.auth.user.id });
-    return res.json({ updated: result.changed });
+    return res.json({ updated: result.updated });
   }));
 
   router.post('/:id/read', safeRoute(async (req, res) => {
@@ -70,7 +70,7 @@ function createNotificationRouter({ repository = createNotificationRepository() 
     if (req.body && Object.keys(req.body).length) throw new NotificationRepositoryError('Không cần gửi dữ liệu để đánh dấu đã đọc.', 400, 'INVALID_NOTIFICATION_REQUEST');
     const result = await repository.markRead({ db: req.userDatabase, userId: req.auth.user.id, notificationId: req.params.id.toLowerCase() });
     if (!result.found) return res.status(404).json({ error: 'Không tìm thấy thông báo.', code: 'NOTIFICATION_NOT_FOUND' });
-    return res.json({ updated: result.changed });
+    return res.json({ updated: result.updated });
   }));
 
   router.get('/preferences', safeRoute(async (req, res) => {
