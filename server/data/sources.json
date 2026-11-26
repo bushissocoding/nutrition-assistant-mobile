@@ -22,9 +22,13 @@
       "rights": {
         "license": null,
         "redistributionStatus": "unconfirmed",
-        "verifiedOn": "2026-11-26",
-        "attribution": "Confirm required attribution with the rights holder before importing values.",
-        "attributionRequested": null
+        "evidenceReference": null,
+        "permittedActions": [],
+        "verifiedBy": null,
+        "verifiedOn": null,
+        "checkedOn": "2026-11-26",
+        "attribution": null,
+        "attributionRequested": "Confirm the exact attribution text with the rights holder before importing values."
       },
       "scope": "Official Institute publication. No records are imported until redistribution permission and qualified review are complete."
     },

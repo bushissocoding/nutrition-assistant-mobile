@@ -19,7 +19,7 @@ Prepare the existing food catalog pipeline for a future dataset only after writt
 
 ### Phase 1: Rights and provenance validation
 
-- [ ] Task 1: Validate explicit source rights evidence and permission scope.
+- [x] Task 1: Validate explicit source rights evidence and permission scope.
 - [ ] Task 2: Require auditable provenance for external source records.
 
 ### Checkpoint: Source validation

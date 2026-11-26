@@ -5,11 +5,11 @@
 **Description:** Extend external source registry records and strict validation so an external dataset cannot be imported without a documented evidence reference, verifier/date, permission to copy/transform/redistribute, license or written permission details, and required attribution.
 
 **Acceptance criteria:**
-- [ ] The pending NIN entry records the expected fields as unconfirmed/null without inventing permission.
-- [ ] Strict external-source validation rejects missing or incomplete rights evidence and scope.
-- [ ] Synthetic tests prove the gate without copying real source values.
+- [x] The pending NIN entry records the expected fields as unconfirmed/null without inventing permission.
+- [x] Strict external-source validation rejects missing or incomplete rights evidence and scope.
+- [x] Synthetic tests prove the gate without copying real source values.
 
-**Verification:** `npm run test:unit` and focused food-catalog tests.
+**Verification:** [x] `node --test server/tests/food-catalog.test.js` (12 passed); [x] `npm run catalog:validate`.
 
 **Dependencies:** None.
 

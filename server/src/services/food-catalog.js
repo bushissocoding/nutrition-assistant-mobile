@@ -7,8 +7,20 @@ const NUTRIENTS = {
   sodiumMg: { unit: 'mg', max: 100000 },
 };
 const PROVENANCE_GROUPS = ['identity', 'preparation', 'serving', 'nutrition'];
+const REQUIRED_EXTERNAL_PERMISSIONS = ['copy', 'transform', 'redistribute'];
 const PREPARATION_STATES = ['raw', 'cooked', 'processed', 'dried', 'fermented', 'unknown'];
 const MATURITY_STATES = ['ripe', 'unripe', 'not-applicable', 'unknown'];
+
+function isIsoDate(value) {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function hasHttpsUrl(value) {
+  try { return new URL(value).protocol === 'https:'; }
+  catch { return false; }
+}
 
 function normalizedText(value) {
   return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('vi').trim().replace(/\s+/g, ' ');
@@ -105,8 +117,20 @@ function validateFoodCatalog(input, { sourceRegistry = { records: [] }, strictIm
       if (source.kind === 'synthetic-fixture' && input.status !== 'synthetic-fixture') fail(`${path} synthetic fixture data requires a fixture catalog.`);
       if (strictImport && source.kind === 'external') {
         const rights = source.rights || {};
-        if (rights.redistributionStatus !== 'permitted' || !rights.license?.name || !rights.verifiedOn || !rights.attribution) {
-          fail(`${path}.provenance.groups.${group} source ${source.id} lacks confirmed redistribution rights, license, verification date, or attribution.`);
+        if (!hasHttpsUrl(source.url)) fail(`${path}.provenance.groups.${group} source ${source.id} requires an HTTPS source URL.`);
+        if (!rights.license?.name) fail(`${path}.provenance.groups.${group} source ${source.id} requires a license or written permission name.`);
+        if (typeof rights.evidenceReference !== 'string' || !rights.evidenceReference.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a rights evidence reference.`);
+        }
+        const permittedActions = new Set(Array.isArray(rights.permittedActions) ? rights.permittedActions : []);
+        for (const action of REQUIRED_EXTERNAL_PERMISSIONS) {
+          if (!permittedActions.has(action)) fail(`${path}.provenance.groups.${group} source ${source.id} is missing permitted action ${action}.`);
+        }
+        if (typeof rights.verifiedBy !== 'string' || !rights.verifiedBy.trim() || !isIsoDate(rights.verifiedOn)) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires a verifier and valid verification date.`);
+        }
+        if (typeof rights.attribution !== 'string' || !rights.attribution.trim()) {
+          fail(`${path}.provenance.groups.${group} source ${source.id} requires the exact attribution text.`);
         }
         if (!provenance.sourceRecordId || !provenance.edition || /unknown|not-recorded|uncaptured/i.test(provenance.edition)) {
           fail(`${path}.provenance.groups.${group} external source requires an exact sourceRecordId and edition.`);

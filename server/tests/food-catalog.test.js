@@ -157,6 +157,56 @@ test('strict import rejects external sources without confirmed redistribution ri
   assert.match(result.errors.join('\n'), /sourceRecordId/i);
 });
 
+test('strict external-source imports require evidence, explicit reuse permissions, verification, and attribution', () => {
+  const catalog = makeCatalog();
+  catalog.foods[0].provenance.groups.nutrition = {
+    sourceId: 'synthetic-permission-test-source',
+    sourceRecordId: 'synthetic-test-row',
+    edition: 'synthetic-test-edition',
+    method: 'Synthetic permission-gate test only.',
+  };
+  const externalSource = {
+    id: 'synthetic-permission-test-source',
+    kind: 'external',
+    name: 'Synthetic permission-gate source',
+    url: 'https://example.test/food-table',
+    rights: {
+      license: { name: 'Synthetic test permission' },
+      redistributionStatus: 'permitted',
+      evidenceReference: 'test-only:permission-record',
+      permittedActions: ['copy', 'transform', 'redistribute'],
+      verifiedBy: 'synthetic-test-reviewer',
+      verifiedOn: '2026-01-15',
+      attribution: 'Synthetic test attribution only.',
+    },
+  };
+  const registry = { records: [{ id: 'synthetic-fixture', kind: 'synthetic-fixture' }, externalSource] };
+
+  assert.deepEqual(validateFoodCatalog(catalog, { sourceRegistry: registry, strictImport: true }).errors, []);
+
+  const invalidCases = [
+    [source => { source.url = null; }, /HTTPS source URL/i],
+    [source => { source.rights.evidenceReference = null; }, /evidence reference/i],
+    [source => { source.rights.permittedActions = ['copy', 'redistribute']; }, /transform/i],
+    [source => { source.rights.permittedActions = ['transform', 'redistribute']; }, /copy/i],
+    [source => { source.rights.permittedActions = ['copy', 'transform']; }, /redistribute/i],
+    [source => { source.rights.verifiedBy = null; }, /verifier/i],
+    [source => { source.rights.verifiedOn = '2026-13-40'; }, /verification date/i],
+    [source => { source.rights.attribution = null; }, /attribution/i],
+    [source => { source.rights.license = null; }, /license or written permission/i],
+  ];
+
+  for (const [mutate, expectedError] of invalidCases) {
+    const brokenSource = structuredClone(externalSource);
+    mutate(brokenSource);
+    const result = validateFoodCatalog(catalog, {
+      sourceRegistry: { records: [{ id: 'synthetic-fixture', kind: 'synthetic-fixture' }, brokenSource] },
+      strictImport: true,
+    });
+    assert.match(result.errors.join('\n'), expectedError);
+  }
+});
+
 test('serving conversion uses metric factors and explicit per-food piece weights', () => {
   const food = makeCatalog().foods[0];
   assert.equal(convertQuantityToGrams(0.5, 'kg'), 500);
