@@ -1,6 +1,6 @@
 begin;
 
-select plan(34);
+select plan(39);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -69,8 +69,9 @@ select is(public.owns_health_record_source_path('11110000-0000-4000-8000-0000000
 select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), true, 'account one may upload to its own record with current storage consent');
 select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'), true, 'account one owns a versioned image path for its record');
 select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'), true, 'account one may upload a versioned image path with current consent');
+select is((select file_source_version from public.health_records where id = '22220000-0000-4000-8000-000000000001'), 0, 'new source generations start at zero');
 select ok(public.replace_health_record_source(
-  '22220000-0000-4000-8000-000000000001', null,
+  '22220000-0000-4000-8000-000000000001', null, 0,
   '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
   'image/jpeg', 8
 ) is null, 'first source attachment returns no previous path');
@@ -79,9 +80,25 @@ select is(
   '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
   'first attachment stores the unique versioned path'
 );
+select is((select file_source_version from public.health_records where id = '22220000-0000-4000-8000-000000000001'), 1, 'source generation increments after attachment');
+select is(public.cancel_health_record_source_upload(
+  '22220000-0000-4000-8000-000000000001',
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+  1,
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000002'
+), true, 'cancelling an uncommitted upload fences its expected generation');
+select is((select file_source_version from public.health_records where id = '22220000-0000-4000-8000-000000000001'), 2, 'cancellation advances the source generation');
+select is(public.cancel_health_record_source_upload(
+  '22220000-0000-4000-8000-000000000001',
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+  2,
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'
+), false, 'cancellation cannot mark the currently linked image safe to remove');
 select throws_ok($query$
   select public.replace_health_record_source(
-    '22220000-0000-4000-8000-000000000001', null,
+    '22220000-0000-4000-8000-000000000001',
+    '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+    1,
     '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000002',
     'image/jpeg', 8
   )

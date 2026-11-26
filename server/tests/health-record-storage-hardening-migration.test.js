@@ -29,3 +29,15 @@ test('health record replacements use versioned paths and compare the expected cu
   assert.match(sql, /revoke all on function public\.attach_health_record_source\(uuid, text, text, bigint\) from public, anon, authenticated/i);
   assert.match(sql, /grant execute on function public\.replace_health_record_source\(uuid, text, text, text, bigint\) to authenticated/i);
 });
+
+test('ambiguous health record uploads can be fenced before staged objects are removed', () => {
+  const migration = path.join(__dirname, '../../supabase/migrations/202611270003_fence_health_record_source_uploads.sql');
+  const sql = fs.readFileSync(migration, 'utf8');
+  assert.match(sql, /add column file_source_version integer not null default 0/i);
+  assert.match(sql, /select file_path, file_source_version[\s\S]*for update/i);
+  assert.match(sql, /v_source_version is distinct from p_expected_source_version[\s\S]*errcode = '40001'/i);
+  assert.match(sql, /file_source_version = file_source_version \+ 1/i);
+  assert.match(sql, /create function public\.cancel_health_record_source_upload\([\s\S]*for update/i);
+  assert.match(sql, /v_current_file_path = p_staged_file_path then return false/i);
+  assert.match(sql, /grant execute on function public\.cancel_health_record_source_upload\(uuid, text, integer, text\) to authenticated/i);
+});
