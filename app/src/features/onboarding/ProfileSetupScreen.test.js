@@ -3,6 +3,20 @@ import { fireEvent, render } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 import ProfileSetupScreen from './ProfileSetupScreen';
 
+function expectNativeStringsInsideText(node, insideText = false) {
+  if (Array.isArray(node)) {
+    node.forEach(child => expectNativeStringsInsideText(child, insideText));
+    return;
+  }
+  if (typeof node === 'string' || typeof node === 'number') {
+    expect(insideText).toBe(true);
+    return;
+  }
+  if (!node || typeof node !== 'object') return;
+  const isText = insideText || String(node.type).includes('Text');
+  (node.children || []).forEach(child => expectNativeStringsInsideText(child, isText));
+}
+
 test('uses the shared page inset without a duplicate wizard offset', () => {
   const screen = render(<ProfileSetupScreen initialProfile={{ username: 'patient_1' }} onComplete={jest.fn()} />);
 
@@ -30,6 +44,14 @@ test('moves through the assessment wizard and saves only the completed demo prof
   expect(onComplete).toHaveBeenCalledWith(expect.objectContaining({
     gender: 'male', age: '30', heightCm: '170', weightKg: '65', conditionType: 'acute-kidney-disease', allergies: ['tôm'],
   }));
+});
+
+test('keeps measurement screen text inside Text components for native rendering', () => {
+  const screen = render(<ProfileSetupScreen initialProfile={{ username: 'patient_1' }} onComplete={jest.fn()} />);
+
+  fireEvent.press(screen.getByText('Bỏ qua'));
+
+  expectNativeStringsInsideText(screen.toJSON());
 });
 
 test('keeps the wizard on the measurement step when a required value is invalid', () => {
