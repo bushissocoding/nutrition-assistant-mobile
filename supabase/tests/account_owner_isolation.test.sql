@@ -1,6 +1,6 @@
 begin;
 
-select plan(26);
+select plan(34);
 
 select ok((
   select count(*) = 24 and bool_and(relation.relrowsecurity)
@@ -39,7 +39,7 @@ select ok(exists (
 select is((
   select count(*)::integer from pg_policies
   where schemaname = 'storage' and tablename = 'objects' and policyname like 'health_record_objects_%'
-), 4, 'health record storage has owner-path policies for all operations');
+), 3, 'health record storage permits owner-scoped read, insert, and delete operations');
 
 insert into auth.users (id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
 values
@@ -67,11 +67,41 @@ select is(public.owns_health_record_source_path('11110000-0000-4000-8000-0000000
 select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/nested/22220000-0000-4000-8000-000000000001'), false, 'nested object paths are not valid record source paths');
 select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000002'), false, 'account one cannot access another account record path');
 select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), true, 'account one may upload to its own record with current storage consent');
+select is(public.owns_health_record_source_path('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'), true, 'account one owns a versioned image path for its record');
+select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'), true, 'account one may upload a versioned image path with current consent');
+select ok(public.replace_health_record_source(
+  '22220000-0000-4000-8000-000000000001', null,
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+  'image/jpeg', 8
+) is null, 'first source attachment returns no previous path');
+select is(
+  (select file_path from public.health_records where id = '22220000-0000-4000-8000-000000000001'),
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+  'first attachment stores the unique versioned path'
+);
+select throws_ok($query$
+  select public.replace_health_record_source(
+    '22220000-0000-4000-8000-000000000001', null,
+    '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000002',
+    'image/jpeg', 8
+  )
+$query$, '40001', 'HEALTH_RECORD_SOURCE_CHANGED', 'stale replacement cannot detach the current source');
+select is(
+  (select file_path from public.health_records where id = '22220000-0000-4000-8000-000000000001'),
+  '11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001',
+  'stale replacement leaves the current source path unchanged'
+);
+select ok(not exists (
+  select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects'
+    and policyname = 'health_record_objects_update_own'
+), 'authenticated users cannot update an existing health record image in place');
+select ok(not has_function_privilege('authenticated', 'public.attach_health_record_source(uuid, text, text, bigint)', 'EXECUTE'),
+  'authenticated clients cannot call the legacy source attachment RPC');
 reset role;
 insert into public.consent_records (user_id, version, choices, accepted_at)
 values ('11110000-0000-4000-8000-000000000001', '2026-11-24-v1', '{"profile_processing":true,"nutrition_processing":true,"data_lifecycle":true,"ai_processing":false,"health_record_storage":false}', now() + interval '1 second');
 set local role authenticated;
-select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001'), false, 'account one cannot upload after withdrawing health record storage consent');
+select is(public.can_upload_health_record_source('11110000-0000-4000-8000-000000000001/22220000-0000-4000-8000-000000000001/44440000-0000-4000-8000-000000000001'), false, 'account one cannot upload after withdrawing health record storage consent');
 
 select is((select count(*)::integer from public.profiles), 1, 'account one reads only its own profile');
 select is(

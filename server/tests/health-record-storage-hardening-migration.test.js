@@ -17,3 +17,15 @@ test('health record storage paths are tied to owned records and uploads require 
   assert.match(sql, /revoke all on function public\.owns_health_record_source_path\(text\) from public, anon/i);
   assert.match(sql, /grant execute on function public\.can_upload_health_record_source\(text\) to authenticated/i);
 });
+
+test('health record replacements use versioned paths and compare the expected current path', () => {
+  const migration = path.join(__dirname, '../../supabase/migrations/202611270002_version_health_record_sources.sql');
+  const sql = fs.readFileSync(migration, 'utf8');
+  assert.match(sql, /file_path is not null and file_mime_type is not null and file_size is not null/i);
+  assert.match(sql, /coalesce\(array_length\(v_folders,\s*1\),\s*0\)\s*=\s*2[\s\S]*v_filename\s*~\s*'\^\[0-9a-f\]/i);
+  assert.match(sql, /create or replace function public\.replace_health_record_source\([\s\S]*returns text[\s\S]*for update/i);
+  assert.match(sql, /v_previous_file_path is distinct from p_expected_file_path[\s\S]*errcode = '40001'/i);
+  assert.match(sql, /drop policy if exists health_record_objects_update_own on storage\.objects/i);
+  assert.match(sql, /revoke all on function public\.attach_health_record_source\(uuid, text, text, bigint\) from public, anon, authenticated/i);
+  assert.match(sql, /grant execute on function public\.replace_health_record_source\(uuid, text, text, text, bigint\) to authenticated/i);
+});
