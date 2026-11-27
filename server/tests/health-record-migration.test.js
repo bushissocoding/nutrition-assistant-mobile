@@ -16,5 +16,7 @@ test('health record migration keeps result metadata owner-scoped and source obje
   assert.match(sql, /create or replace function public\.save_health_record[\s\S]*confirmed/i);
   assert.match(sql, /health_records_request_unique unique \(user_id, request_key\)/i);
   assert.match(sql, /on conflict \(user_id, request_key\) do update/i);
-  assert.match(sql, /grant execute on function public\.delete_health_record\(uuid\) to authenticated/i);
+  const deletionMigration = fs.readFileSync(path.join(__dirname, '../../supabase/migrations/202611270004_restrict_health_record_deletion_rpc.sql'), 'utf8');
+  assert.match(deletionMigration, /revoke all on function public\.delete_health_record\(uuid\) from public, anon, authenticated/i);
+  assert.match(deletionMigration, /grant execute on function public\.delete_health_record\(uuid, uuid\) to service_role/i);
 });

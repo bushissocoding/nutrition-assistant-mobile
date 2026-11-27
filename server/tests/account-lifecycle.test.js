@@ -103,19 +103,33 @@ test('account deletion keeps identity when a module cleanup fails and tolerates 
 
 test('account deletion removes linked and orphan private record files before deleting the auth identity', async () => {
   const steps = [];
+  const storageFiles = new Map([
+    ['account-1', [
+      { name: 'record-1', id: 'object-1', metadata: {} },
+      { name: 'unlinked-record', id: 'object-2', metadata: {} },
+      { name: 'legacy', id: null, metadata: null },
+    ]],
+    ['account-1/legacy', [{ name: 'orphan', id: 'object-3', metadata: {} }]],
+  ]);
   const adminClient = {
     storage: { from(bucket) { return {
       async list(folder, { limit, offset }) {
         steps.push(`list:${bucket}:${folder}:${limit}:${offset}`);
-        if (folder === 'account-1') return { data: [
-          { name: 'record-1', id: 'object-1', metadata: {} },
-          { name: 'unlinked-record', id: 'object-2', metadata: {} },
-          { name: 'legacy', id: null, metadata: null },
-        ], error: null };
-        if (folder === 'account-1/legacy') return { data: [{ name: 'orphan', id: 'object-3', metadata: {} }], error: null };
-        return { data: [], error: null };
+        return { data: (storageFiles.get(folder) || []).slice(offset, offset + limit), error: null };
       },
-      async remove(paths) { steps.push(`storage:${bucket}:${paths.join(',')}`); return { error: null }; },
+      async remove(paths) {
+        steps.push(`storage:${bucket}:${paths.join(',')}`);
+        const removed = [];
+        for (const path of paths) {
+          const slash = path.lastIndexOf('/');
+          const folder = path.slice(0, slash);
+          const name = path.slice(slash + 1);
+          const files = storageFiles.get(folder) || [];
+          const index = files.findIndex(entry => entry.name === name);
+          if (index >= 0) removed.push(...files.splice(index, 1));
+        }
+        return { data: removed, error: null };
+      },
     }; } },
     auth: { admin: { async deleteUser(userId) { steps.push(`identity:${userId}`); return { error: null }; } } },
   };
@@ -123,8 +137,13 @@ test('account deletion removes linked and orphan private record files before del
   await service({ userId: 'account-1', db: {} });
   assert.deepEqual(steps, [
     'list:health-record-images:account-1:100:0',
+    'storage:health-record-images:account-1/record-1,account-1/unlinked-record',
+    'list:health-record-images:account-1:100:0',
     'list:health-record-images:account-1/legacy:100:0',
-    'storage:health-record-images:account-1/record-1,account-1/unlinked-record,account-1/legacy/orphan',
+    'storage:health-record-images:account-1/legacy/orphan',
+    'list:health-record-images:account-1/legacy:100:0',
+    'storage:health-record-images:account-1/legacy',
+    'list:health-record-images:account-1:100:0',
     'identity:account-1',
   ]);
 });
@@ -143,6 +162,9 @@ test('account deletion pages through storage entries and removes files in bounde
   const offsets = [];
   const removedBatches = [];
   let identityDeleted = false;
+  let listedCount = 0;
+  let removedCount = 0;
+  let maxUnremovedListed = 0;
   const files = Array.from({ length: 101 }, (_, index) => ({ name: `record-${index}`, id: `object-${index}`, metadata: {} }));
   const service = createAccountDeletionService({ adminClient: {
     storage: { from() { return {
@@ -150,14 +172,26 @@ test('account deletion pages through storage entries and removes files in bounde
         assert.equal(folder, 'account-1');
         assert.equal(limit, 100);
         offsets.push(offset);
-        return { data: files.slice(offset, offset + limit), error: null };
+        const data = files.slice(offset, offset + limit);
+        listedCount += data.length;
+        maxUnremovedListed = Math.max(maxUnremovedListed, listedCount - removedCount);
+        return { data, error: null };
       },
-      async remove(paths) { removedBatches.push(paths); return { error: null }; },
+      async remove(paths) {
+        removedBatches.push(paths);
+        for (const path of paths) {
+          const name = path.slice(path.lastIndexOf('/') + 1);
+          const index = files.findIndex(entry => entry.name === name);
+          if (index >= 0) { files.splice(index, 1); removedCount += 1; }
+        }
+        return { data: paths.map(name => ({ name })), error: null };
+      },
     }; } },
     auth: { admin: { async deleteUser() { identityDeleted = true; return { error: null }; } } },
   } });
   await service({ userId: 'account-1', db: {} });
-  assert.deepEqual(offsets, [0, 100]);
+  assert.deepEqual(offsets, [0, 0, 0]);
   assert.deepEqual(removedBatches.map(batch => batch.length), [100, 1]);
+  assert.ok(maxUnremovedListed <= 100);
   assert.equal(identityDeleted, true);
 });
