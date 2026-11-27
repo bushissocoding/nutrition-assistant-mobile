@@ -22,8 +22,34 @@ test('fails explicitly for missing config, network errors, bad responses and inv
   assert.equal(unconfigured.configured, false);
   await assert.rejects(unconfigured.send([{ to: 'ExponentPushToken[x]' }]), error => error instanceof ExpoPushError && error.code === 'PUSH_PROVIDER_UNAVAILABLE');
   const brokenNetwork = createExpoPushGateway({ config: { accessToken: 'server-token' }, fetchImpl: async () => { throw new Error('secret transport details'); } });
-  await assert.rejects(brokenNetwork.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_PROVIDER_UNAVAILABLE' && !error.message.includes('secret transport'));
+  await assert.rejects(brokenNetwork.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_DELIVERY_UNKNOWN' && !error.message.includes('secret transport'));
   const invalidResponse = createExpoPushGateway({ config: { accessToken: 'server-token' }, fetchImpl: async () => ({ ok: true, async json() { return { data: [] }; } }) });
-  await assert.rejects(invalidResponse.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_PROVIDER_INVALID_RESPONSE');
+  await assert.rejects(invalidResponse.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_DELIVERY_UNKNOWN');
   await assert.rejects(invalidResponse.send([]), error => error.code === 'PUSH_REQUEST_INVALID');
+});
+
+test('aborts Expo requests that exceed the worker lease window', async () => {
+  let observedSignal;
+  const gateway = createExpoPushGateway({
+    config: { accessToken: 'server-token' },
+    requestTimeoutMs: 5,
+    fetchImpl: async (_url, options) => {
+      observedSignal = options.signal;
+      return new Promise((_resolve, reject) => {
+        options.signal.addEventListener('abort', () => reject(new Error('request aborted')), { once: true });
+      });
+    },
+  });
+
+  await assert.rejects(gateway.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_DELIVERY_UNKNOWN');
+  assert.equal(observedSignal.aborted, true);
+});
+
+test('settles even if an injected fetch ignores the abort signal', async () => {
+  const gateway = createExpoPushGateway({
+    config: { accessToken: 'server-token' },
+    requestTimeoutMs: 5,
+    fetchImpl: async () => new Promise(() => {}),
+  });
+  await assert.rejects(gateway.send([{ to: 'ExponentPushToken[x]' }]), error => error.code === 'PUSH_DELIVERY_UNKNOWN');
 });
