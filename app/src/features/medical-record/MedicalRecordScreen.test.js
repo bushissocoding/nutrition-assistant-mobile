@@ -74,3 +74,51 @@ test('exports account result values into the local PDF preview with a non-clinic
   expect(screen.getAllByText(/chưa được kiểm tra y tế/).length).toBeGreaterThan(0);
   expect(Print.printToFileAsync).not.toHaveBeenCalled();
 });
+
+test('loads all pages of account lab records before showing and exporting them', async () => {
+  const firstPage = Array.from({ length: 100 }, (_, index) => ({
+    id: `record-${index + 1}`,
+    title: `Synthetic panel ${index + 1}`,
+    sourceDate: '2026-11-01',
+    results: [],
+  }));
+  const lastRecord = {
+    id: 'record-101',
+    title: 'Synthetic panel 101',
+    sourceDate: '2026-11-02',
+    results: [{ id: 'result-101', name: 'Result 101', value: '5.2', unit: 'mg/L', referenceRange: '' }],
+  };
+  api.getMyHealthRecords.mockImplementation(async ({ limit, offset }) => ({
+    items: offset === 0 ? firstPage : [lastRecord],
+    total: 101,
+    limit,
+    offset,
+  }));
+
+  const screen = render(<MedicalRecordScreen account={{ id: 'patient-1' }} profile={{ age: 30, allergies: [], hardLimits: {} }} />);
+
+  await waitFor(() => expect(api.getMyHealthRecords).toHaveBeenCalledWith({ limit: 100, offset: 100 }));
+  expect(screen.getByText('Synthetic panel 101')).toBeTruthy();
+
+  fireEvent.press(screen.getByRole('button', { name: 'Xem trước nội dung PDF' }));
+  expect(screen.getAllByText(/Result 101: 5.2 mg\/L/).length).toBeGreaterThan(0);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Xuất PDF cục bộ' }));
+  await waitFor(() => expect(screen.getByText('Đã tạo PDF cục bộ và mở bảng chia sẻ.')).toBeTruthy());
+  expect(Print.printToFileAsync).toHaveBeenCalledWith(expect.objectContaining({
+    html: expect.stringContaining('Result 101: 5.2 mg/L'),
+  }));
+});
+
+test('does not show or export a partial record list when a later page fails', async () => {
+  api.getMyHealthRecords
+    .mockResolvedValueOnce({ items: [{ id: 'partial-record', title: 'Partial synthetic panel', results: [] }], total: 101 })
+    .mockRejectedValueOnce(new Error('Không thể tải trang hồ sơ tiếp theo.'));
+  const screen = render(<MedicalRecordScreen account={{ id: 'patient-1' }} profile={{ age: 30, allergies: [], hardLimits: {} }} />);
+
+  await waitFor(() => expect(screen.getByText('Không thể tải trang hồ sơ tiếp theo.')).toBeTruthy());
+  expect(screen.queryByText('Partial synthetic panel')).toBeNull();
+  expect(screen.getByRole('button', { name: 'Xuất PDF cục bộ' }).props.accessibilityState.disabled).toBe(true);
+  expect(screen.getByRole('button', { name: 'Xem trước nội dung PDF' }).props.accessibilityState.disabled).toBe(true);
+  expect(Print.printToFileAsync).not.toHaveBeenCalled();
+});

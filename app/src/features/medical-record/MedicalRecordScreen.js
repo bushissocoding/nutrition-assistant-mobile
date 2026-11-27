@@ -8,6 +8,32 @@ import { createAndShareMedicalRecord } from './medical-record-export';
 import { api } from '../../services/api';
 
 function numberText(value, unit) { return value === '' || value == null ? 'Chưa nhập' : `${value} ${unit}`; }
+const HEALTH_RECORD_PAGE_SIZE = 100;
+
+async function loadAllHealthRecords(isActive) {
+  const records = [];
+  let offset = 0;
+  let total = null;
+
+  while (isActive()) {
+    const result = await api.getMyHealthRecords({ limit: HEALTH_RECORD_PAGE_SIZE, offset });
+    if (!isActive()) return null;
+
+    const page = Array.isArray(result?.items) ? result.items : [];
+    if (Number.isSafeInteger(result?.total) && result.total >= 0) total = result.total;
+
+    if (!page.length) {
+      if (total !== null && offset < total) throw new Error('Không tải đủ danh sách hồ sơ xét nghiệm. Hãy thử lại.');
+      break;
+    }
+
+    records.push(...page);
+    offset += page.length;
+    if (total !== null ? offset >= total : page.length < HEALTH_RECORD_PAGE_SIZE) break;
+  }
+
+  return records;
+}
 
 export default function MedicalRecordScreen({ profile, account, onBack, onNavigate }) {
   const [showPreview, setShowPreview] = useState(false);
@@ -41,9 +67,9 @@ export default function MedicalRecordScreen({ profile, account, onBack, onNaviga
   useEffect(() => {
     if (!account?.id) { setRecordsLoading(false); return undefined; }
     let active = true;
-    setRecordsLoading(true); setRecordsError('');
-    api.getMyHealthRecords({ limit: 100, offset: 0 }).then(result => {
-      if (active) setRecords(Array.isArray(result?.items) ? result.items : []);
+    setRecordsLoading(true); setRecordsError(''); setRecords([]);
+    loadAllHealthRecords(() => active).then(result => {
+      if (active && result) setRecords(result);
     }).catch(error => {
       if (active) setRecordsError(error?.message || 'Không tải được hồ sơ xét nghiệm.');
     }).finally(() => { if (active) setRecordsLoading(false); });
@@ -90,7 +116,7 @@ export default function MedicalRecordScreen({ profile, account, onBack, onNaviga
   }
 
   async function exportPdf() {
-    if (exporting) return;
+    if (exporting || recordsLoading || (account?.id && recordsError)) return;
     setExporting(true);
     setExportFeedback(null);
     try {
@@ -111,6 +137,8 @@ export default function MedicalRecordScreen({ profile, account, onBack, onNaviga
       setExporting(false);
     }
   }
+
+  const recordsUnavailable = recordsLoading || Boolean(account?.id && recordsError);
 
   return <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
     <View style={styles.header}><TouchableOpacity accessibilityRole="button" accessibilityLabel="Quay lại" style={styles.back} onPress={onBack}><Text style={styles.backText}>‹</Text></TouchableOpacity><Text accessibilityRole="header" style={styles.title}>Hồ sơ y tế</Text><View style={styles.headerSpace} /></View>
@@ -138,11 +166,11 @@ export default function MedicalRecordScreen({ profile, account, onBack, onNaviga
       <TouchableOpacity accessibilityRole="button" style={styles.outlineButton} onPress={() => onNavigate?.('personalization')}><Text style={styles.outlineText}>Thêm kết quả xét nghiệm</Text></TouchableOpacity>
       <Text style={styles.muted}>Các giá trị được người dùng xác nhận đã phiên âm; chưa được kiểm tra y tế.</Text>
     </Section>
-    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: exporting }} disabled={exporting} style={styles.primary} onPress={exportPdf}>
+    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: exporting || recordsUnavailable }} disabled={exporting || recordsUnavailable} style={styles.primary} onPress={exportPdf}>
       {exporting ? <ActivityIndicator color="white" /> : <Text style={styles.primaryText}>Xuất PDF cục bộ</Text>}
     </TouchableOpacity>
     {!!exportFeedback && <Text accessibilityRole={exportFeedback.type === 'error' ? 'alert' : 'text'} accessibilityLiveRegion="polite" style={[styles.exportFeedback, exportFeedback.type === 'error' ? styles.exportError : styles.exportSuccess]}>{exportFeedback.message}</Text>}
-    <TouchableOpacity accessibilityRole="button" style={styles.outlineButton} onPress={() => setShowPreview(value => !value)}><Text style={styles.outlineText}>{showPreview ? 'Đóng bản xem trước' : 'Xem trước nội dung PDF'}</Text></TouchableOpacity>
+    <TouchableOpacity accessibilityRole="button" accessibilityState={{ disabled: recordsUnavailable }} disabled={recordsUnavailable} style={styles.outlineButton} onPress={() => setShowPreview(value => !value)}><Text style={styles.outlineText}>{showPreview ? 'Đóng bản xem trước' : 'Xem trước nội dung PDF'}</Text></TouchableOpacity>
     {showPreview && <View accessibilityLiveRegion="polite" style={styles.preview}><Text style={styles.previewHeading}>BẢN XEM TRƯỚC PDF</Text><Text style={styles.previewText}>{preview}</Text><Text style={styles.muted}>Tệp chưa được tạo. Dùng nút xuất để mở bảng chia sẻ trên thiết bị.</Text></View>}
     <Text style={styles.footer}>Hồ sơ này không thay thế hồ sơ bệnh án hoặc tư vấn của nhân viên y tế.</Text>
   </ScrollView>;
