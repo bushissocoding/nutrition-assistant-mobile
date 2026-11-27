@@ -68,6 +68,14 @@ react {
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
 
+def releaseSigning = [
+    storeFile: findProperty('androidReleaseStoreFile') ?: System.getenv('ANDROID_RELEASE_STORE_FILE'),
+    storePassword: findProperty('androidReleaseStorePassword') ?: System.getenv('ANDROID_RELEASE_STORE_PASSWORD'),
+    keyAlias: findProperty('androidReleaseKeyAlias') ?: System.getenv('ANDROID_RELEASE_KEY_ALIAS'),
+    keyPassword: findProperty('androidReleaseKeyPassword') ?: System.getenv('ANDROID_RELEASE_KEY_PASSWORD'),
+]
+def hasReleaseSigning = releaseSigning.values().every { it instanceof String && !it.trim().isEmpty() }
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -104,15 +112,23 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(releaseSigning.storeFile)
+                storePassword releaseSigning.storePassword
+                keyAlias releaseSigning.keyAlias
+                keyPassword releaseSigning.keyPassword
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
@@ -129,6 +145,15 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+gradle.taskGraph.whenReady { taskGraph ->
+    def createsReleaseArtifact = taskGraph.allTasks.any { task ->
+        task.project == project && ['assembleRelease', 'bundleRelease', 'packageRelease'].contains(task.name)
+    }
+    if (createsReleaseArtifact && !hasReleaseSigning) {
+        throw new GradleException('Android release builds require ANDROID_RELEASE_STORE_FILE, ANDROID_RELEASE_STORE_PASSWORD, ANDROID_RELEASE_KEY_ALIAS, and ANDROID_RELEASE_KEY_PASSWORD (or the matching androidRelease* Gradle properties).')
     }
 }
 
