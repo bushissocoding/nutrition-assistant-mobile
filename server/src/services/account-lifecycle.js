@@ -2,6 +2,28 @@ const { getProfile } = require('../repositories/profile-repository');
 const { toProfileDto } = require('./profile');
 
 const STORAGE_LIST_PAGE_SIZE = 100;
+const ACCOUNT_EXPORT_PAGE_SIZE = 500;
+const ACCOUNT_EXPORT_ID_BATCH_SIZE = 100;
+
+async function fetchAllPages(query) {
+  const rows = [];
+  for (let offset = 0; ; offset += ACCOUNT_EXPORT_PAGE_SIZE) {
+    const { data, error } = await query.range(offset, offset + ACCOUNT_EXPORT_PAGE_SIZE - 1);
+    if (error) throw error;
+    if (!Array.isArray(data)) throw new Error('Account export query returned invalid data.');
+    rows.push(...data);
+    if (data.length < ACCOUNT_EXPORT_PAGE_SIZE) return rows;
+  }
+}
+
+async function fetchRowsForIds(ids, buildQuery) {
+  const rows = [];
+  for (let offset = 0; offset < ids.length; offset += ACCOUNT_EXPORT_ID_BATCH_SIZE) {
+    const batch = ids.slice(offset, offset + ACCOUNT_EXPORT_ID_BATCH_SIZE);
+    rows.push(...await fetchAllPages(buildQuery(batch)));
+  }
+  return rows;
+}
 
 async function removeStorageFiles(bucket, rootFolder) {
   const pendingFolders = [{ folder: rootFolder, offset: 0, expectedRemovedChild: null }];
@@ -98,46 +120,37 @@ function createAccountDeletionService({ adminClient, deletionSteps = [] } = {}) 
 
 async function exportAccount({ db, user }) {
   const profile = await getProfile(db, user.id);
-  const { data: consents, error } = await db.from('consent_records')
+  const consents = await fetchAllPages(db.from('consent_records')
     .select('version,choices,accepted_at')
     .eq('user_id', user.id)
     .order('accepted_at', { ascending: false })
-    .order('id', { ascending: false });
-  if (error) throw error;
-  const { data: healthRecords, error: healthRecordError } = await db.from('health_records')
+    .order('id', { ascending: false }));
+  const healthRecords = await fetchAllPages(db.from('health_records')
     .select('id,title,source_date,note,file_mime_type,file_size,created_at,updated_at')
     .eq('user_id', user.id)
     .order('source_date', { ascending: true, nullsFirst: false })
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (healthRecordError) throw healthRecordError;
+    .order('id', { ascending: true }));
   const healthRecordIds = (healthRecords || []).map(record => record.id);
-  let healthRecordResults = [];
-  if (healthRecordIds.length) {
-    const { data, error } = await db.from('health_record_results')
+  const healthRecordResults = await fetchRowsForIds(healthRecordIds, batch =>
+    db.from('health_record_results')
       .select('id,record_id,name,value,unit,reference_range,created_at')
-      .eq('user_id', user.id).in('record_id', healthRecordIds)
-      .order('created_at', { ascending: true }).order('id', { ascending: true });
-    if (error) throw error;
-    healthRecordResults = data || [];
-  }
-  const { data: assistantConsents, error: assistantConsentError } = await db.from('assistant_ai_consents')
+      .eq('user_id', user.id).in('record_id', batch)
+      .order('created_at', { ascending: true }).order('id', { ascending: true }));
+  const assistantConsents = await fetchAllPages(db.from('assistant_ai_consents')
     .select('version,choice,recorded_at')
     .eq('user_id', user.id)
     .order('recorded_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (assistantConsentError) throw assistantConsentError;
-  const { data: assistantTurns, error: assistantTurnError } = await db.from('assistant_turns')
+    .order('id', { ascending: true }));
+  const assistantTurns = await fetchAllPages(db.from('assistant_turns')
     .select('id,request_key,user_message,assistant_message,status,created_at,updated_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (assistantTurnError) throw assistantTurnError;
-  const { data: appointmentMessages, error: appointmentMessageError } = await db.from('appointment_messages')
+    .order('id', { ascending: true }));
+  const appointmentMessages = await fetchAllPages(db.from('appointment_messages')
     .select('id,appointment_id,sender_user_id,client_message_id,body,created_at')
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (appointmentMessageError) throw appointmentMessageError;
+    .order('id', { ascending: true }));
   const { data: notificationPreferences, error: notificationPreferenceError } = await db.from('notification_preferences')
     .select('in_app_appointments,in_app_payments,in_app_messages,push_enabled,push_appointments,push_payments,push_messages,updated_at')
     .eq('user_id', user.id).maybeSingle();
@@ -146,58 +159,47 @@ async function exportAccount({ db, user }) {
     .select('dietary_variety,food_preferences,allergy_reminder,track_confirmed_targets,updated_at')
     .eq('user_id', user.id).maybeSingle();
   if (nutritionPreferenceError) throw nutritionPreferenceError;
-  const { data: notifications, error: notificationError } = await db.from('notifications')
+  const notifications = await fetchAllPages(db.from('notifications')
     .select('id,kind,reference_id,title,body,read_at,created_at')
-    .eq('user_id', user.id).order('created_at', { ascending: true }).order('id', { ascending: true });
-  if (notificationError) throw notificationError;
-  const { data: plans, error: planError } = await db.from('meal_plans')
+    .eq('user_id', user.id).order('created_at', { ascending: true }).order('id', { ascending: true }));
+  const plans = await fetchAllPages(db.from('meal_plans')
     .select('id,plan,profile_updated_at,catalog_version,created_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
-    .order('id', { ascending: false });
-  if (planError) throw planError;
-  const { data: mealEntries, error: mealEntryError } = await db.from('meal_entries')
+    .order('id', { ascending: false }));
+  const mealEntries = await fetchAllPages(db.from('meal_entries')
     .select('id,food_id,food_name,portion_grams,meal_type,consumed_at,time_zone,notes,nutrients,source,food_snapshot,catalog_version,created_at,updated_at')
     .eq('user_id', user.id)
     .is('deleted_at', null)
     .order('consumed_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (mealEntryError) throw mealEntryError;
-  const { data: shoppingLists, error: shoppingListError } = await db.from('shopping_lists')
+    .order('id', { ascending: true }));
+  const shoppingLists = await fetchAllPages(db.from('shopping_lists')
     .select('id,source_plan_id,request_key,is_current,created_at,updated_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (shoppingListError) throw shoppingListError;
+    .order('id', { ascending: true }));
   const listIds = (shoppingLists || []).map(list => list.id);
-  let shoppingItems = [];
-  if (listIds.length) {
-    const { data, error } = await db.from('shopping_list_items')
+  const shoppingItems = await fetchRowsForIds(listIds, batch =>
+    db.from('shopping_list_items')
       .select('id,list_id,food_id,name,amount,unit,purchased,source,catalog_version,created_at,updated_at')
-      .in('list_id', listIds)
+      .in('list_id', batch)
       .order('created_at', { ascending: true })
-      .order('id', { ascending: true });
-    if (error) throw error;
-    shoppingItems = data || [];
-  }
-  const { data: pantryItems, error: pantryError } = await db.from('pantry_items')
+      .order('id', { ascending: true }));
+  const pantryItems = await fetchAllPages(db.from('pantry_items')
     .select('id,food_id,name,amount,unit,source,catalog_version,created_at,updated_at')
     .eq('user_id', user.id)
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (pantryError) throw pantryError;
-  const { data: appointments, error: appointmentError } = await db.from('appointments')
+    .order('id', { ascending: true }));
+  const appointments = await fetchAllPages(db.from('appointments')
     .select('id,provider_id,slot_id,provider_name,provider_specialty,starts_at,ends_at,fee_vnd,currency,status,patient_name,patient_phone,symptom_note,provider_sharing_version,provider_sharing_accepted_at,hold_expires_at,cancellation_reason,cancellation_note,created_at,updated_at')
     .eq('patient_user_id', user.id)
     .order('starts_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (appointmentError) throw appointmentError;
-  const { data: payments, error: paymentError } = await db.from('appointment_payments')
+    .order('id', { ascending: true }));
+  const payments = await fetchAllPages(db.from('appointment_payments')
     .select('id,appointment_id,order_code,amount_vnd,currency,status,payment_link_id,provider_reference,provider_transaction_at,link_created_at,paid_at,created_at,updated_at')
     .eq('patient_user_id', user.id)
     .order('created_at', { ascending: true })
-    .order('id', { ascending: true });
-  if (paymentError) throw paymentError;
+    .order('id', { ascending: true }));
   const { data: providerProfile, error: providerError } = await db.from('care_providers')
     .select('id,display_name,specialty,bio,experience_years,fee_vnd,verification_status,verified_at,created_at,updated_at')
     .eq('user_id', user.id).maybeSingle();
@@ -210,13 +212,12 @@ async function exportAccount({ db, user }) {
       .eq('user_id', user.id).maybeSingle();
     if (credentialError) throw credentialError;
     providerCredentials = credentials || null;
-    const { data: slots, error: slotError } = await db.from('provider_availability')
+    const slots = await fetchAllPages(db.from('provider_availability')
       .select('id,starts_at,ends_at,status,created_at,updated_at')
       .eq('provider_id', providerProfile.id)
       .order('starts_at', { ascending: true })
-      .order('id', { ascending: true });
-    if (slotError) throw slotError;
-    providerAvailability = slots || [];
+      .order('id', { ascending: true }));
+    providerAvailability = slots;
   }
   return {
     exportVersion: 6,

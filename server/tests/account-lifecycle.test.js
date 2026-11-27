@@ -2,35 +2,48 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createAccountDeletionService, exportAccount } = require('../src/services/account-lifecycle');
 
-function accountDatabase({ profile = null, consents = [], assistantConsents = [], assistantTurns = [], appointmentMessages = [], notificationPreferences = null, nutritionPreferences = null, notifications = [], healthRecords = [], healthRecordResults = [], plans = [], mealEntries = [], shoppingLists = [], shoppingItems = [], pantryItems = [], appointments = [], payments = [], providerProfile = null, providerCredentials = null, providerAvailability = [] } = {}) {
+function accountDatabase({ profile = null, consents = [], assistantConsents = [], assistantTurns = [], appointmentMessages = [], notificationPreferences = null, nutritionPreferences = null, notifications = [], healthRecords = [], healthRecordResults = [], plans = [], mealEntries = [], shoppingLists = [], shoppingItems = [], pantryItems = [], appointments = [], payments = [], providerProfile = null, providerCredentials = null, providerAvailability = [], pageRequests = [] } = {}) {
+  const rows = {
+    consent_records: consents,
+    assistant_ai_consents: assistantConsents,
+    assistant_turns: assistantTurns,
+    appointment_messages: appointmentMessages,
+    notifications,
+    health_records: healthRecords,
+    health_record_results: healthRecordResults,
+    meal_plans: plans,
+    meal_entries: mealEntries,
+    shopping_lists: shoppingLists,
+    shopping_list_items: shoppingItems,
+    pantry_items: pantryItems,
+    appointments,
+    appointment_payments: payments,
+    provider_availability: providerAvailability,
+  };
+  function arrayQuery(table) {
+    const query = {
+      eq() { return query; },
+      in() { return query; },
+      is() { return query; },
+      order() { return query; },
+      async range(from, to) {
+        pageRequests.push({ table, from, to });
+        return { data: rows[table].slice(from, to + 1), error: null };
+      },
+    };
+    return query;
+  }
+  function singleQuery(data) {
+    return { eq() { return this; }, async maybeSingle() { return { data, error: null }; } };
+  }
   return {
     from(table) {
-      if (table === 'profiles') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: profile, error: null }) }) }) };
-      if (table === 'consent_records') return {
-        select: () => ({
-          eq: () => ({
-            order: () => ({ order: async () => ({ data: consents, error: null }) }),
-          }),
-        }),
-      };
-      if (table === 'assistant_ai_consents') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: assistantConsents, error: null }) }) }) }) };
-      if (table === 'assistant_turns') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: assistantTurns, error: null }) }) }) }) };
-      if (table === 'appointment_messages') return { select: () => ({ order: () => ({ order: async () => ({ data: appointmentMessages, error: null }) }) }) };
-      if (table === 'notification_preferences') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: notificationPreferences, error: null }) }) }) };
-      if (table === 'nutrition_preferences') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: nutritionPreferences, error: null }) }) }) };
-      if (table === 'notifications') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: notifications, error: null }) }) }) }) };
-      if (table === 'health_records') return { select: () => ({ eq: () => ({ order: () => ({ order: () => ({ order: async () => ({ data: healthRecords, error: null }) }) }) }) }) };
-      if (table === 'health_record_results') return { select: () => ({ eq: () => ({ in: () => ({ order: () => ({ order: async () => ({ data: healthRecordResults, error: null }) }) }) }) }) };
-      if (table === 'meal_plans') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: plans, error: null }) }) }) }) };
-      if (table === 'meal_entries') return { select: () => ({ eq: () => ({ is: () => ({ order: () => ({ order: async () => ({ data: mealEntries, error: null }) }) }) }) }) };
-      if (table === 'shopping_lists') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: shoppingLists, error: null }) }) }) }) };
-      if (table === 'shopping_list_items') return { select: () => ({ in: () => ({ order: () => ({ order: async () => ({ data: shoppingItems, error: null }) }) }) }) };
-      if (table === 'pantry_items') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: pantryItems, error: null }) }) }) }) };
-      if (table === 'appointments') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: appointments, error: null }) }) }) }) };
-      if (table === 'appointment_payments') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: payments, error: null }) }) }) }) };
-      if (table === 'care_providers') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: providerProfile, error: null }) }) }) };
-      if (table === 'care_provider_credentials') return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: providerCredentials, error: null }) }) }) };
-      if (table === 'provider_availability') return { select: () => ({ eq: () => ({ order: () => ({ order: async () => ({ data: providerAvailability, error: null }) }) }) }) };
+      if (table === 'profiles') return { select: () => singleQuery(profile) };
+      if (table === 'notification_preferences') return { select: () => singleQuery(notificationPreferences) };
+      if (table === 'nutrition_preferences') return { select: () => singleQuery(nutritionPreferences) };
+      if (table === 'care_providers') return { select: () => singleQuery(providerProfile) };
+      if (table === 'care_provider_credentials') return { select: () => singleQuery(providerCredentials) };
+      if (Object.hasOwn(rows, table)) return { select: () => arrayQuery(table) };
       throw new Error('Unexpected test table.');
     },
   };
@@ -77,6 +90,46 @@ test('account export contains only authenticated identity and owned profile, nut
   assert.deepEqual(data.appointmentPayments, [{ id: 'payment-1', appointmentId: 'appointment-1', orderCode: 1800000001, amount: { value: 200000, currency: 'VND' }, status: 'paid', paymentLinkId: 'synthetic-link', providerReference: 'synthetic-ref', providerTransactionAt: '2026-01-05 00:01:00', linkCreatedAt: '2026-01-05T00:00:00.000Z', paidAt: '2026-01-05T00:01:00.000Z', createdAt: '2026-01-05T00:00:00.000Z', updatedAt: '2026-01-05T00:01:00.000Z' }]);
   assert.equal(data.providerApplication, null);
   assert.equal(JSON.stringify(data).includes('password'), false);
+});
+
+test('account export pages large collections and nested shopping items past the API row limit', async () => {
+  const notifications = Array.from({ length: 1001 }, (_, index) => ({
+    id: `notice-${index}`,
+    kind: 'appointment',
+    reference_id: null,
+    title: `Notice ${index}`,
+    body: 'Synthetic notice.',
+    read_at: null,
+    created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T00:00:00.000Z`,
+  }));
+  const shoppingItems = Array.from({ length: 1001 }, (_, index) => ({
+    id: `item-${index}`,
+    list_id: 'list-many-items',
+    food_id: 'synthetic-test-source:12345',
+    name: `Synthetic food ${index}`,
+    amount: '100',
+    unit: 'g',
+    purchased: false,
+    source: { id: 'synthetic-test-source' },
+    catalog_version: 'synthetic-test-v1',
+    created_at: '2026-01-04T00:00:00.000Z',
+    updated_at: '2026-01-04T00:00:00.000Z',
+  }));
+  const pageRequests = [];
+  const data = await exportAccount({
+    db: accountDatabase({
+      notifications,
+      shoppingLists: [{ id: 'list-many-items', source_plan_id: null, request_key: 'synthetic-key', is_current: true, created_at: '2026-01-04T00:00:00.000Z', updated_at: '2026-01-04T00:00:00.000Z' }],
+      shoppingItems,
+      pageRequests,
+    }),
+    user: { id: 'synthetic-user', email: 'person@example.test' },
+  });
+
+  assert.equal(data.notifications.length, 1001);
+  assert.equal(data.shoppingLists[0].items.length, 1001);
+  assert.deepEqual(pageRequests.filter(page => page.table === 'notifications').map(page => page.from), [0, 500, 1000]);
+  assert.deepEqual(pageRequests.filter(page => page.table === 'shopping_list_items').map(page => page.from), [0, 500, 1000]);
 });
 
 test('account deletion awaits every module cleanup before deleting identity', async () => {
