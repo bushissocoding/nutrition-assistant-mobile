@@ -14,6 +14,7 @@ async function withServer(router, run) {
         is() { return this; },
         in() { return this; },
         order() { return this; },
+        async range() { return { data: [], error: null }; },
         maybeSingle: async () => ({ data: null, error: null }),
         then(resolve, reject) { return Promise.resolve({ data: [], error: null }).then(resolve, reject); },
       };
