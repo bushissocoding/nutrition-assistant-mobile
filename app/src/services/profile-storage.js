@@ -1,4 +1,4 @@
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secure-storage';
 import { normalizeProfile } from '../features/profile/profile-model.cjs';
 import { createConsentRecord, isCurrentConsentRecord } from '../features/onboarding/consent-model.cjs';
 

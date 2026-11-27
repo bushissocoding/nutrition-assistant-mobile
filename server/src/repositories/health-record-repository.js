@@ -1,7 +1,9 @@
+const { randomUUID } = require('node:crypto');
 const BUCKET = 'health-record-images';
 const MAX_SOURCE_BYTES = 8 * 1024 * 1024;
 const MIME_TYPES = new Set(['image/jpeg', 'image/png']);
-const RECORD_COLUMNS = 'id,user_id,title,source_date,note,file_path,file_mime_type,file_size,created_at,updated_at';
+const SOURCE_LIST_PAGE_SIZE = 100;
+const RECORD_COLUMNS = 'id,user_id,title,source_date,note,file_path,file_mime_type,file_size,file_source_version,created_at,updated_at';
 const RESULT_COLUMNS = 'id,record_id,name,value,unit,reference_range,created_at';
 
 class HealthRecordError extends Error {
@@ -13,9 +15,15 @@ function mapHealthRecordError(error) {
   if (error?.code === '28000') return new HealthRecordError('Cần đăng nhập để tiếp tục.', 401, 'AUTHENTICATION_REQUIRED');
   if (error?.code === '42501' && String(error.message || '').includes('HEALTH_RECORD_CONSENT_REQUIRED')) return new HealthRecordError('Hãy bật quyền lưu hồ sơ xét nghiệm trước khi tiếp tục.', 403, 'HEALTH_RECORD_CONSENT_REQUIRED');
   if (error?.code === '42501') return new HealthRecordError('Không có quyền truy cập hồ sơ này.', 403, 'HEALTH_RECORD_FORBIDDEN');
+  if (error?.code === '40001') return new HealthRecordError('Ảnh hồ sơ vừa được cập nhật ở nơi khác. Hãy tải lại hồ sơ trước khi thử lại.', 409, 'HEALTH_RECORD_SOURCE_CHANGED');
+  if (error?.code === '54000' && String(error.message || '').includes('HEALTH_RECORD_SOURCE_UPLOAD_LIMIT')) return new HealthRecordError('Đang có quá nhiều yêu cầu tải ảnh. Hãy chờ hệ thống dọn ảnh cũ rồi thử lại.', 429, 'HEALTH_RECORD_SOURCE_UPLOAD_LIMIT');
   if (error?.code === 'P0002') return new HealthRecordError('Không tìm thấy hồ sơ xét nghiệm.', 404, 'HEALTH_RECORD_NOT_FOUND');
   if (error?.code === '22023') return new HealthRecordError('Thông tin hồ sơ xét nghiệm không hợp lệ.', 400, 'INVALID_HEALTH_RECORD');
   return error;
+}
+
+function isDefinitiveDatabaseError(error) {
+  return typeof error?.code === 'string' && /^[0-9A-Z]{5}$/.test(error.code);
 }
 
 function toResult(row) {
@@ -39,6 +47,92 @@ function isValidImageBytes(bytes, mimeType) {
   if (!Buffer.isBuffer(bytes) || bytes.length < 8 || bytes.length > MAX_SOURCE_BYTES || !MIME_TYPES.has(mimeType)) return false;
   if (mimeType === 'image/jpeg') return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
   return bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+}
+
+async function removeRecordSources(bucket, adminClient, userId, recordId) {
+  const root = `${userId}/${recordId}`;
+  const pendingFolders = [{ folder: root, expectedRemovedChild: null }];
+  let removedCount = 0;
+  let noProgressPages = 0;
+  while (pendingFolders.length) {
+    const current = pendingFolders[pendingFolders.length - 1];
+    const { data, error } = await bucket.list(current.folder, { limit: SOURCE_LIST_PAGE_SIZE, offset: 0 });
+    if (error || !Array.isArray(data)) {
+      throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa thể liệt kê hết ảnh riêng tư để dọn.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+    }
+
+    if (current.expectedRemovedChild) {
+      const childStillExists = data.some(entry => entry && `${current.folder}/${entry.name}` === current.expectedRemovedChild);
+      if (childStillExists) throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage chưa xác nhận xóa thư mục ảnh.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      current.expectedRemovedChild = null;
+    }
+
+    if (!data.length) {
+      const emptiedFolder = current.folder;
+      pendingFolders.pop();
+      if (pendingFolders.length) {
+        const { error: removeError, data: removed } = await bucket.remove([emptiedFolder]);
+        if (removeError || !Array.isArray(removed)) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa thể dọn thư mục ảnh riêng tư.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+        removedCount += removed.length;
+        if (typeof adminClient?.rpc === 'function') {
+          const { error: finishError } = await adminClient.rpc('finish_health_record_source_uploads', { p_file_paths: [emptiedFolder] });
+          if (finishError) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa hoàn tất việc ghi nhận dọn ảnh.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+        }
+        pendingFolders[pendingFolders.length - 1].expectedRemovedChild = emptiedFolder;
+      }
+      continue;
+    }
+
+    const paths = [];
+    let childFolder = null;
+    for (const entry of data) {
+      if (!entry || typeof entry.name !== 'string' || !entry.name || entry.name.includes('/') || entry.name.includes('\\') || entry.name === '.' || entry.name === '..') {
+        throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage trả về đường dẫn ảnh không hợp lệ.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      }
+      const childPath = `${current.folder}/${entry.name}`;
+      if (!childPath.startsWith(`${root}/`)) {
+        throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage trả về đường dẫn ngoài thư mục hồ sơ.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      }
+      if (entry.id === null && entry.metadata === null) {
+        childFolder ||= childPath;
+        continue;
+      }
+      if (typeof entry.id !== 'string' || !entry.id) {
+        throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage trả về đường dẫn ảnh không hợp lệ.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      }
+      paths.push(childPath);
+    }
+
+    if (paths.length) {
+      const { error: removeError, data: removed } = await bucket.remove(paths);
+      if (removeError) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa thể dọn ảnh riêng tư. Hãy thử xóa lại để hoàn tất.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      if (!Array.isArray(removed)) throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage chưa xác nhận ảnh đã được dọn.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      if (removed.length === 0) noProgressPages += 1;
+      else noProgressPages = 0;
+      if (noProgressPages >= 2) throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage chưa xác nhận ảnh đã được dọn.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      removedCount += removed.length;
+      if (typeof adminClient?.rpc === 'function') {
+        const { error: finishError } = await adminClient.rpc('finish_health_record_source_uploads', { p_file_paths: paths });
+        if (finishError) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa hoàn tất việc ghi nhận dọn ảnh.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+      }
+      continue;
+    }
+
+    if (childFolder) {
+      pendingFolders.push({ folder: childFolder, expectedRemovedChild: null });
+      continue;
+    }
+
+    throw new HealthRecordError('Hồ sơ đã xóa nhưng Storage trả về trang ảnh không thể xử lý.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+  }
+  const { error: legacyRemoveError, data: legacyRemoved } = await bucket.remove([root]);
+  if (legacyRemoveError || !Array.isArray(legacyRemoved)) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa thể dọn ảnh riêng tư. Hãy thử xóa lại để hoàn tất.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+  if (typeof adminClient?.rpc === 'function') {
+    const { error: finishError } = await adminClient.rpc('finish_health_record_source_uploads', { p_file_paths: [root] });
+    if (finishError) throw new HealthRecordError('Hồ sơ đã xóa nhưng chưa hoàn tất việc ghi nhận dọn ảnh.', 503, 'HEALTH_RECORD_DELETE_CLEANUP_FAILED');
+  }
+  removedCount += Array.isArray(legacyRemoved) ? legacyRemoved.length : 0;
+  return removedCount;
 }
 
 function createHealthRecordRepository({ storageClient, signedUrlTtlSeconds = 60 } = {}) {
@@ -99,16 +193,109 @@ function createHealthRecordRepository({ storageClient, signedUrlTtlSeconds = 60 
       if (!storageClient?.storage?.from) throw new HealthRecordError('Kho hồ sơ riêng tư chưa được cấu hình.', 503, 'HEALTH_RECORD_STORAGE_UNAVAILABLE');
       const record = await readRecord({ db, userId, recordId });
       if (!record) throw new HealthRecordError('Không tìm thấy hồ sơ xét nghiệm.', 404, 'HEALTH_RECORD_NOT_FOUND');
-      const path = `${userId}/${recordId}`;
+      const expectedSourceVersion = Number(record.file_source_version ?? 0);
+      if (!Number.isSafeInteger(expectedSourceVersion) || expectedSourceVersion < 0) throw new HealthRecordError('Không thể xác nhận phiên bản ảnh hiện tại.', 503, 'HEALTH_RECORD_SOURCE_VERSION_INVALID');
+      const path = `${userId}/${recordId}/${randomUUID()}`;
       const bucket = storageClient.storage.from(BUCKET);
-      const { error: uploadError } = await bucket.upload(path, bytes, { contentType: mimeType, cacheControl: '0', upsert: true });
-      if (uploadError) throw new HealthRecordError('Không lưu được ảnh hồ sơ riêng tư. Bạn có thể thử tải lại.', 503, 'HEALTH_RECORD_UPLOAD_FAILED');
-      const { error: attachError } = await db.rpc('attach_health_record_source', {
-        p_record_id: recordId, p_file_path: path, p_mime_type: mimeType, p_file_size: bytes.length,
-      });
+      const removePreviousSource = async previousPath => {
+        try {
+          const { data: removed, error: cleanupError } = await bucket.remove([previousPath]);
+          if (cleanupError || !Array.isArray(removed)) throw cleanupError || new Error('Storage removal response was ambiguous.');
+        } catch {
+          throw new HealthRecordError('Ảnh mới đã được gắn vào hồ sơ nhưng chưa xác nhận xóa ảnh cũ. Hãy thử lại sau.', 503, 'HEALTH_RECORD_PREVIOUS_SOURCE_CLEANUP_FAILED');
+        }
+        if (typeof storageClient.rpc === 'function') {
+          const { error: finishError } = await storageClient.rpc('finish_health_record_source_uploads', { p_file_paths: [previousPath] });
+          if (finishError) throw new HealthRecordError('Ảnh cũ đã được dọn; hệ thống sẽ hoàn tất việc ghi nhận sau.', 503, 'HEALTH_RECORD_PREVIOUS_SOURCE_CLEANUP_FAILED');
+        }
+      };
+      const stageUpload = async () => {
+        const payload = {
+          p_record_id: recordId,
+          p_expected_file_path: record.file_path,
+          p_expected_source_version: expectedSourceVersion,
+          p_file_path: path,
+        };
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          let result;
+          try { result = await db.rpc('begin_health_record_source_upload', payload); }
+          catch { continue; }
+          if (result?.error) {
+            if (isDefinitiveDatabaseError(result.error)) throw mapHealthRecordError(result.error);
+            continue;
+          }
+          if (result?.data === true) return;
+        }
+        throw new HealthRecordError('Chưa thể xác nhận yêu cầu tải ảnh. Hãy thử lại sau.', 503, 'HEALTH_RECORD_SOURCE_ATTACH_UNCERTAIN');
+      };
+      const cancelStagedPath = async () => {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          let cancelResult;
+          try {
+            cancelResult = await db.rpc('cancel_health_record_source_upload', {
+              p_record_id: recordId,
+              p_expected_file_path: record.file_path,
+              p_expected_source_version: expectedSourceVersion,
+              p_staged_file_path: path,
+            });
+          } catch { continue; }
+          if (cancelResult?.error) continue;
+          if (cancelResult?.data === true) return true;
+          const latest = await readRecord({ db, userId, recordId }).catch(() => null);
+          if (latest?.file_path === path) return false;
+        }
+        return false;
+      };
+      await stageUpload();
+      let uploadResult;
+      try {
+        uploadResult = await bucket.upload(path, bytes, { contentType: mimeType, cacheControl: '0', upsert: false });
+      } catch {
+        if (!await cancelStagedPath()) throw new HealthRecordError('Chưa xác định được trạng thái ảnh tải lên. Ảnh được giữ để hệ thống dọn an toàn; hãy thử lại sau.', 503, 'HEALTH_RECORD_SOURCE_ATTACH_UNCERTAIN');
+        throw new HealthRecordError('Không lưu được ảnh hồ sơ riêng tư. Bạn có thể thử tải lại.', 503, 'HEALTH_RECORD_UPLOAD_FAILED');
+      }
+      if (uploadResult?.error) {
+        if (!await cancelStagedPath()) throw new HealthRecordError('Chưa xác định được trạng thái ảnh tải lên. Ảnh được giữ để hệ thống dọn an toàn; hãy thử lại sau.', 503, 'HEALTH_RECORD_SOURCE_ATTACH_UNCERTAIN');
+        throw new HealthRecordError('Không lưu được ảnh hồ sơ riêng tư. Bạn có thể thử tải lại.', 503, 'HEALTH_RECORD_UPLOAD_FAILED');
+      }
+      const finishCommittedAttach = async () => {
+        if (record.file_path) {
+          await removePreviousSource(record.file_path);
+        }
+        return this.get({ db, userId, recordId });
+      };
+      const reconcileAmbiguousAttach = async () => {
+        const current = await readRecord({ db, userId, recordId }).catch(() => null);
+        if (current?.file_path === path) return finishCommittedAttach();
+        if (await cancelStagedPath()) throw new HealthRecordError('Ảnh chưa được gắn vào hồ sơ. Hệ thống sẽ dọn ảnh riêng tư sau khi xác nhận an toàn; hãy thử lại sau.', 503, 'HEALTH_RECORD_SOURCE_ATTACH_FAILED');
+        const latest = await readRecord({ db, userId, recordId }).catch(() => null);
+        if (latest?.file_path === path) return finishCommittedAttach();
+        throw new HealthRecordError('Chưa xác định được ảnh đã gắn vào hồ sơ hay chưa. Ảnh được giữ; bộ dọn nền sẽ xử lý khi an toàn.', 503, 'HEALTH_RECORD_SOURCE_ATTACH_UNCERTAIN');
+      };
+      let attachResult;
+      try {
+        attachResult = await db.rpc('replace_health_record_source', {
+          p_record_id: recordId, p_expected_file_path: record.file_path,
+          p_expected_source_version: expectedSourceVersion, p_file_path: path,
+          p_mime_type: mimeType, p_file_size: bytes.length,
+        });
+      } catch {
+        // The RPC may have committed despite its response being lost.
+        // Fence its captured source version before removing the staged object.
+        return reconcileAmbiguousAttach();
+      }
+      if (!attachResult || typeof attachResult !== 'object' || !('data' in attachResult || 'error' in attachResult)) {
+        return reconcileAmbiguousAttach();
+      }
+      const { data: previousPath, error: attachError } = attachResult || {};
       if (attachError) {
-        await bucket.remove([path]).catch(() => undefined);
+        if (!isDefinitiveDatabaseError(attachError)) return reconcileAmbiguousAttach();
+        if (!await cancelStagedPath()) return reconcileAmbiguousAttach();
         throw mapHealthRecordError(attachError);
+      }
+      if (previousPath !== record.file_path) return reconcileAmbiguousAttach();
+      if (typeof previousPath === 'string' && previousPath !== path) {
+        await removePreviousSource(previousPath);
       }
       return this.get({ db, userId, recordId });
     },
@@ -125,15 +312,30 @@ function createHealthRecordRepository({ storageClient, signedUrlTtlSeconds = 60 
 
     async delete({ db, userId, recordId }) {
       const record = await readRecord({ db, userId, recordId });
-      if (!record) return false;
-      if (record.file_path) {
-        if (!storageClient?.storage?.from) throw new HealthRecordError('Kho hồ sơ riêng tư chưa được cấu hình; hồ sơ chưa bị xóa.', 503, 'HEALTH_RECORD_STORAGE_UNAVAILABLE');
-        const { error } = await storageClient.storage.from(BUCKET).remove([record.file_path]);
-        if (error) throw new HealthRecordError('Không xóa được ảnh riêng tư; hồ sơ vẫn được giữ lại.', 503, 'HEALTH_RECORD_DELETE_FAILED');
+      if (!storageClient?.storage?.from) {
+        if (!record) return false;
+        throw new HealthRecordError('Kho hồ sơ riêng tư chưa được cấu hình; hồ sơ chưa bị xóa.', 503, 'HEALTH_RECORD_STORAGE_UNAVAILABLE');
       }
-      const { error } = await db.rpc('delete_health_record', { p_record_id: recordId });
-      if (error) throw mapHealthRecordError(error);
-      return true;
+      if (record) {
+        if (typeof storageClient.rpc !== 'function') throw new HealthRecordError('Xóa hồ sơ cần dịch vụ lưu trữ riêng tư đã được cấu hình.', 503, 'HEALTH_RECORD_STORAGE_UNAVAILABLE');
+        let deleteResult;
+        try {
+          deleteResult = await storageClient.rpc('delete_health_record', { p_record_id: recordId, p_user_id: userId });
+        } catch {
+          const current = await readRecord({ db, userId, recordId }).catch(() => undefined);
+          if (current !== null) throw new HealthRecordError('Chưa xác định được hồ sơ đã xóa hay chưa. Ảnh vẫn được giữ an toàn; hãy tải lại trước khi thử lại.', 503, 'HEALTH_RECORD_DELETE_UNCERTAIN');
+        }
+        if (deleteResult?.error) {
+          if (isDefinitiveDatabaseError(deleteResult.error) && deleteResult.error.code !== 'P0002') throw mapHealthRecordError(deleteResult.error);
+          const current = await readRecord({ db, userId, recordId }).catch(() => undefined);
+          if (current !== null) {
+            if (isDefinitiveDatabaseError(deleteResult.error)) throw mapHealthRecordError(deleteResult.error);
+            throw new HealthRecordError('Chưa xác định được hồ sơ đã xóa hay chưa. Ảnh vẫn được giữ an toàn; hãy tải lại trước khi thử lại.', 503, 'HEALTH_RECORD_DELETE_UNCERTAIN');
+          }
+        }
+      }
+      const removedCount = await removeRecordSources(storageClient.storage.from(BUCKET), storageClient, userId, recordId);
+      return Boolean(record) || removedCount > 0;
     },
   };
 }

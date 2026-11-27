@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { api } from '../../services/api';
 import CroppedReferenceImage from '../../shared/components/CroppedReferenceImage';
+import { suggestMealType } from './diary-meal-type.cjs';
 import { NUTRIENTS } from '../profile/profile-model.cjs';
 import { colors, radius } from '../../theme/tokens';
 
@@ -166,7 +167,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
   const [addStep, setAddStep] = useState('search');
   const [foodCategory, setFoodCategory] = useState('all');
   const [grams, setGrams] = useState('100');
-  const [mealType, setMealType] = useState('LUNCH');
+  const [mealType, setMealType] = useState(() => suggestMealType(Number(initialDateTime.time.slice(0, 2))));
   const [notes, setNotes] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [mutationLoading, setMutationLoading] = useState(false);
@@ -223,7 +224,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSelectedFoods([]);
     setPortionIndex(0);
     setGrams('100');
-    setMealType('LUNCH');
+    setMealType(suggestMealType(Number(time.slice(0, 2))));
     setNotes('');
     setMutationError('');
     setSuccessMessage('');
@@ -234,7 +235,7 @@ export default function DiaryScreen({ onTodayDataLoaded, onDiaryMutation }) {
     setSelectedFoods([]);
     setPortionIndex(0);
     setGrams('100');
-    setMealType('LUNCH');
+    setMealType(suggestMealType(Number(time.slice(0, 2))));
     setNotes('');
     setEditingId(null);
     setShowAddFood(false);

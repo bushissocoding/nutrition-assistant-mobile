@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Platform, Share, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Linking from 'expo-linking';
 import ConsentScreen from '../features/onboarding/ConsentScreen';
 import ProfileSetupScreen from '../features/onboarding/ProfileSetupScreen';
@@ -25,7 +26,7 @@ import { colors } from '../theme/tokens';
 import { bottomTabs, routes } from '../navigation/routes';
 import { hasUrgentRedFlags, validateProfile } from '../features/profile/profile-model.cjs';
 import { unregisterPushDevice } from '../services/push-notifications';
-import * as Notifications from 'expo-notifications';
+import * as Notifications from '../services/notifications';
 
 const emptyTotals = { energyKcal: 0, proteinG: 0, carbohydrateG: 0, fatG: 0, fiberG: 0, sodiumMg: 0 };
 
@@ -130,6 +131,7 @@ export default function AppShell() {
   }, [hydrateAccount]);
 
   useEffect(() => {
+    if (Platform.OS === 'web') return undefined;
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(() => {
       pendingNotificationOpen.current = true;
       if (authAccountId.current) setScreen('notifications');
@@ -152,11 +154,15 @@ export default function AppShell() {
         setTimeout(() => { if (authAccountId.current !== user.id) hydrateAccount(user); }, 0);
       }
     });
-    const link = Linking.addEventListener('url', ({ url }) => {
+    const completeCallback = url => {
+      if (!authService.isCallbackUrl(url)) return;
       authService.completeCallback(url).catch(error => setStorageError(error?.message || 'Liên kết xác thực không hợp lệ hoặc đã hết hạn.'));
+    };
+    const link = Linking.addEventListener('url', ({ url }) => {
+      completeCallback(url);
     });
     Linking.getInitialURL().then(url => {
-      if (url) authService.completeCallback(url).catch(error => setStorageError(error?.message || 'Liên kết xác thực không hợp lệ hoặc đã hết hạn.'));
+      if (url) completeCallback(url);
     }).catch(() => setStorageError('Không thể mở liên kết xác thực.'));
     return () => { unsubscribe?.(); link.remove(); };
   }, [clearAccountState, hydrateAccount]);

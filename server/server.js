@@ -19,6 +19,7 @@ const { createAssistantProvider } = require('./src/services/assistant-provider')
 const { createHealthRecordRepository } = require('./src/repositories/health-record-repository');
 const { createNotificationRepository } = require('./src/repositories/notification-repository');
 const { createPersonalizationRepository } = require('./src/repositories/personalization-repository');
+const { createHealthRecordSourceCleanupWorker } = require('./src/services/health-record-source-cleanup');
 
 const app = express();
 app.disable('x-powered-by');
@@ -49,6 +50,10 @@ let notificationRepository;
 let personalizationRepository;
 if (config.supabase) {
   const privilegedClient = createPrivilegedSupabaseClient({ settings: config.supabase });
+  createHealthRecordSourceCleanupWorker({
+    adminClient: privilegedClient,
+    onError: () => console.error(JSON.stringify({ event: 'health_record_source_cleanup_failed' })),
+  }).start();
   deleteAccount = createAccountDeletionService({ adminClient: privilegedClient });
   paymentRepository = createPaymentRepository({ privilegedClient });
   chatRepository = createChatRepository();

@@ -4,6 +4,7 @@ const { createHealthRecordRepository, HealthRecordError, MAX_SOURCE_BYTES } = re
 const { hasRequiredConsent, readCurrentConsent } = require('../services/consent');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const MAX_CONCURRENT_SOURCE_UPLOADS = 2;
 
 function asyncRoute(handler) {
   return (req, res) => Promise.resolve(handler(req, res)).catch(error => {
@@ -63,9 +64,33 @@ function createHealthRecordConsentMiddleware() {
   };
 }
 
-function createHealthRecordRouter({ repository = createHealthRecordRepository(), requireHealthRecordConsent = createHealthRecordConsentMiddleware() } = {}) {
+function createUploadConcurrencyMiddleware(limit) {
+  if (!Number.isSafeInteger(limit) || limit < 1) throw new TypeError('Concurrent upload limit must be a positive integer.');
+  let activeUploads = 0;
+  return function limitConcurrentUploads(_req, res, next) {
+    if (activeUploads >= limit) {
+      res.set('Retry-After', '1');
+      return res.status(503).json({ error: 'Đang xử lý ảnh khác. Hãy thử lại sau ít giây.', code: 'HEALTH_RECORD_UPLOAD_CAPACITY_REACHED' });
+    }
+    activeUploads += 1;
+    let released = false;
+    const release = () => {
+      if (released) return;
+      released = true;
+      activeUploads -= 1;
+      res.removeListener('finish', release);
+      res.removeListener('close', release);
+    };
+    res.once('finish', release);
+    res.once('close', release);
+    next();
+  };
+}
+
+function createHealthRecordRouter({ repository = createHealthRecordRepository(), requireHealthRecordConsent = createHealthRecordConsentMiddleware(), maxConcurrentUploads = MAX_CONCURRENT_SOURCE_UPLOADS } = {}) {
   const router = express.Router();
   const parseImage = express.raw({ type: 'application/octet-stream', limit: MAX_SOURCE_BYTES });
+  const limitConcurrentUploads = createUploadConcurrencyMiddleware(maxConcurrentUploads);
 
   router.get('/', asyncRoute(async (req, res) => res.json(await repository.list({ db: req.userDatabase, userId: req.auth.user.id, ...parsePage(req.query) }))));
 
@@ -83,7 +108,7 @@ function createHealthRecordRouter({ repository = createHealthRecordRepository(),
     return res.json({ source });
   }));
 
-  router.put('/:recordId/source', requireHealthRecordConsent, parseImage, asyncRoute(async (req, res) => {
+  router.put('/:recordId/source', requireHealthRecordConsent, limitConcurrentUploads, parseImage, asyncRoute(async (req, res) => {
     if (!UUID.test(req.params.recordId)) throw new HealthRecordError('Không tìm thấy hồ sơ xét nghiệm.', 404, 'HEALTH_RECORD_NOT_FOUND');
     if (!Buffer.isBuffer(req.body)) throw invalidInput('Ảnh tải lên không đúng định dạng.');
     const mimeType = req.get('X-Record-Content-Type');
@@ -113,4 +138,4 @@ function createHealthRecordRouter({ repository = createHealthRecordRepository(),
   return router;
 }
 
-module.exports = { UUID, asyncRoute, createHealthRecordConsentMiddleware, createHealthRecordRouter, normalizeRecordInput, parsePage };
+module.exports = { MAX_CONCURRENT_SOURCE_UPLOADS, UUID, asyncRoute, createHealthRecordConsentMiddleware, createHealthRecordRouter, createUploadConcurrencyMiddleware, normalizeRecordInput, parsePage };

@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from './secure-storage';
 import * as Linking from 'expo-linking';
 import { createAuthSessionStorage } from './auth-session-storage.cjs';
 import { createAuthService } from './auth-service.cjs';

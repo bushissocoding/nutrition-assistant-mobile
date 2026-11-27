@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import DiaryScreen from './DiaryScreen';
+import { suggestMealType } from './diary-meal-type.cjs';
 import { api } from '../../services/api';
 
 jest.mock('../../services/api', () => ({
@@ -43,6 +44,14 @@ beforeEach(() => {
 function renderDiary() {
   return render(<DiaryScreen />);
 }
+
+test.each([
+  [4, 'SNACK'], [5, 'BREAKFAST'], [10, 'BREAKFAST'], [11, 'LUNCH'],
+  [14, 'LUNCH'], [15, 'SNACK'], [16, 'SNACK'], [17, 'DINNER'],
+  [20, 'DINNER'], [21, 'SNACK'], [23, 'SNACK'],
+])('suggests the meal for local hour %i', (hour, expected) => {
+  expect(suggestMealType(hour)).toBe(expected);
+});
 
 async function press(screen, text) {
   await act(async () => {

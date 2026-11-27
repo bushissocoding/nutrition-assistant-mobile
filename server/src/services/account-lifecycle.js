@@ -1,17 +1,80 @@
 const { getProfile } = require('../repositories/profile-repository');
 const { toProfileDto } = require('./profile');
 
+const STORAGE_LIST_PAGE_SIZE = 100;
+
+async function removeStorageFiles(bucket, rootFolder) {
+  const pendingFolders = [{ folder: rootFolder, offset: 0, expectedRemovedChild: null }];
+  let consecutiveNoProgressRemovals = 0;
+  while (pendingFolders.length) {
+    const current = pendingFolders[pendingFolders.length - 1];
+    const { data, error } = await bucket.list(current.folder, { limit: STORAGE_LIST_PAGE_SIZE, offset: current.offset });
+    if (error || !Array.isArray(data)) throw new Error('Private health record files could not be listed.');
+
+    if (current.expectedRemovedChild) {
+      const childStillExists = data.some(entry => entry && `${current.folder}/${entry.name}` === current.expectedRemovedChild);
+      if (childStillExists) throw new Error('Private health record storage did not remove an empty folder.');
+      current.expectedRemovedChild = null;
+    }
+
+    if (!data.length) {
+      const emptiedFolder = current.folder;
+      pendingFolders.pop();
+      if (pendingFolders.length) {
+        const { data: removed, error: removeError } = await bucket.remove([emptiedFolder]);
+        if (removeError || !Array.isArray(removed)) throw new Error('Private health record folders could not be deleted.');
+        pendingFolders[pendingFolders.length - 1].expectedRemovedChild = emptiedFolder;
+      }
+      continue;
+    }
+
+    const filePaths = [];
+    let childFolder = null;
+    for (const entry of data) {
+      if (!entry || typeof entry.name !== 'string' || !entry.name || entry.name.includes('/') || entry.name.includes('\\') || entry.name === '.' || entry.name === '..') {
+        throw new Error('Private health record storage returned an invalid path.');
+      }
+      const path = `${current.folder}/${entry.name}`;
+      if (entry.id === null && entry.metadata == null) {
+        childFolder ||= path;
+      } else if (typeof entry.id === 'string' && entry.id.length > 0) {
+        filePaths.push(path);
+      } else {
+        throw new Error('Private health record storage returned an invalid entry.');
+      }
+    }
+
+    if (filePaths.length) {
+      const { data: removed, error: removeError } = await bucket.remove(filePaths);
+      if (removeError || !Array.isArray(removed)) throw new Error('Private health record files could not be deleted.');
+      if (removed.length === 0) {
+        consecutiveNoProgressRemovals += 1;
+        if (consecutiveNoProgressRemovals >= 2) throw new Error('Private health record storage made no progress during deletion.');
+      } else {
+        consecutiveNoProgressRemovals = 0;
+      }
+      current.offset = 0;
+      continue;
+    }
+
+    if (childFolder) {
+      pendingFolders.push({ folder: childFolder, offset: 0, expectedRemovedChild: null });
+      continue;
+    }
+
+    current.offset += data.length;
+    if (data.length < STORAGE_LIST_PAGE_SIZE) throw new Error('Private health record storage returned an unprocessable page.');
+  }
+}
+
 function createAccountDeletionService({ adminClient, deletionSteps = [] } = {}) {
   if (!Array.isArray(deletionSteps) || deletionSteps.some(step => typeof step !== 'function')) {
     throw new TypeError('Account deletion steps must be functions.');
   }
-  const healthRecordStorageCleanup = adminClient?.storage?.from ? async ({ userId, db }) => {
-    const { data: records, error } = await db.from('health_records').select('file_path').eq('user_id', userId);
-    if (error) throw error;
-    const paths = (records || []).map(record => record.file_path).filter(path => typeof path === 'string' && path.length > 0);
-    if (!paths.length) return;
-    const { error: storageError } = await adminClient.storage.from('health-record-images').remove(paths);
-    if (storageError) {
+  const healthRecordStorageCleanup = adminClient?.storage?.from ? async ({ userId }) => {
+    const bucket = adminClient.storage.from('health-record-images');
+    try { await removeStorageFiles(bucket, userId); }
+    catch {
       const failure = new Error('Private health record files could not be deleted.');
       failure.code = 'ACCOUNT_DELETE_UNAVAILABLE';
       throw failure;

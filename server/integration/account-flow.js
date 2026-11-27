@@ -248,6 +248,20 @@ async function runJourney() {
     ensure(typeof healthRecordId === 'string', 'first account health record create');
     ensure((await api.getMyHealthRecord(healthRecordId)).record?.id === healthRecordId, 'first account health record read');
 
+    stage = 'upload and replace private health record source';
+    const firstImage = Buffer.from([0xff, 0xd8, 0xff, 0x01, 0x02, 0x03, 0x04, 0x05]);
+    const firstUpload = await api.uploadMyHealthRecordSource(healthRecordId, firstImage, 'image/jpeg');
+    ensure(firstUpload.record?.source?.available === true, 'first health record source upload');
+    const oldSource = await api.getMyHealthRecordSource(healthRecordId);
+    ensure(typeof oldSource.source?.url === 'string', 'first health record source signed URL');
+    const secondImage = Buffer.from([0xff, 0xd8, 0xff, 0x06, 0x07, 0x08, 0x09, 0x0a]);
+    const replacementUpload = await api.uploadMyHealthRecordSource(healthRecordId, secondImage, 'image/jpeg');
+    ensure(replacementUpload.record?.source?.available === true, 'replacement health record source upload');
+    const oldSourceResponse = await fetch(oldSource.source.url);
+    ensure(!oldSourceResponse.ok, 'replaced health record image is no longer downloadable');
+    const replacementSource = await api.getMyHealthRecordSource(healthRecordId);
+    ensure(typeof replacementSource.source?.url === 'string', 'replacement health record source signed URL');
+
     stage = 'verify unconfigured providers fail explicitly';
     await api.saveMyAssistantConsent({ version: 'ai-assistant-processing-v1', accepted: true });
     await expectStatus(
@@ -285,13 +299,21 @@ async function runJourney() {
     ensure((await api.getMyHealthRecords()).items.length === 0, 'second account sees no first account health records');
     await expectStatus(() => api.getMyPantryItem(pantryId), 404, 'second account cannot read first account pantry item');
     await expectStatus(() => api.getMyHealthRecord(healthRecordId), 404, 'second account cannot read first account health record');
+    await expectStatus(() => api.getMyHealthRecordSource(healthRecordId), 404, 'second account cannot access first account health record source');
     const secondExport = await api.getMyAccountExport();
     ensure(secondExport.identity?.id === second.id && secondExport.profile?.username === profileB.username, 'second account export ownership');
     ensure(!secondExport.pantryItems?.some(item => item.id === pantryId), 'second account export excludes first account pantry');
     ensure(!secondExport.healthRecords?.some(record => record.id === healthRecordId), 'second account export excludes first account record');
 
-    stage = 'delete first account and retain second account';
+    stage = 'delete health record and its private source files';
     activeToken = first.token;
+    await api.deleteMyHealthRecord(healthRecordId);
+    await expectStatus(() => api.getMyHealthRecord(healthRecordId), 404, 'deleted health record is unavailable');
+    await expectStatus(() => api.getMyHealthRecordSource(healthRecordId), 404, 'deleted health record source is unavailable');
+    const deletedSourceResponse = await fetch(replacementSource.source.url);
+    ensure(!deletedSourceResponse.ok, 'deleted health record image is no longer downloadable');
+
+    stage = 'delete first account and retain second account';
     await api.deleteMyAccount();
     cleanupIds.delete(first.id);
     await expectStatus(() => api.getCurrentUser(), 401, 'deleted first account token is rejected');
