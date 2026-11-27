@@ -29,6 +29,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Set up npm
+        run: npm install --global npm@11.17.0
+
       - name: Install dependencies
         run: npm ci
 
@@ -68,10 +71,14 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
+      - name: Set up npm
+        run: npm install --global npm@11.17.0
+
       - name: Install dependencies
         run: npm ci
 
       - name: Set up Supabase CLI
+        id: setup_supabase_cli
         uses: supabase/setup-cli@v3
         with:
           version: 2.122.1
@@ -89,5 +96,5 @@ jobs:
         run: npm run test:supabase-api
 
       - name: Stop local Supabase stack
-        if: always()
+        if: always() && steps.setup_supabase_cli.outcome == 'success'
         run: supabase stop --no-backup
