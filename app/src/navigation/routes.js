@@ -5,6 +5,7 @@ export const routes = Object.freeze({
   diary: 'diary',
   dashboard: 'dashboard',
   profile: 'profile',
+  profilePaymentMethods: 'profile-payment-methods',
   appointments: 'appointments',
   appointmentList: 'appointments-list',
   chat: 'chat',

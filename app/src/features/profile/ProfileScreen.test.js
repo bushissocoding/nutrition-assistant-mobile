@@ -36,6 +36,15 @@ test('opens the personal details page from its menu row', () => {
   expect(screen.getByRole('button', { name: 'Cập nhật' })).toBeTruthy();
 });
 
+test('opens the profile payment methods screen from its menu row', () => {
+  const onNavigate = jest.fn();
+  const screen = render(<ProfileScreen profile={{ username: 'Khang' }} onNavigate={onNavigate} />);
+
+  fireEvent.press(screen.getByRole('button', { name: 'Phương thức thanh toán' }));
+
+  expect(onNavigate).toHaveBeenCalledWith('profile-payment-methods');
+});
+
 test('renders logout confirmation in a native modal above the app navigation', () => {
   const onExitDemo = jest.fn();
   const screen = render(<ProfileScreen profile={{ username: 'Khang' }} onExitDemo={onExitDemo} />);

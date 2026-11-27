@@ -10,6 +10,7 @@ import GroceryScreen from '../features/grocery/GroceryScreen';
 import HomeScreen from '../features/home/HomeScreen';
 import MealPlanScreen from '../features/meal-planning/MealPlanScreen';
 import ProfileScreen from '../features/profile/ProfileScreen';
+import PaymentMethodsScreen from '../features/profile/PaymentMethodsScreen';
 import WelcomeScreen from '../features/onboarding/WelcomeScreen';
 import LaunchScreen from '../features/onboarding/LaunchScreen';
 import AuthScreen from '../features/onboarding/AuthScreen';
@@ -67,7 +68,9 @@ export default function AppShell() {
   const [diaryHydrationVersion, setDiaryHydrationVersion] = useState(0);
   const [storageError, setStorageError] = useState('');
   const [medicalRecordReturn, setMedicalRecordReturn] = useState('profile');
+  const [profilePaymentReturn, setProfilePaymentReturn] = useState('profile');
   const [settingsReturn, setSettingsReturn] = useState('profile');
+  const [settingsPageReturn, setSettingsPageReturn] = useState('profile');
   const [personalizationReturn, setPersonalizationReturn] = useState('profile');
   const [appointmentReturn, setAppointmentReturn] = useState('home');
   const [chatContact, setChatContact] = useState(null);
@@ -377,8 +380,15 @@ export default function AppShell() {
   }
   function navigate(target) {
     if (target === 'medical-record') setMedicalRecordReturn(screen);
-    if (target === 'settings' || (target.startsWith('settings-') && !screen.startsWith('settings'))) setSettingsReturn(screen);
+    if (target === 'settings') {
+      setSettingsReturn(screen);
+      setSettingsPageReturn(screen);
+    } else if (target.startsWith('settings-')) {
+      if (!screen.startsWith('settings')) setSettingsReturn(screen);
+      setSettingsPageReturn(screen);
+    }
     if (target === 'personalization') setPersonalizationReturn(screen);
+    if (target === routes.profilePaymentMethods) setProfilePaymentReturn(screen);
     if (target === 'profile-setup') setProfileSetupReturn(screen);
     if (target === 'appointments' || target === 'appointments-list' || target === 'payment-methods' || target === 'provider-workspace') setAppointmentReturn(screen);
     if (target === 'grocery') setGroceryReturn(screen);
@@ -414,11 +424,12 @@ export default function AppShell() {
   else if (screen === 'diary') content = <DiaryScreen onTodayDataLoaded={updateTodayDiary} onDiaryMutation={() => setDiaryHydrationVersion(value => value + 1)} />;
   else if (screen === 'dashboard') content = <DashboardScreen profile={profile} diary={diary} diaryTotals={diaryTotals} diaryHasEntries={diaryHasEntries} diaryError={diaryHydrationError} diaryLoading={diaryLoading} onRetryDiary={() => setDiaryHydrationVersion(value => value + 1)} plan={plan} />;
   else if (screen === 'profile') content = <ProfileScreen profile={profile} account={account} onSaveProfile={persistProfile} onNavigate={navigate} onExitDemo={handleLogout} />;
+  else if (screen === routes.profilePaymentMethods) content = <PaymentMethodsScreen onBack={() => setScreen(profilePaymentReturn)} />;
   else if (screen === routes.chat) content = <ChatInboxScreen account={account} onOpenAssistant={openAssistantConversation} onOpenDoctorChat={contact => openDoctorConversation(contact, routes.chat)} />;
   else if (screen === routes.assistantChat) content = <ChatScreen account={account} onBack={() => setScreen(chatReturnScreen)} />;
   else if (screen === routes.doctorChat) content = <ChatScreen account={account} contact={chatContact} onBack={() => setScreen(chatReturnScreen)} />;
   else if (screen === 'notifications') content = <NotificationsScreen accountId={account?.id} onNavigate={navigate} />;
-  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} consentRecord={consentRecord} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(settingsReturn)} onReviewConsent={() => reviewConsent('settings-privacy')} onWithdrawConsent={withdrawConsentAndDelete} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
+  else if (screen.startsWith('settings')) content = <SettingsScreen screen={screen} account={account} phone={account?.phone} consentRecord={consentRecord} busy={authBusy} onNavigate={navigate} onBack={() => setScreen(screen === 'settings' ? settingsReturn : settingsPageReturn)} onReviewConsent={() => reviewConsent('settings-privacy')} onWithdrawConsent={withdrawConsentAndDelete} onForgotPassword={() => { setAuthReturn('settings-password'); setScreen('auth-forgot'); }} onUpdatePassword={handleAccountPasswordUpdate} onRequestPhoneLink={handlePhoneLink} onVerifyPhoneLink={handlePhoneVerify} onExportAccount={handleAccountExport} onDeleteAccount={handleAccountDelete} />;
   else if (screen === 'appointments' || screen === 'appointments-list' || screen === 'payment-methods' || screen === 'provider-workspace') content = <AppointmentScreen initialView={screen} account={account} onOpenDoctorChat={appointment => openDoctorConversation({ id: appointment.providerId, role: appointment.chatCounterpartyRole || 'provider', name: appointment.chatCounterpartyName || appointment.provider?.name || 'Nhà cung cấp', appointmentId: appointment.id }, screen)} onNavigate={navigate} onBack={() => setScreen(appointmentReturn)} />;
   else if (screen === 'medical-record') content = <MedicalRecordScreen profile={profile} account={account} onBack={() => setScreen(medicalRecordReturn)} onNavigate={navigate} />;
   else if (screen === 'personalization') content = <PersonalizationScreen profile={profile} healthRecordConsent={consentRecord?.choices?.health_record_storage === true} onEnableHealthRecordStorage={enableHealthRecordStorage} onBack={() => setScreen(personalizationReturn)} onEditProfile={() => openProfileSetup('personalization')} onOpenMedicalRecord={() => { setMedicalRecordReturn('personalization'); setScreen('medical-record'); }} />;
@@ -427,7 +438,7 @@ export default function AppShell() {
   const topPaddingSurface = getTopPaddingSurface(screen);
   return <SafeAreaView testID="app-safe-area" style={[styles.safe, { backgroundColor: topPaddingSurface }]}><StatusBar barStyle={screen === 'settings-help' ? 'light-content' : 'dark-content'} /><View testID="app-page-content" style={[styles.pageContent, { backgroundColor: topPaddingSurface }]}>{content}</View>
     {!!storageError && <Text style={styles.storageError}>{storageError}</Text>}
-    {!['assistant-chat', 'doctor-chat', 'planner'].includes(screen) && <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
+    {!['assistant-chat', 'doctor-chat', 'planner', routes.profilePaymentMethods].includes(screen) && <View accessibilityRole="tablist" style={styles.nav}>{bottomTabs.map(tab => {
       const selected = screen === tab.key
         || (tab.key === 'profile' && (screen.startsWith('settings') || ['medical-record', 'personalization', 'profile-setup'].includes(screen)));
       return <TouchableOpacity

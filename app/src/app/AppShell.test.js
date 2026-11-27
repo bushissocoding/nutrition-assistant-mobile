@@ -51,7 +51,11 @@ jest.mock('../features/home/HomeScreen', () => {
 });
 jest.mock('../features/profile/ProfileScreen', () => {
   const RN = require('react-native');
-  return function MockProfile({ account, profile, onExitDemo, onSaveProfile }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable><RN.Pressable onPress={() => onSaveProfile({ ...profile, username: 'Khang Updated', age: 17 })}><RN.Text>Save personal details</RN.Text></RN.Pressable></>; };
+  return function MockProfile({ account, profile, onExitDemo, onSaveProfile, onNavigate }) { return <><RN.Text>{account?.email}</RN.Text><RN.Pressable onPress={onExitDemo}><RN.Text>Sign out</RN.Text></RN.Pressable><RN.Pressable onPress={() => onSaveProfile({ ...profile, username: 'Khang Updated', age: 17 })}><RN.Text>Save personal details</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('settings')}><RN.Text>Open account settings</RN.Text></RN.Pressable><RN.Pressable onPress={() => onNavigate('profile-payment-methods')}><RN.Text>Open payment methods</RN.Text></RN.Pressable></>; };
+});
+jest.mock('../features/profile/PaymentMethodsScreen', () => {
+  const RN = require('react-native');
+  return function MockPaymentMethods({ onBack }) { return <><RN.Text>Profile payment methods mock</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Payment methods back</RN.Text></RN.Pressable></>; };
 });
 jest.mock('../features/chat/ChatScreen', () => {
   const RN = require('react-native');
@@ -64,7 +68,11 @@ jest.mock('../features/chat/ChatInboxScreen', () => {
 jest.mock('../features/notifications/NotificationsScreen', () => ({ __esModule: true, default: () => null }));
 jest.mock('../features/settings/SettingsScreen', () => {
   const RN = require('react-native');
-  return function MockSettings({ screen, onBack }) { return screen === 'settings-help' ? <><RN.Text>Support center mock</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Close help center</RN.Text></RN.Pressable></> : null; };
+  return function MockSettings({ screen, onBack, onNavigate }) {
+    if (screen === 'settings-help') return <><RN.Text>Support center mock</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Close help center</RN.Text></RN.Pressable></>;
+    if (screen === 'settings') return <><RN.Text>Account settings mock</RN.Text><RN.Pressable onPress={() => onNavigate('settings-password')}><RN.Text>Open password settings</RN.Text></RN.Pressable><RN.Pressable onPress={onBack}><RN.Text>Settings root back</RN.Text></RN.Pressable></>;
+    return <><RN.Text>Password settings mock</RN.Text><RN.Pressable onPress={onBack}><RN.Text>Settings subpage back</RN.Text></RN.Pressable></>;
+  };
 });
 jest.mock('../features/appointments/AppointmentScreen', () => {
   const RN = require('react-native');
@@ -146,6 +154,36 @@ test('saves personal profile edits through the account profile API', async () =>
   await press(screen, 'Save personal details');
 
   await waitFor(() => expect(api.saveMyProfile).toHaveBeenCalledWith(expect.objectContaining({ username: 'Khang Updated', age: 17 })));
+});
+
+test('settings subpages return to Settings, then Settings returns to the opening screen', async () => {
+  const screen = render(<AppShell />);
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+
+  await press(screen, 'Open profile');
+  await press(screen, 'Open account settings');
+  expect(screen.getByText('Account settings mock')).toBeTruthy();
+
+  await press(screen, 'Open password settings');
+  expect(screen.getByText('Password settings mock')).toBeTruthy();
+  await press(screen, 'Settings subpage back');
+  expect(screen.getByText('Account settings mock')).toBeTruthy();
+
+  await press(screen, 'Settings root back');
+  expect(screen.getByText('user@example.test')).toBeTruthy();
+});
+
+test('profile payment methods open their dedicated screen and return to Profile', async () => {
+  const screen = render(<AppShell />);
+  await waitFor(() => expect(screen.getByText('Account Home')).toBeTruthy());
+
+  await press(screen, 'Open profile');
+  await press(screen, 'Open payment methods');
+  expect(screen.getByText('Profile payment methods mock')).toBeTruthy();
+  expect(screen.queryAllByRole('tab')).toHaveLength(0);
+
+  await press(screen, 'Payment methods back');
+  expect(screen.getByText('user@example.test')).toBeTruthy();
 });
 
 test('the last bottom tab opens the weekly report dashboard', async () => {
