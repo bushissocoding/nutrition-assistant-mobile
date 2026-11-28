@@ -31,7 +31,7 @@ Current execution status is tracked in [`plan-full-app.md`](plan-full-app.md); m
   - Acceptance: Owner and role policies are versioned; demo namespace routes remain unavailable in production; static migration contract tests exist. Live RLS remains dependent on a Supabase runtime.
   - Verify: `npm run test:unit`, `npm run test:api`; `npx supabase db reset` when the CLI and Docker are available.
   - Files: `supabase/migrations/`, server demo gates, tests and operations docs.
-- [x] Checkpoint: Public `/api/v1` nutrition contracts remain compatible; unauthenticated private routes fail closed. Live database isolation still requires external execution.
+- [x] Checkpoint: Public `/api/v1` nutrition contracts remain compatible; unauthenticated private routes fail closed. Local Supabase RLS and the authenticated API journey pass in CI; staging/production project isolation still requires remote verification.
 
 ## Phase 2 — Identity/profile; Phase 3 — nutrition/tracking; Phase 4 — care/payment; Phase 5 — chat/records/notifications; Phase 6 — release
 
@@ -44,10 +44,10 @@ Current execution status is tracked in [`plan-full-app.md`](plan-full-app.md); m
 
 See [`supabase-ci-integration.md`](supabase-ci-integration.md) and [`SPEC-delta-supabase-ci-rls-v1.md`](../spec/SPEC-delta-supabase-ci-rls-v1.md).
 
-- [ ] Run the migration and pgTAP suite against Supabase local from GitHub Actions; local Docker/Supabase CLI are unavailable in the current environment.
+- [x] Run the migrations and pgTAP suite against local Supabase from GitHub Actions; run #30 passed on commit `9b97d12` on 2026-11-27 ([CI run #30](https://github.com/bushissocoding/nutrition-assistant-mobile/actions/runs/46045498372)).
 
 ## Phase 8 — Authenticated API end-to-end
 
 See [`authenticated-api-e2e.md`](authenticated-api-e2e.md) and [`SPEC-delta-authenticated-api-e2e-v1.md`](../spec/SPEC-delta-authenticated-api-e2e-v1.md).
 
-- [ ] Confirm the first hosted run of the real-auth API journey against local Supabase passes; local Docker/Supabase CLI runtime prerequisites are unavailable in the current environment.
+- [x] Confirm the hosted real-auth API journey against local Supabase passes; run #30 passed on commit `9b97d12` on 2026-11-27 ([CI run #30](https://github.com/bushissocoding/nutrition-assistant-mobile/actions/runs/46045498372)).
